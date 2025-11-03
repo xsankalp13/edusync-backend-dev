@@ -1,0 +1,15 @@
+package com.project.edusync.uis.model.enums;
+
+
+public enum Ethnicity {
+    ASIAN,
+    BLACK,
+    HISPANIC_OR_LATINO,
+    WHITE,
+    MIDDLE_EASTERN_OR_NORTH_AFRICAN,
+    NATIVE_AMERICAN_OR_ALASKAN_NATIVE,
+    NATIVE_HAWAIIAN_OR_OTHER_PACIFIC_ISLANDER,
+    TWO_OR_MORE_RACES,
+    OTHER,
+    PREFER_NOT_TO_SAY
+}

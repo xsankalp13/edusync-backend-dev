@@ -1,0 +1,125 @@
+# ===================================================================
+# DEFAULT SPRING BOOT CONFIGURATION (Applies to ALL profiles)
+# ===================================================================
+server:
+  port: 8080 # The port your application will run on
+
+spring:
+  # --- Default Profile ---
+  profiles:
+    active: dev # By default, run in 'dev' mode.
+    # In production, you will override this with -Dspring.profiles.active=prod
+
+  # --- JPA / Hibernate Common Settings ---
+  jpa:
+    open-in-view: false # Important for performance; prevents lazy-loading exceptions
+    properties:
+      hibernate:
+        jdbc:
+          batch_size: 20 # Enables JDBC batch inserts/updates
+        id:
+          new_generator_mappings: true # Use modern ID generators
+
+  # --- OpenAPI (Swagger) Documentation ---
+  springdoc:
+    api-docs:
+      path: /v3/api-docs
+    swagger-ui:
+      path: /swagger-ui.html
+      disable-swagger-default-url: true
+    info:
+      title: "EduSync.ai API"
+      version: "1.0.0"
+      description: "API Documentation for the EduSync.ai Monolithic MVP"
+
+# ===================================================================
+# APPLICATION-SPECIFIC PROPERTIES (Your custom config)
+# ===================================================================
+app:
+  jwt:
+    # This is a critical security setting.
+    # It reads your JWT secret from an environment variable.
+    # NEVER hardcode this value.
+    secret-key: ${JWT_SECRET_KEY}
+
+---
+# ===================================================================
+# DEVELOPMENT PROFILE (Active when 'spring.profiles.active=dev')
+# ===================================================================
+spring:
+  config:
+    activate:
+      on-profile: dev
+
+  # --- NeonDB Datasource Configuration (for Dev) ---
+  datasource:
+    driver-class-name: org.postgresql.Driver
+
+    # --- THIS IS THE 3-VARIABLE CONFIG ---
+    url: ${NEON_DB_URL}
+    username: ${NEON_DB_USER}
+    password: ${NEON_DB_PASS}
+
+    # --- THIS IS THE 30-SECOND TIMEOUT FIX ---
+    type: com.zaxxer.hikari.HikariDataSource
+    hikari:
+      connection-timeout: 30000
+
+  # --- JPA / Hibernate Settings (for Dev) ---
+  jpa:
+    hibernate:
+      ddl-auto: update
+    show-sql: true
+    properties:
+      hibernate:
+        format_sql: true
+
+  # --- Logging (for Dev) ---
+  logging:
+    level:
+      root: INFO
+      com.project.edusync: DEBUG
+      org.hibernate.SQL: DEBUG
+---
+
+# ===================================================================
+# PRODUCTION PROFILE (Active when 'spring.profiles.active=prod')
+# ===================================================================
+spring:
+  config:
+    activate:
+      on-profile: prod
+
+  # --- NeonDB Datasource Configuration (for Prod) ---
+  datasource:
+    driver-class-name: org.postgresql.Driver
+    # Production uses separate, secure environment variables
+    # This is the best practice for a live server.
+    url: ${NEON_DB_URL}           # e.g., jdbc:postgresql://prod-host.neon.tech/neondb?sslmode=require
+    username: ${NEON_DB_USER}       # The production database user
+    password: ${NEON_DB_PASS}       # The production database password
+
+    # We also add connection pooling settings for production performance
+    type: com.zaxxer.hikari.HikariDataSource
+    hikari:
+      maximum-pool-size: 10
+      minimum-idle: 2
+      idle-timeout: 30000
+
+  # --- JPA / Hibernate Settings (for Prod) ---
+  jpa:
+    show-sql: false # Do not log SQL queries to the console in production
+    properties:
+      hibernate:
+        format_sql: false
+    hibernate:
+      ddl-auto: validate # CRITICAL: In production, we 'validate' the schema.
+        # This confirms the app and DB match, but NEVER changes anything.
+        # You MUST use a migration tool like Flyway or Liquibase for
+      # production schema changes.
+
+  # --- Logging (for Prod) ---
+  logging:
+    level:
+      root: INFO # Only log INFO and higher (WARN, ERROR)
+      com.project.edusync: INFO
