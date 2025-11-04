@@ -10,7 +10,7 @@ spring:
   # --- JPA / Hibernate Common Settings ---
   jpa:
     hibernate:
-      ddl-auto: create # Set in default, can be overridden by 'prod'
+      ddl-auto: update # Set in default, can be overridden by 'prod'
     show-sql: true       # Set in default, can be overridden by 'prod'
     properties:
       hibernate:
