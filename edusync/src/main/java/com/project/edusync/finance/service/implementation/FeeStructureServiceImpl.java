@@ -3,7 +3,7 @@ package com.project.edusync.finance.service.implementation;
 import com.project.edusync.finance.dto.feestructure.FeeParticularCreateDTO;
 import com.project.edusync.finance.dto.feestructure.FeeStructureCreateDTO;
 import com.project.edusync.finance.dto.feestructure.FeeStructureResponseDTO;
-import com.project.edusync.finance.exception.FeeTypeNotFoundException;
+import com.project.edusync.common.exception.finance.FeeTypeNotFoundException;
 import com.project.edusync.finance.mapper.FeeStructureMapper;
 import com.project.edusync.finance.model.entity.FeeParticular;
 import com.project.edusync.finance.model.entity.FeeStructure;
@@ -13,6 +13,7 @@ import com.project.edusync.finance.repository.FeeStructureRepository;
 import com.project.edusync.finance.repository.FeeTypeRepository;
 import com.project.edusync.finance.service.FeeStructureService;
 import lombok.RequiredArgsConstructor;
+import org.modelmapper.ModelMapper;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -29,46 +30,39 @@ public class FeeStructureServiceImpl implements FeeStructureService {
     private final FeeParticularRepository feeParticularRepository;
     private final FeeTypeRepository feeTypeRepository;
     private final FeeStructureMapper feeStructureMapper;
+    private final ModelMapper modelMapper;
 
     @Override
     @Transactional
     public FeeStructureResponseDTO createFeeStructure(FeeStructureCreateDTO createDTO) {
 
-        // 1. Map and save the parent FeeStructure
-        FeeStructure feeStructure = new FeeStructure();
-        feeStructure.setName(createDTO.getName());
-        feeStructure.setAcademicYear(createDTO.getAcademicYear());
-        feeStructure.setDescription(createDTO.getDescription());
-        feeStructure.setActive(createDTO.isActive());
+        // 1. Use ModelMapper to map DTO to entity
+        // This replaces 4 manual 'set' calls
+        FeeStructure feeStructure = modelMapper.map(createDTO, FeeStructure.class);
 
         FeeStructure savedStructure = feeStructureRepository.save(feeStructure);
 
         List<FeeParticular> savedParticulars = new ArrayList<>();
 
-        // 2. Iterate and save each child FeeParticular
         if (createDTO.getParticulars() != null && !createDTO.getParticulars().isEmpty()) {
             for (FeeParticularCreateDTO particularDTO : createDTO.getParticulars()) {
-                Long feeTypeId = particularDTO.getFeeTypeId();
-                // 2a. Find the referenced FeeType
+
+                Long particularId = particularDTO.getFeeTypeId();
                 FeeType feeType = feeTypeRepository.findById(particularDTO.getFeeTypeId())
-                        .orElseThrow(() -> new FeeTypeNotFoundException("FeeType not found with id: " + feeTypeId));
+                        .orElseThrow(() -> new FeeTypeNotFoundException("particular not for the Id: " + particularId));
 
-                // 2b. Map DTO to entity
-                FeeParticular particular = new FeeParticular();
-                particular.setName(particularDTO.getName());
-                particular.setAmount(particularDTO.getAmount());
-                particular.setFrequency(particularDTO.getFrequency());
+                // 2. Use ModelMapper to map the nested DTO
+                FeeParticular particular = modelMapper.map(particularDTO, FeeParticular.class);
 
-                // 2c. Set relationships
+                // 3. Manually set the complex relationships
                 particular.setFeeType(feeType);
-                particular.setFeeStructure(savedStructure); // Link to parent
+                particular.setFeeStructure(savedStructure);
 
-                // 2d. Save the particular
                 savedParticulars.add(feeParticularRepository.save(particular));
             }
         }
 
-        // 3. Map the saved entities to the response DTO
+        // 3. Use our dedicated mapper for the response
         return feeStructureMapper.toDto(savedStructure, savedParticulars);
     }
 

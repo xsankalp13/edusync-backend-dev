@@ -4,6 +4,7 @@ import jakarta.persistence.*;
 import lombok.AllArgsConstructor;
 import lombok.Data;
 import lombok.NoArgsConstructor;
+import org.hibernate.annotations.ColumnDefault;
 
 @Data
 @NoArgsConstructor
@@ -45,4 +46,7 @@ public class FeeType {
     @Column(name = "description", length = 255)
     private String description;
 
+    @Column(name="is_active)", nullable = false)
+    @ColumnDefault("true")
+    private Boolean isActive;
 }

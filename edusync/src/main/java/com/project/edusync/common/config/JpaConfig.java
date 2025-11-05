@@ -1,5 +1,6 @@
 package com.project.edusync.common.config;
 
+import org.modelmapper.ModelMapper;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.data.domain.AuditorAware;
@@ -20,6 +21,15 @@ public class JpaConfig {
     @Bean
     public AuditorAware<String> auditorAware() {
         return new AuditorAwareImpl();
+    }
+
+    /**
+     * Makes ModelMapper available for injection
+     * across the application.
+     */
+    @Bean
+    public ModelMapper modelMapper() {
+        return new ModelMapper();
     }
 
     static class AuditorAwareImpl implements AuditorAware<String> {
