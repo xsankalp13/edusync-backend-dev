@@ -82,4 +82,12 @@ public class AcademicClassController {
         SectionResponseDto createdSection = academicClassService.addSectionToClass(classId, requestDto);
         return new ResponseEntity<>(createdSection, HttpStatus.CREATED);
     }
+
+    @GetMapping("/classes/{classId}/sections")
+    public ResponseEntity<Set<SectionResponseDto>> getAllSectionsForClass(
+            @PathVariable UUID classId) {
+
+        Set<SectionResponseDto> sections = academicClassService.getAllSectionsForClass(classId);
+        return ResponseEntity.ok(sections);
+    }
 }

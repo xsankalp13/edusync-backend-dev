@@ -8,6 +8,7 @@ import com.project.edusync.adm.model.entity.Section;
 import jakarta.transaction.Transactional;
 
 import java.util.List;
+import java.util.Set;
 import java.util.UUID;
 
 public interface AcademicClassService {
@@ -23,4 +24,6 @@ public interface AcademicClassService {
     void deleteClass(UUID classId);
 
     SectionResponseDto addSectionToClass(UUID classId, SectionRequestDto sectionRequestDto);
+
+    Set<SectionResponseDto> getAllSectionsForClass(UUID classId);
 }

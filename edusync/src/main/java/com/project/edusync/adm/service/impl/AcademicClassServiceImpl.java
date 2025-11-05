@@ -107,6 +107,19 @@ public class AcademicClassServiceImpl implements AcademicClassService {
         return toSectionResponseDto(savedSection);
     }
 
+    @Override
+    public Set<SectionResponseDto> getAllSectionsForClass(UUID classId) {
+        log.info("Fetching all sections for class id: {}", classId);
+        AcademicClass parentClass = academicClassRepository.findById(classId)
+                .orElseThrow(() -> {
+                    log.warn("No class with id {} found", classId);
+                    return new RuntimeException("no class found");
+                });
+        return parentClass.getSections().stream()
+                .map(this::toSectionResponseDto) // Use private helper
+                .collect(Collectors.toSet());
+    }
+
     private AcademicClassResponseDto toClassResponseDto(AcademicClass entity) {
         if (entity == null) return null;
         return AcademicClassResponseDto.builder()
