@@ -30,11 +30,19 @@ public interface InvoiceService {
     Page<InvoiceResponseDTO> getAllInvoices(Pageable pageable);
 
     /**
-     * NEW METHOD: Retrieves a single invoice by its ID.
+     * Retrieves a single invoice by its ID.
      *
      * @param invoiceId The ID of the invoice.
      * @return The response DTO of the found invoice.
      */
     InvoiceResponseDTO getInvoiceById(Long invoiceId);
+
+    /**
+     * Generates a PDF receipt for a fully paid invoice.
+     *
+     * @param invoiceId The ID of the invoice.
+     * @return A byte array (byte[]) of the generated PDF.
+     */
+    byte[] getInvoiceReceipt(Long invoiceId);
     // We will add other methods like generate-bulk, get, etc., here later.
 }

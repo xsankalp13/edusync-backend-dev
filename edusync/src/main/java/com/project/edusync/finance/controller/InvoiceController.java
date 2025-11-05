@@ -5,7 +5,9 @@ import com.project.edusync.finance.service.InvoiceService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
+import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
+import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
@@ -50,6 +52,26 @@ public class InvoiceController {
 
         InvoiceResponseDTO response = invoiceService.getInvoiceById(invoiceId);
         return new ResponseEntity<>(response, HttpStatus.OK);
+    }
+
+    /**
+     * GET /api/v1/finance/invoices/{invoiceId}/receipt
+     * Downloads a PDF receipt for a fully paid invoice.
+     */
+    @GetMapping("/{invoiceId}/receipt")
+    public ResponseEntity<byte[]> getInvoiceReceipt(@PathVariable Long invoiceId) {
+
+        byte[] pdfBytes = invoiceService.getInvoiceReceipt(invoiceId);
+
+        String filename = "receipt-" + invoiceId + ".pdf";
+
+        // Set headers to trigger browser download
+        HttpHeaders headers = new HttpHeaders();
+        headers.setContentType(MediaType.APPLICATION_PDF);
+        headers.setContentDispositionFormData("attachment", filename);
+        headers.setContentLength(pdfBytes.length);
+
+        return new ResponseEntity<>(pdfBytes, headers, HttpStatus.OK);
     }
 
 }

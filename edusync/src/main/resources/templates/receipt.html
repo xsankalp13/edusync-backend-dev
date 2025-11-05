@@ -1,0 +1,310 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org">
+<head>
+    <meta charset="UTF-8" />
+    <title>Fee Receipt</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            font-size: 10pt;
+            color: #333;
+            margin: 0;
+            padding: 0;
+        }
+        .container {
+            width: 700px;
+            margin: 20px auto;
+            border: 1px solid #ccc;
+            padding: 20px;
+        }
+        .header {
+            text-align: center;
+            border-bottom: 2px solid #000;
+            padding-bottom: 10px;
+            margin-bottom: 10px;
+            overflow: auto; /* To clear float */
+        }
+        .header img {
+            float: left;
+            height: 80px;
+        }
+        .school-info {
+            float: left;
+            margin-left: 20px;
+            text-align: left;
+        }
+        .school-info h1 {
+            margin: 0;
+            font-size: 18pt;
+            font-weight: bold;
+        }
+        .school-info p {
+            margin: 5px 0 0;
+            font-size: 10pt;
+        }
+        .receipt-title {
+            text-align: center;
+            font-size: 14pt;
+            font-weight: bold;
+            letter-spacing: 2px;
+            background-color: #eee;
+            padding: 5px;
+            margin: 15px 0;
+        }
+        .info-grid {
+            overflow: auto;
+            margin-bottom: 15px;
+        }
+        .info-col {
+            float: left;
+            width: 48%;
+        }
+        .info-table {
+            width: 100%;
+            border-collapse: collapse;
+        }
+        .info-table td {
+            padding: 4px 2px;
+        }
+        .info-table td:first-child {
+            font-weight: bold;
+            width: 100px;
+        }
+        .info-table td:nth-child(2) {
+            width: 10px;
+        }
+
+        table.line-items {
+            width: 100%;
+            border-collapse: collapse;
+            margin-bottom: 15px;
+            border-top: 2px solid #000;
+            border-bottom: 2px solid #000;
+        }
+        table.line-items th, table.line-items td {
+            border-bottom: 1px solid #ccc;
+            padding: 8px 5px;
+            text-align: left;
+        }
+        table.line-items th {
+            background-color: #f4f4f4;
+            font-weight: bold;
+        }
+        table.line-items td.num {
+            text-align: right;
+        }
+        table.line-items th.num {
+            text-align: right;
+        }
+
+        .pay-mode-title {
+            text-align: center;
+            font-weight: bold;
+            background-color: #eee;
+            padding: 5px;
+            margin: 15px 0;
+        }
+        .pay-grid {
+            overflow: auto;
+            margin-bottom: 15px;
+            border-bottom: 1px solid #ccc;
+            padding-bottom: 10px;
+        }
+        .pay-col {
+            float: left;
+            width: 48%;
+        }
+        .pay-table {
+            width: 100%;
+        }
+        .pay-table td {
+            padding: 4px 2px;
+        }
+        .pay-table td:first-child {
+            font-weight: bold;
+            width: 80px;
+        }
+        .total-summary {
+            overflow: auto; /* clear floats */
+            font-weight: bold;
+            font-size: 11pt;
+            padding: 10px 5px;
+        }
+        .total-label {
+            float: left;
+        }
+        .total-value {
+            float: right;
+        }
+        .total-in-words {
+            font-weight: bold;
+            padding: 10px 5px;
+            border-top: 2px solid #000;
+            border-bottom: 1px solid #ccc;
+            margin-top: 10px;
+        }
+        .footer {
+            overflow: auto; /* clear floats */
+            margin-top: 20px;
+            font-size: 9pt;
+        }
+        .footer-qr {
+            float: left;
+            width: 100px;
+        }
+        .footer-qr img {
+            width: 100px;
+            height: 100px;
+        }
+        .footer-text {
+            float: left;
+            margin-left: 20px;
+        }
+        .footer-signature {
+            float: right;
+            text-align: center;
+            margin-top: 40px;
+            font-style: italic;
+        }
+    </style>
+</head>
+<body>
+<div class="container">
+
+    <div class="header">
+        <img th:src="${schoolLogoBase64}" alt="School Logo" />
+        <div class="school-info">
+            <h1>Delhi Public School</h1>
+            <p>Site No.1, Sector-45, Urban Estate, Gurgaon, Haryana</p>
+        </div>
+    </div>
+
+    <div class="receipt-title">FEE RECEIPT</div>
+
+    <div class="info-grid">
+        <div class="info-col" style="margin-right: 4%;">
+            <table class="info-table">
+                <tr>
+                    <td>Receipt No</td>
+                    <td>:</td>
+                    <td th:text="${receiptNo}">43358</td>
+                </tr>
+                <tr>
+                    <td>Adm No</td>
+                    <td>:</td>
+                    <td th:text="${admissionNumber}">140516</td>
+                </tr>
+                <tr>
+                    <td>Name</td>
+                    <td>:</td>
+                    <td th:text="${studentName}">SAMARTH SHARMA BHARDWAJ</td>
+                </tr>
+                <tr>
+                    <td>Installment</td>
+                    <td>:</td>
+                    <td th:text="${installmentName}">JULY-SEP</td>
+                </tr>
+            </table>
+        </div>
+        <div class="info-col">
+            <table class="info-table">
+                <tr>
+                    <td>Date</td>
+                    <td>:</td>
+                    <td th:text="${paymentDate}">14/07/2016</td>
+                </tr>
+                <tr>
+                    <td>Session</td>
+                    <td>:</td>
+                    <td th:text="${session}">2016-2017</td>
+                </tr>
+                <tr>
+                    <td>Class</td>
+                    <td>:</td>
+                    <td th:text="${className}">6 - B</td>
+                </tr>
+                <tr>
+                    <td>CounterNo</td>
+                    <td>:</td>
+                    <td th:text="${counterNo}">DPS-RECEIPT</td>
+                </tr>
+            </table>
+        </div>
+    </div>
+
+    <table class="line-items">
+        <thead>
+        <tr>
+            <th style="width: 30px;">Sl.No</th>
+            <th>Description</th>
+            <th class="num" style="width: 80px;">Due</th>
+            <th class="num" style="width: 50px;">Con</th>
+            <th class="num" style="width: 80px;">Paid</th>
+        </tr>
+        </thead>
+        <tbody>
+        <tr th:each="item, iterStat : ${lineItems}">
+            <td th:text="${iterStat.count}">1</td>
+            <td th:text="${item.description}">Admission Fee</td>
+            <td class="num" th:text="${#numbers.formatDecimal(item.amount, 1, 'COMMA', 2, 'POINT')}">65000.00</td>
+            <td class="num">0.00</td>
+            <td class="num" th:text="${#numbers.formatDecimal(item.amount, 1, 'COMMA', 2, 'POINT')}">65000.00</td>
+        </tr>
+        </tbody>
+    </table>
+
+    <div class="pay-mode-title">PAY MODE INFORMATION</div>
+
+    <div class="pay-grid">
+        <div class="pay-col" style="margin-right: 4%;">
+            <table class="pay-table">
+                <tr>
+                    <td>Pay Mode</td>
+                    <td th:text="${payMode}">Cheque</td>
+                </tr>
+                <tr>
+                    <td>Bank</td>
+                    <td th:text="${bankName}">HDFC BANK</td>
+                </tr>
+            </table>
+        </div>
+        <div class="pay-col">
+            <table class="pay-table">
+                <tr>
+                    <td>Date</td>
+                    <td th:text="${paymentDate}">15/07/2016</td>
+                </tr>
+                <tr>
+                    <td>Number</td>
+                    <td th:text="${paymentNumber}">689870,06,07</td>
+                </tr>
+            </table>
+        </div>
+    </div>
+
+    <div class="total-summary">
+        <span class="total-label">Total :</span>
+        <span class="total-value" th:text="${#numbers.formatDecimal(totalAmount, 1, 'COMMA', 2, 'POINT')}">177820.00</span>
+    </div>
+
+    <div class="total-in-words">
+        Total in Words: <span th:text="${totalInWords}">One Lakh Seventy-seven Thousand Eight Hundred Twenty Only</span>
+    </div>
+
+    <div class="footer">
+        <div class="footer-qr">
+            <img th:src="${qrCodeBase64}" alt="QR Code" />
+        </div>
+        <div class="footer-text">
+            Note: <span th:text="${note}">356</span>
+        </div>
+        <div class="footer-signature">
+            This is a computer generated Receipt. Does not required signature.
+            <br/><br/>
+            PARENT COPY
+        </div>
+    </div>
+
+</div>
+</body>
+</html>
