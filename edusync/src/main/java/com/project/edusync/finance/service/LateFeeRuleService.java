@@ -3,6 +3,8 @@ package com.project.edusync.finance.service;
 import com.project.edusync.finance.dto.configuration.LateFeeRuleCreateDTO;
 import com.project.edusync.finance.dto.configuration.LateFeeRuleResponseDTO;
 
+import java.util.List;
+
 /**
  * Service interface for managing Late Fee Rules.
  */
@@ -16,5 +18,19 @@ public interface LateFeeRuleService {
      */
     LateFeeRuleResponseDTO createLateFeeRule(LateFeeRuleCreateDTO createDTO);
 
-    // We will add get, list, and update methods later.
+    /**
+     * Retrieves all active late fee rules.
+     *
+     * @return A list of active late fee rule DTOs.
+     */
+    List<LateFeeRuleResponseDTO> getAllActiveLateFeeRules();
+
+    /**
+     * Updates an existing late fee rule.
+     *
+     * @param ruleId    The ID of the rule to update.
+     * @param updateDTO The DTO with new data.
+     * @return The response DTO of the updated rule.
+     */
+    LateFeeRuleResponseDTO updateLateFeeRule(Long ruleId, LateFeeRuleCreateDTO updateDTO);
 }
