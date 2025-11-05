@@ -1,10 +1,12 @@
 package com.project.edusync.finance.service.implementation; // Assuming 'implementation' package
 
+import com.project.edusync.common.exception.finance.FeeStructureNotFoundException;
 import com.project.edusync.common.exception.finance.FeeTypeNotFoundException;
 import com.project.edusync.finance.dto.feestructure.FeeParticularCreateDTO;
 import com.project.edusync.finance.dto.feestructure.FeeStructureCreateDTO;
 import com.project.edusync.finance.dto.feestructure.FeeStructureResponseDTO;
 
+import com.project.edusync.finance.dto.feestructure.FeeStructureUpdateDTO;
 import com.project.edusync.finance.mapper.FeeStructureMapper;
 import com.project.edusync.finance.model.entity.FeeParticular;
 import com.project.edusync.finance.model.entity.FeeStructure;
@@ -15,6 +17,7 @@ import com.project.edusync.finance.repository.FeeTypeRepository;
 import com.project.edusync.finance.service.FeeStructureService; // Import the interface
 import lombok.RequiredArgsConstructor;
 // We are no longer using ModelMapper in this method, so the import is not needed here.
+import org.modelmapper.ModelMapper;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -30,8 +33,7 @@ public class FeeStructureServiceImpl implements FeeStructureService {
     private final FeeParticularRepository feeParticularRepository;
     private final FeeTypeRepository feeTypeRepository;
     private final FeeStructureMapper feeStructureMapper;
-    // We keep ModelMapper injected, as other methods (like update) might use it.
-    // private final ModelMapper modelMapper;
+    private final ModelMapper modelMapper;
 
     @Override
     @Transactional
@@ -90,5 +92,58 @@ public class FeeStructureServiceImpl implements FeeStructureService {
                     return feeStructureMapper.toDto(structure, particulars);
                 })
                 .collect(Collectors.toList());
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public FeeStructureResponseDTO getFeeStructureById(Long structureId) {
+        // 1. Find the parent structure by ID
+        FeeStructure structure = findStructureById(structureId);
+
+        // 2. Find its child particulars
+        List<FeeParticular> particulars = feeParticularRepository.findByFeeStructure_Id(structure.getId());
+
+        // 3. Map both to the response DTO
+        return feeStructureMapper.toDto(structure, particulars);
+    }
+
+    @Override
+    @Transactional
+    public FeeStructureResponseDTO updateFeeStructure(Long structureId, FeeStructureUpdateDTO updateDTO) {
+        // 1. Find the existing entity
+        FeeStructure existingStructure = findStructureById(structureId);
+
+        // 2. Use ModelMapper to map new data from DTO to the existing entity
+        modelMapper.map(updateDTO, existingStructure);
+
+        // 3. Save the updated entity
+        FeeStructure updatedStructure = feeStructureRepository.save(existingStructure);
+
+        // 4. Reload particulars (as they weren't part of this update)
+        //    to return a complete response object.
+        List<FeeParticular> particulars = feeParticularRepository.findByFeeStructure_Id(updatedStructure.getId());
+
+        return feeStructureMapper.toDto(updatedStructure, particulars);
+    }
+
+
+    @Override
+    @Transactional
+    public void deleteFeeStructure(Long structureId) {
+        FeeStructure structure = findStructureById(structureId);
+
+        // TODO: Add logic to check if this structure is linked to any
+        // non-DRAFT invoices before allowing deletion.
+
+        // Soft-delete the structure by setting it inactive
+        // This is based on the 'isActive' field in your FeeStructure entity
+        structure.setActive(false);
+        feeStructureRepository.save(structure);
+    }
+
+
+    private FeeStructure findStructureById(Long structureId) {
+        return feeStructureRepository.findById(structureId)
+                .orElseThrow(() -> new FeeStructureNotFoundException("Fee Structure not found with Fee structure Id: " + structureId));
     }
 }

@@ -2,6 +2,7 @@ package com.project.edusync.finance.controller;
 
 import com.project.edusync.finance.dto.feestructure.FeeStructureCreateDTO;
 import com.project.edusync.finance.dto.feestructure.FeeStructureResponseDTO;
+import com.project.edusync.finance.dto.feestructure.FeeStructureUpdateDTO;
 import com.project.edusync.finance.service.FeeStructureService;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
@@ -44,6 +45,41 @@ public class FeeStructureController {
 
         List<FeeStructureResponseDTO> responseList = feeStructureService.getAllFeeStructures();
         return new ResponseEntity<>(responseList, HttpStatus.OK);
+    }
+
+
+    /**
+     * GET /api/v1/finance/structures/{structureId}
+     */
+    @GetMapping("/{structureId}")
+    public ResponseEntity<FeeStructureResponseDTO> getFeeStructureById(
+            @PathVariable Long structureId) {
+
+        FeeStructureResponseDTO response = feeStructureService.getFeeStructureById(structureId);
+        return new ResponseEntity<>(response, HttpStatus.OK);
+    }
+
+    /**
+     * PUT /api/v1/finance/structures/{structureId}
+     * Updates the core details of a fee structure.
+     */
+    @PutMapping("/{structureId}")
+    public ResponseEntity<FeeStructureResponseDTO> updateFeeStructure(
+            @PathVariable Long structureId,
+            @Valid @RequestBody FeeStructureUpdateDTO updateDTO) {
+
+        FeeStructureResponseDTO response = feeStructureService.updateFeeStructure(structureId, updateDTO);
+        return new ResponseEntity<>(response, HttpStatus.OK);
+    }
+
+    /**
+     * DELETE /api/v1/finance/structures/{structureId}
+     * Soft-deletes a fee structure.
+     */
+    @DeleteMapping("/{structureId}")
+    public ResponseEntity<Void> deleteFeeStructure(@PathVariable Long structureId) {
+        feeStructureService.deleteFeeStructure(structureId);
+        return new ResponseEntity<>(HttpStatus.NO_CONTENT);
     }
 
 }
