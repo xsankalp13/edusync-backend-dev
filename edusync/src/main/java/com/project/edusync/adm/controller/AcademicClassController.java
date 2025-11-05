@@ -8,6 +8,7 @@ import com.project.edusync.adm.model.dto.response.SectionResponseDto;
 import com.project.edusync.adm.service.AcademicClassService;
 import com.project.edusync.adm.service.impl.AcademicClassServiceImpl;
 import jakarta.validation.Valid;
+import lombok.Getter;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
@@ -46,5 +47,11 @@ public class AcademicClassController {
         AcademicClassResponseDto createdClass = academicClassService.addClass(requestDto);
 
         return new ResponseEntity<>(createdClass, HttpStatus.CREATED);
+    }
+
+    @GetMapping("/classes")
+    public ResponseEntity<List<AcademicClassResponseDto>> getAllClasses(){
+        List<AcademicClassResponseDto> response = academicClassService.getAllClasses();
+        return new ResponseEntity<>(response,HttpStatus.OK);
     }
 }
