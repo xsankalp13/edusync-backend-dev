@@ -1,12 +1,15 @@
 package com.project.edusync.uis.model.entity.details;
 
 import com.project.edusync.uis.model.entity.Staff;
+import com.project.edusync.uis.model.enums.EducationLevel;
 import jakarta.persistence.*;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;
 import org.hibernate.annotations.JdbcTypeCode;
 import org.hibernate.type.SqlTypes;
+
+import java.util.List;
 
 @Entity
 @Table(name = "teacher_details")
@@ -38,8 +41,12 @@ public class TeacherDetails {
     @Column(name = "state_license_number", length = 50)
     private String stateLicenseNumber;
 
+    /**
+     * Store as the Enum, mapped to a string in the DB.
+     */
+    @Enumerated(EnumType.STRING)
     @Column(name = "education_level", length = 50)
-    private String educationLevel; // e.g., "Bachelors", "Masters"
+    private EducationLevel educationLevel; // e.g., "Bachelors", "Masters"
 
     @Column(name = "years_of_experience")
     private Integer yearsOfExperience;
@@ -51,13 +58,10 @@ public class TeacherDetails {
      */
     @JdbcTypeCode(SqlTypes.JSON)
     @Column(columnDefinition = "jsonb")
-    private String specializations; // e.g., "[\"Physics\", \"Calculus\"]"
+    private List<String> specializations; // e.g., "[\"Physics\", \"Calculus\"]"
 
     @JdbcTypeCode(SqlTypes.JSON)
     @Column(columnDefinition = "jsonb")
-    private String certifications; // e.g., "[\"First Aid\", \"Google Certified\"]"
+    private List<String> certifications;// e.g., "[\"First Aid\", \"Google Certified\"]"
 
-    @JdbcTypeCode(SqlTypes.JSON)
-    @Column(name = "classes_to_teach", columnDefinition = "jsonb")
-    private String classesToTeach; // e.g., "[\"Class 9A\", \"Class 10B\"]"
 }
