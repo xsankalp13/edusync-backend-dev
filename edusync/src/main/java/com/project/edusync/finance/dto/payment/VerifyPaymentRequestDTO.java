@@ -14,6 +14,9 @@ public class VerifyPaymentRequestDTO {
     private String gatewayTransactionId;
     @NotNull
     private String orderId;
-    // Other gateway-specific fields like 'signature'
-    // Getters and Setters
+    /**
+     * The cryptographic signature returned by Razorpay on success.
+     */
+    @NotNull
+    private String signature;
 }

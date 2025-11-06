@@ -4,21 +4,26 @@ import com.project.edusync.common.exception.finance.InvalidPaymentOperationExcep
 import com.project.edusync.common.exception.finance.InvoiceNotFoundException;
 import com.project.edusync.common.exception.finance.PaymentNotFoundException;
 import com.project.edusync.common.exception.finance.StudentNotFoundException;
-import com.project.edusync.finance.dto.payment.PaymentResponseDTO;
-import com.project.edusync.finance.dto.payment.PaymentUpdateDTO;
-import com.project.edusync.finance.dto.payment.RecordOfflinePaymentDTO;
+import com.project.edusync.finance.dto.payment.*;
 import com.project.edusync.finance.mapper.PaymentMapper;
 import com.project.edusync.finance.model.entity.Invoice;
 import com.project.edusync.finance.model.entity.Payment;
 import com.project.edusync.finance.model.enums.InvoiceStatus;
+import com.project.edusync.finance.model.enums.PaymentMethod;
 import com.project.edusync.finance.model.enums.PaymentStatus;
 import com.project.edusync.finance.repository.InvoiceRepository;
 import com.project.edusync.finance.repository.PaymentRepository;
 import com.project.edusync.finance.service.PaymentService;
 import com.project.edusync.uis.model.entity.Student;
 import com.project.edusync.uis.repository.StudentRepository;
+import com.razorpay.Order;
+import com.razorpay.RazorpayClient;
+import com.razorpay.Utils;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
+import org.json.JSONObject;
 import org.modelmapper.ModelMapper;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
@@ -29,6 +34,7 @@ import java.time.LocalDateTime;
 
 @Service
 @RequiredArgsConstructor
+@Slf4j
 public class PaymentServiceImpl implements PaymentService {
 
     private final PaymentRepository paymentRepository;
@@ -36,6 +42,12 @@ public class PaymentServiceImpl implements PaymentService {
     private final StudentRepository studentRepository;
     private final PaymentMapper paymentMapper;
     private final ModelMapper modelMapper; // We keep it for other future methods
+    private final RazorpayClient razorpayClient;
+
+    @Value("${app.razorpay.key-id}")
+    private String razorpayKeyId;
+    @Value("${app.razorpay.key-secret}")
+    private String razorpayKeySecret;
 
     @Override
     @Transactional
@@ -132,6 +144,109 @@ public class PaymentServiceImpl implements PaymentService {
     private Payment findPaymentById(Long paymentId) {
         return paymentRepository.findById(paymentId)
                 .orElseThrow(() -> new PaymentNotFoundException("Payment not found with Payment ID: " + paymentId));
+    }
+
+    @Override
+    @Transactional
+    public InitiatePaymentResponseDTO initiateOnlinePayment(InitiatePaymentRequestDTO requestDTO) throws Exception {
+        log.info("Initiating payment for invoiceId: {}", requestDTO.getInvoiceId());
+
+        Invoice invoice = invoiceRepository.findById(requestDTO.getInvoiceId())
+                .orElseThrow(() -> new InvoiceNotFoundException("Invoice not found with ID: " + requestDTO.getInvoiceId()));
+
+        if (invoice.getStatus() == InvoiceStatus.PAID) {
+            throw new InvalidPaymentOperationException("Invoice is already paid.");
+        }
+
+        BigDecimal amountDue = invoice.getTotalAmount().subtract(invoice.getPaidAmount());
+        if (requestDTO.getAmount().compareTo(amountDue) > 0) {
+            throw new InvalidPaymentOperationException("Payment amount (" + requestDTO.getAmount() +
+                    ") cannot be greater than the outstanding amount due (" + amountDue + ").");
+        }
+        if (requestDTO.getAmount().compareTo(BigDecimal.ZERO) <= 0) {
+            throw new InvalidPaymentOperationException("Payment amount must be positive.");
+        }
+
+        log.info("Creating PENDING payment record for amount: {}", requestDTO.getAmount());
+        Payment payment = new Payment();
+        payment.setStudent(invoice.getStudent());
+        payment.setInvoice(invoice);
+        payment.setAmountPaid(requestDTO.getAmount());
+        payment.setPaymentMethod(PaymentMethod.ONLINE);
+        payment.setStatus(PaymentStatus.PENDING);
+        payment.setPaymentDate(LocalDateTime.now());
+
+        Payment pendingPayment = paymentRepository.save(payment);
+
+        long amountInPaise = requestDTO.getAmount().multiply(new BigDecimal(100)).longValue();
+        log.info("Creating Razorpay Order for amount: {} paise, receiptId: {}", amountInPaise, pendingPayment.getPaymentId());
+
+        JSONObject orderRequest = new JSONObject();
+        orderRequest.put("amount", amountInPaise);
+        orderRequest.put("currency", "INR");
+        orderRequest.put("receipt", pendingPayment.getPaymentId().toString());
+
+        Order razorpayOrder = razorpayClient.orders.create(orderRequest);
+        String razorpayOrderId = razorpayOrder.get("id");
+        log.info("Razorpay Order created: {}", razorpayOrderId);
+
+        pendingPayment.setTransactionId(razorpayOrderId); // Store Order ID temporarily
+        paymentRepository.save(pendingPayment);
+
+        // We return the orderId and the public keyId. The 'clientSecret' field is repurposed.
+        return new InitiatePaymentResponseDTO(razorpayKeyId, null, razorpayOrderId);
+    }
+
+    @Override
+    @Transactional
+    public PaymentResponseDTO verifyOnlinePayment(VerifyPaymentRequestDTO verifyDTO) throws Exception {
+        log.info("Verifying payment for Razorpay Order ID: {}", verifyDTO.getOrderId());
+
+        Payment payment = paymentRepository.findByTransactionId(verifyDTO.getOrderId())
+                .orElseThrow(() -> new PaymentNotFoundException("Payment not found" + 0L)); // Using 0L as a placeholder
+
+        if (payment.getStatus() != PaymentStatus.PENDING) {
+            throw new InvalidPaymentOperationException("Payment is not in a pending state. Current status: " + payment.getStatus());
+        }
+
+        JSONObject options = new JSONObject();
+        options.put("razorpay_order_id", verifyDTO.getOrderId());
+        options.put("razorpay_payment_id", verifyDTO.getGatewayTransactionId());
+        options.put("razorpay_signature", verifyDTO.getSignature());
+
+        boolean isSignatureValid = Utils.verifyPaymentSignature(options, this.razorpayKeySecret);
+
+        if (!isSignatureValid) {
+            log.warn("Payment verification FAILED for Order ID: {}", verifyDTO.getOrderId());
+            payment.setStatus(PaymentStatus.FAILED);
+            paymentRepository.save(payment);
+            throw new SecurityException("Invalid payment signature. Payment verification failed.");
+        }
+
+        log.info("Payment verification SUCCESS for Order ID: {}", verifyDTO.getOrderId());
+
+        // Update Payment record
+        payment.setStatus(PaymentStatus.SUCCESS);
+        payment.setTransactionId(verifyDTO.getGatewayTransactionId()); // Store the final 'pay_...' ID
+        payment.setPaymentDate(LocalDateTime.now()); // Mark the actual time of verification
+
+        // Update parent Invoice
+        Invoice invoice = payment.getInvoice();
+        BigDecimal newPaidAmount = invoice.getPaidAmount().add(payment.getAmountPaid());
+        invoice.setPaidAmount(newPaidAmount);
+
+        // Check for partial or full payment
+        if (newPaidAmount.compareTo(invoice.getTotalAmount()) >= 0) {
+            invoice.setStatus(InvoiceStatus.PAID);
+            log.info("Invoice {} is now fully PAID.", invoice.getId());
+        } else {
+            log.info("Invoice {} is now partially paid. Total paid: {}", invoice.getId(), newPaidAmount);
+        }
+
+        invoiceRepository.save(invoice);
+        Payment savedPayment = paymentRepository.save(payment);
+
+        return paymentMapper.toDto(savedPayment);
     }
 
 }

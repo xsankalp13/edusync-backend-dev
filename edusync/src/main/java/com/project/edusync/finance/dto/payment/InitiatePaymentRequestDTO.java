@@ -1,9 +1,12 @@
 package com.project.edusync.finance.dto.payment;
 
 import jakarta.validation.constraints.NotNull;
+import jakarta.validation.constraints.Positive;
 import lombok.AllArgsConstructor;
 import lombok.Data;
 import lombok.NoArgsConstructor;
+
+import java.math.BigDecimal;
 
 // Used for POST /payments/initiate (Parent API) [cite: 21]
 @Data
@@ -12,7 +15,10 @@ import lombok.NoArgsConstructor;
 public class InitiatePaymentRequestDTO {
     @NotNull
     private Long invoiceId;
-    // might also include amount if partial payments are allowed
-    // private BigDecimal amount;
-    // Getters and Setters
+    /**
+     * The amount the parent wishes to pay (supports partial payments).
+     */
+    @NotNull
+    @Positive
+    private BigDecimal amount;
 }

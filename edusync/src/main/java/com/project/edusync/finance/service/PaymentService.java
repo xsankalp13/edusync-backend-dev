@@ -1,8 +1,7 @@
 package com.project.edusync.finance.service;
 
-import com.project.edusync.finance.dto.payment.PaymentResponseDTO;
-import com.project.edusync.finance.dto.payment.PaymentUpdateDTO;
-import com.project.edusync.finance.dto.payment.RecordOfflinePaymentDTO;
+import com.project.edusync.common.exception.finance.InvoiceAlreadyPaidException;
+import com.project.edusync.finance.dto.payment.*;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 
@@ -45,4 +44,23 @@ public interface PaymentService {
      * @return The response DTO of the updated payment.
      */
     PaymentResponseDTO updatePayment(Long paymentId, PaymentUpdateDTO updateDTO);
+
+    /**
+     * Initiates an online payment for an invoice.
+     * Creates a 'PENDING' payment record and a Razorpay Order.
+     *
+     * @param requestDTO The DTO containing invoiceId and amount.
+     * @return A DTO with the order_id and key_id for the frontend.
+     */
+    InitiatePaymentResponseDTO initiateOnlinePayment(InitiatePaymentRequestDTO requestDTO) throws Exception;
+
+
+    /**
+     * Verifies a completed Razorpay payment using the cryptographic signature.
+     * If successful, updates Payment and Invoice status to 'PAID' or 'PENDING' (partial).
+     *
+     * @param verifyDTO The DTO from the client containing Razorpay's response.
+     * @return The response DTO of the confirmed, 'SUCCESS' payment.
+     */
+    PaymentResponseDTO verifyOnlinePayment(VerifyPaymentRequestDTO verifyDTO) throws Exception;
 }
