@@ -5,8 +5,12 @@ import com.project.edusync.finance.model.entity.Invoice;
 import com.project.edusync.finance.model.enums.InvoiceStatus;
 import com.project.edusync.uis.model.entity.Student;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Query;
+import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
 
+import java.math.BigDecimal;
+import java.time.LocalDate;
 import java.util.List;
 import java.util.Optional;
 
@@ -48,4 +52,46 @@ public interface InvoiceRepository extends JpaRepository<Invoice, Long> {
      * @return A list of matching invoices.
      */
     List<Invoice> findByStudentAndStatus(Student student, InvoiceStatus status);
+
+    /**
+     * Calculates the total outstanding amount from all PENDING or OVERDUE invoices.
+     */
+    @Query("SELECT COALESCE(SUM(i.totalAmount - i.paidAmount), 0) " +
+            "FROM Invoice i " +
+            "WHERE i.status = 'PENDING' OR i.status = 'OVERDUE'")
+    BigDecimal findTotalOutstanding();
+
+    /**
+     * Calculates the total overdue amount from OVERDUE invoices only.
+     */
+    @Query("SELECT COALESCE(SUM(i.totalAmount - i.paidAmount), 0) " +
+            "FROM Invoice i " +
+            "WHERE i.status = 'OVERDUE'")
+    BigDecimal findTotalOverdue();
+
+    /**
+     * Counts the number of invoices with a PENDING status.
+     */
+    @Query("SELECT COUNT(i) " +
+            "FROM Invoice i " +
+            "WHERE i.status = 'PENDING'")
+    Long countPendingInvoices();
+
+    /**
+     * Calculates the total outstanding amount for a single student.
+     */
+    @Query("SELECT COALESCE(SUM(i.totalAmount - i.paidAmount), 0) " +
+            "FROM Invoice i " +
+            "WHERE (i.status = 'PENDING' OR i.status = 'OVERDUE') " +
+            "AND i.student.id = :studentId")
+    BigDecimal findTotalDueForStudent(@Param("studentId") Long studentId);
+
+    /**
+     * Finds the earliest due date for all pending/overdue invoices for a single student.
+     */
+    @Query("SELECT MIN(i.dueDate) " +
+            "FROM Invoice i " +
+            "WHERE (i.status = 'PENDING' OR i.status = 'OVERDUE') " +
+            "AND i.student.id = :studentId")
+    Optional<LocalDate> findNextDueDateForStudent(@Param("studentId") Long studentId);
 }

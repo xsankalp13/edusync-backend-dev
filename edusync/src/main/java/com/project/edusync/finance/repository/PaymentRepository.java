@@ -5,8 +5,10 @@ import com.project.edusync.finance.model.entity.Invoice;
 import com.project.edusync.finance.model.entity.Payment;
 import com.project.edusync.uis.model.entity.Student;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Query;
 import org.springframework.stereotype.Repository;
 
+import java.math.BigDecimal;
 import java.util.List;
 import java.util.Optional;
 
@@ -39,4 +41,12 @@ public interface PaymentRepository extends JpaRepository<Payment, Long> {
      * @return An Optional containing the found Payment, or empty if not found.
      */
     Optional<Payment> findByTransactionId(String transactionId);
+
+    /**
+     * Calculates the total collected amount from all SUCCESSFUL payments.
+     */
+    @Query("SELECT COALESCE(SUM(p.amountPaid), 0) " +
+            "FROM Payment p " +
+            "WHERE p.status = 'SUCCESS'")
+    BigDecimal findTotalCollected();
 }
