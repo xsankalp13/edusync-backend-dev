@@ -1,5 +1,6 @@
 package com.project.edusync.uis.mapper;
 
+import com.project.edusync.iam.model.dto.CreateUserRequestDTO;
 import com.project.edusync.iam.model.entity.User;
 import com.project.edusync.uis.model.dto.profile.UserProfileDTO;
 import com.project.edusync.uis.model.dto.profile.UserProfileResponseDTO;
@@ -16,6 +17,18 @@ import org.mapstruct.*;
  */
 @Mapper(componentModel = "spring", unmappedTargetPolicy = ReportingPolicy.IGNORE)
 public interface UserProfileMapper {
+    // =========================================================================
+    // Create Mappings (DTO -> Entity)
+    // =========================================================================
+
+    /**
+     * Converts the registration request into a UserProfile entity.
+     * We ignore 'id' (DB generated) and 'user' (linked manually in Service).
+     */
+    @Mapping(target = "id", ignore = true)
+    @Mapping(target = "user", ignore = true)
+    // Fields like firstName, lastName, bio, dateOfBirth map automatically by name
+    UserProfile toEntity(CreateUserRequestDTO dto);
 
     // --- Response Mappings ---
 
