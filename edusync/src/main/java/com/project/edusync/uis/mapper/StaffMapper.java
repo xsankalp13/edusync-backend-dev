@@ -1,5 +1,6 @@
 package com.project.edusync.uis.mapper;
 
+import com.project.edusync.iam.model.dto.BaseStaffRequestDTO;
 import com.project.edusync.uis.model.dto.profile.PrincipalDetailsDTO;
 import com.project.edusync.uis.model.dto.profile.StaffProfileDTO;
 import com.project.edusync.uis.model.dto.profile.TeacherDetailsDTO;
@@ -18,6 +19,13 @@ import org.mapstruct.Mapping;
  */
 @Mapper(componentModel = "spring", uses = {JsonMapper.class})
 public interface StaffMapper {
+
+    @Mapping(target = "jobTitle", source = "jobTitle")
+    @Mapping(target = "staffType", source = "staffType")
+    @Mapping(target = "hireDate", source = "hireDate")
+    @Mapping(target = "officeLocation", source = "officeLocation")
+    @Mapping(target = "active", constant = "true")
+    Staff toEntity(BaseStaffRequestDTO dto);
 
     /**
      * Maps the base Staff information common to all employees.
