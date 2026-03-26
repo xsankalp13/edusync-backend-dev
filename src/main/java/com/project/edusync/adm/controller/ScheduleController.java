@@ -2,14 +2,17 @@ package com.project.edusync.adm.controller;
 
 import com.project.edusync.adm.model.dto.request.ScheduleRequestDto;
 import com.project.edusync.adm.model.dto.response.ScheduleResponseDto;
+import com.project.edusync.adm.model.dto.response.TimetableOverviewResponseDto;
 import com.project.edusync.adm.service.ScheduleService;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
+import org.springframework.http.CacheControl;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
+import java.util.concurrent.TimeUnit;
 import java.util.UUID;
 
 /**
@@ -31,7 +34,17 @@ public class ScheduleController {
             @PathVariable UUID sectionId) {
 
         List<ScheduleResponseDto> response = scheduleService.getScheduleForSection(sectionId);
-        return new ResponseEntity<>(response, HttpStatus.OK);
+        return ResponseEntity.ok()
+                .cacheControl(CacheControl.maxAge(3600, TimeUnit.SECONDS).cachePublic())
+                .body(response);
+    }
+
+    @GetMapping("/schedules/overview")
+    public ResponseEntity<List<TimetableOverviewResponseDto>> getScheduleOverview() {
+        List<TimetableOverviewResponseDto> response = scheduleService.getScheduleOverview();
+        return ResponseEntity.ok()
+                .cacheControl(CacheControl.maxAge(3600, TimeUnit.SECONDS).cachePublic())
+                .body(response);
     }
 
     /**
@@ -75,5 +88,13 @@ public class ScheduleController {
     public ResponseEntity<String> draftSchedule(@PathVariable UUID sectionId, @PathVariable String statusType) {
         scheduleService.saveAsDraft(sectionId,statusType);
         return new ResponseEntity<>("Saved as draft",HttpStatus.OK);
+    }
+
+    @PutMapping("/sections/{sectionId}/schedule/bulk")
+    public ResponseEntity<List<ScheduleResponseDto>> bulkReplaceSectionSchedule(
+            @PathVariable UUID sectionId,
+            @Valid @RequestBody List<ScheduleRequestDto> requestDtos) {
+        List<ScheduleResponseDto> response = scheduleService.replaceSectionScheduleBulk(sectionId, requestDtos);
+        return ResponseEntity.ok(response);
     }
 }

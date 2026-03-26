@@ -5,6 +5,7 @@ import com.project.edusync.adm.exception.InvalidRequestException;
 import com.project.edusync.adm.exception.ResourceNotFoundException;
 import com.project.edusync.adm.model.dto.request.ScheduleRequestDto;
 import com.project.edusync.adm.model.dto.response.ScheduleResponseDto;
+import com.project.edusync.adm.model.dto.response.TimetableOverviewResponseDto;
 import com.project.edusync.adm.model.entity.*;
 import com.project.edusync.adm.model.enums.ScheduleStatus;
 import com.project.edusync.adm.repository.*;
@@ -13,10 +14,17 @@ import com.project.edusync.adm.service.ScheduleService;
 import com.project.edusync.uis.model.entity.details.TeacherDetails; // Assumed path
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.cache.Cache;
+import org.springframework.cache.CacheManager;
+import org.springframework.cache.annotation.CacheEvict;
+import org.springframework.cache.annotation.Cacheable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.time.ZoneOffset;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Set;
 import java.util.UUID;
 import java.util.stream.Collectors;
 
@@ -32,12 +40,14 @@ public class ScheduleServiceImpl implements ScheduleService {
     private final com.project.edusync.uis.repository.details.TeacherDetailsRepository teacherDetailsRepository; // Assumed
     private final RoomRepository roomRepository;
     private final TimeslotRepository timeslotRepository;
+    private final CacheManager cacheManager;
 
 
     @Override
+    @Cacheable(value = "sectionSchedules", key = "#sectionId")
     public List<ScheduleResponseDto> getScheduleForSection(UUID sectionId) {
         log.info("Fetching schedule for section id: {}", sectionId);
-        if (!sectionRepository.existsById(sectionId)) {
+        if (sectionRepository.findById(sectionId).isEmpty()) {
             log.warn("Section with id {} not found", sectionId);
             throw new ResourceNotFoundException("No section resource found with id: " + sectionId);
         }
@@ -48,7 +58,24 @@ public class ScheduleServiceImpl implements ScheduleService {
     }
 
     @Override
+    @Transactional(readOnly = true)
+    public List<TimetableOverviewResponseDto> getScheduleOverview() {
+        return scheduleRepository.findTimetableOverview().stream()
+                .map(row -> TimetableOverviewResponseDto.builder()
+                        .classId(row.getClassId())
+                        .className(row.getClassName())
+                        .sectionId(row.getSectionId())
+                        .sectionName(row.getSectionName())
+                        .scheduleStatus(row.getScheduleStatus())
+                        .totalPeriods(row.getTotalPeriods())
+                        .createdAt(row.getCreatedAt() == null ? null : row.getCreatedAt().atOffset(ZoneOffset.UTC))
+                        .lastUpdatedAt(row.getLastUpdatedAt() == null ? null : row.getLastUpdatedAt().atOffset(ZoneOffset.UTC))
+                        .build())
+                .toList();
+    }
 
+    @Override
+    @CacheEvict(value = "sectionSchedules", key = "#requestDto.sectionId")
     public ScheduleResponseDto addSchedule(ScheduleRequestDto requestDto) {
         log.info("Attempting to create a new schedule entry for section {} at timeslot {}",
                 requestDto.getSectionId(), requestDto.getTimeslotId());
@@ -85,6 +112,8 @@ public class ScheduleServiceImpl implements ScheduleService {
                     return new ResourceNotFoundException("No resource found to update with id: " + scheduleId);
                 });
 
+        UUID previousSectionId = existingSchedule.getSection().getUuid();
+
         // 2. Validate for conflicts (excluding the current scheduleId)
         validateScheduleConflicts(requestDto, scheduleId);
 
@@ -99,6 +128,9 @@ public class ScheduleServiceImpl implements ScheduleService {
         Schedule updatedSchedule = scheduleRepository.save(existingSchedule);
         log.info("Schedule entry {} updated successfully", updatedSchedule.getUuid());
 
+        evictSectionScheduleCache(previousSectionId);
+        evictSectionScheduleCache(updatedSchedule.getSection().getUuid());
+
         return toScheduleResponseDto(updatedSchedule);
     }
 
@@ -106,36 +138,65 @@ public class ScheduleServiceImpl implements ScheduleService {
     @Transactional
     public void deleteSchedule(UUID scheduleId) {
         log.info("Attempting to soft delete schedule entry {}", scheduleId);
-        if (!scheduleRepository.existsActiveById(scheduleId)) {
-            log.warn("Failed to delete. Schedule not found with id: {}", scheduleId);
-            throw new ResourceNotFoundException("Schedule id: " + scheduleId + " not found.");
-        }
+        Schedule schedule = scheduleRepository.findActiveById(scheduleId)
+                .orElseThrow(() -> {
+                    log.warn("Failed to delete. Schedule not found with id: {}", scheduleId);
+                    return new ResourceNotFoundException("Schedule id: " + scheduleId + " not found.");
+                });
 
         scheduleRepository.softDeleteById(scheduleId);
+        evictSectionScheduleCache(schedule.getSection().getUuid());
         log.info("Schedule entry {} marked as inactive successfully", scheduleId);
     }
 
     @Override
     @Transactional
+    @CacheEvict(value = "sectionSchedules", key = "#sectionId")
     public void saveAsDraft(UUID sectionId, String statusType) {
         log.info("Attemting to save all the schedules with section id {} as draft", sectionId);
-        if(statusType != "draft" && statusType != "publish"){
+        if (!"draft".equalsIgnoreCase(statusType) && !"publish".equalsIgnoreCase(statusType)) {
             log.warn("Status type {} is not supported", statusType);
             throw new InvalidRequestException("Status type: " + statusType + " is not supported");
         }
         List<Schedule>  schedules = scheduleRepository.findAllActiveBySectionUuid(sectionId);
         for (Schedule schedule : schedules) {
-            if(statusType == "draft") {
+            if ("draft".equalsIgnoreCase(statusType)) {
                 schedule.setStatus(ScheduleStatus.DRAFT);
             }
 
-            else{
+            else {
                 schedule.setStatus(ScheduleStatus.PUBLISHED);
             }
         }
         scheduleRepository.saveAll(schedules);
         log.info("Schedule entry with sectionId {} saved successfully as draft", sectionId);
 
+    }
+
+    @Override
+    @Transactional
+    @CacheEvict(value = "sectionSchedules", key = "#sectionId")
+    public List<ScheduleResponseDto> replaceSectionScheduleBulk(UUID sectionId, List<ScheduleRequestDto> schedules) {
+        log.info("Attempting bulk schedule replace for sectionId={} payloadSize={}", sectionId, schedules == null ? 0 : schedules.size());
+
+        if (sectionRepository.findById(sectionId).isEmpty()) {
+            throw new ResourceNotFoundException("No section resource found with id: " + sectionId);
+        }
+        if (schedules == null || schedules.isEmpty()) {
+            throw new InvalidRequestException("Bulk schedule payload must contain at least one schedule entry.");
+        }
+
+        validateBulkPayload(sectionId, schedules);
+
+        scheduleRepository.softDeleteBySectionId(sectionId);
+
+        List<Schedule> newSchedules = schedules.stream()
+                .map(this::buildSchedule)
+                .toList();
+
+        List<Schedule> saved = scheduleRepository.saveAll(newSchedules);
+        log.info("Bulk schedule replace completed for sectionId={} inserted={}", sectionId, saved.size());
+        return saved.stream().map(this::toScheduleResponseDto).toList();
     }
 
 
@@ -158,6 +219,56 @@ public class ScheduleServiceImpl implements ScheduleService {
         if (scheduleRepository.existsSectionConflict(dto.getSectionId(), dto.getTimeslotId(), scheduleId)) {
             log.warn("Validation failed: Section {} is already scheduled at timeslot {}", dto.getSectionId(), dto.getTimeslotId());
             throw new AlreadyBookedException("Section is already scheduled at this time.");
+        }
+    }
+
+    private void validateBulkPayload(UUID sectionId, List<ScheduleRequestDto> schedules) {
+        Set<String> teacherTimeslot = new HashSet<>();
+        Set<String> roomTimeslot = new HashSet<>();
+        Set<UUID> sectionTimeslot = new HashSet<>();
+
+        for (ScheduleRequestDto dto : schedules) {
+            if (!sectionId.equals(dto.getSectionId())) {
+                throw new InvalidRequestException("Each schedule row must use the same sectionId as the path parameter.");
+            }
+
+            validateScheduleConflicts(dto, null);
+
+            String teacherKey = dto.getTeacherId() + "#" + dto.getTimeslotId();
+            if (!teacherTimeslot.add(teacherKey)) {
+                throw new InvalidRequestException("Duplicate teacher-timeslot pair detected in bulk payload.");
+            }
+
+            String roomKey = dto.getRoomId() + "#" + dto.getTimeslotId();
+            if (!roomTimeslot.add(roomKey)) {
+                throw new InvalidRequestException("Duplicate room-timeslot pair detected in bulk payload.");
+            }
+
+            if (!sectionTimeslot.add(dto.getTimeslotId())) {
+                throw new InvalidRequestException("Duplicate section-timeslot pair detected in bulk payload.");
+            }
+        }
+    }
+
+    private Schedule buildSchedule(ScheduleRequestDto requestDto) {
+        Schedule schedule = new Schedule();
+        schedule.setSection(findSectionById(requestDto.getSectionId()));
+        schedule.setSubject(findSubjectById(requestDto.getSubjectId()));
+        schedule.setTeacher(findTeacherById(requestDto.getTeacherId()));
+        schedule.setRoom(findRoomById(requestDto.getRoomId()));
+        schedule.setTimeslot(findTimeslotById(requestDto.getTimeslotId()));
+        schedule.setIsActive(true);
+        schedule.setStatus(ScheduleStatus.DRAFT);
+        return schedule;
+    }
+
+    private void evictSectionScheduleCache(UUID sectionId) {
+        if (sectionId == null || cacheManager == null) {
+            return;
+        }
+        Cache cache = cacheManager.getCache("sectionSchedules");
+        if (cache != null) {
+            cache.evict(sectionId);
         }
     }
 
