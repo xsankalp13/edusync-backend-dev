@@ -9,6 +9,8 @@ import jakarta.validation.constraints.Size;
 import lombok.Data;
 
 import java.time.LocalDate;
+import java.util.List;
+import java.util.UUID;
 
 @Data
 public class UpdateStaffRequestDTO {
@@ -38,5 +40,6 @@ public class UpdateStaffRequestDTO {
     private String officeLocation;
     private Department department;
     private StaffType staffType;
+    private List<UUID> teachableSubjectIds;
 }
 

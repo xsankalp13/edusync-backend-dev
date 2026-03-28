@@ -41,6 +41,12 @@ public interface UserManagementService {
     User createTeacher(CreateTeacherRequestDTO request);
 
     /**
+     * Assigns a subject to multiple teachers in one operation.
+     * @param request Payload containing subject UUID and teacher ID list.
+     */
+    void bulkAssignSubjectToTeachers(BulkTeacherSubjectAssignmentRequestDTO request);
+
+    /**
      * Creates a Principal with administrative details.
      * @param request DTO with principal-specific fields.
      * @return The created User entity.

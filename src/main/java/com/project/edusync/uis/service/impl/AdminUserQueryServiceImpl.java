@@ -8,6 +8,7 @@ import com.project.edusync.uis.model.entity.UserProfile;
 import com.project.edusync.uis.model.enums.StaffType;
 import com.project.edusync.uis.repository.StaffRepository;
 import com.project.edusync.uis.repository.StudentRepository;
+import com.project.edusync.uis.repository.details.TeacherDetailsRepository;
 import com.project.edusync.uis.service.AdminUserQueryService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -21,6 +22,8 @@ import org.springframework.util.StringUtils;
 
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
+import java.util.UUID;
 import java.util.stream.Collectors;
 
 /**
@@ -40,6 +43,7 @@ public class AdminUserQueryServiceImpl implements AdminUserQueryService {
 
     private final StudentRepository studentRepository;
     private final StaffRepository staffRepository;
+    private final TeacherDetailsRepository teacherDetailsRepository;
 
     /**
      * Maps user-facing sort field names to valid JPQL paths on the Student entity graph.
@@ -108,7 +112,21 @@ public class AdminUserQueryServiceImpl implements AdminUserQueryService {
             staffPage = staffRepository.findAllWithDetails(active, resolved);
         }
 
-        return staffPage.map(this::toStaffSummaryDTO);
+        // Build a single-query lookup map: staffId -> List<UUID> of teachable subjects
+        // Uses a JOIN FETCH so this is NOT an N+1 query.
+        Map<Long, List<UUID>> teacherSubjectMap = teacherDetailsRepository
+                .findAllActiveWithSubjects()
+                .stream()
+                .collect(Collectors.toMap(
+                        td -> td.getId(),
+                        td -> td.getTeachableSubjects().stream()
+                                .filter(Objects::nonNull)
+                                .map(s -> s.getUuid())
+                                .filter(Objects::nonNull)
+                                .collect(Collectors.toList())
+                ));
+
+        return staffPage.map(staff -> toStaffSummaryDTO(staff, teacherSubjectMap));
     }
 
     // =========================================================================
@@ -174,9 +192,16 @@ public class AdminUserQueryServiceImpl implements AdminUserQueryService {
                 .build();
     }
 
-    private StaffSummaryDTO toStaffSummaryDTO(Staff staff) {
+    private StaffSummaryDTO toStaffSummaryDTO(Staff staff, Map<Long, List<UUID>> teacherSubjectMap) {
         UserProfile profile = staff.getUserProfile();
         boolean userActive = profile.getUser() != null && profile.getUser().isActive();
+
+        // Populate teachableSubjectIds only for TEACHER type staff
+        List<UUID> subjectIds = null;
+        if (staff.getStaffType() == StaffType.TEACHER) {
+            subjectIds = teacherSubjectMap.getOrDefault(staff.getId(), List.of());
+        }
+
         return StaffSummaryDTO.builder()
                 .staffId(staff.getId())
                 .uuid(staff.getUuid() != null ? staff.getUuid().toString() : null)
@@ -195,6 +220,7 @@ public class AdminUserQueryServiceImpl implements AdminUserQueryService {
                 .hireDate(staff.getHireDate())
                 .officeLocation(staff.getOfficeLocation())
                 .active(userActive)
+                .teachableSubjectIds(subjectIds)
                 .build();
     }
 }

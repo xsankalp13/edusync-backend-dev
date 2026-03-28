@@ -10,9 +10,9 @@ import java.util.UUID;
 public interface DataFetchService {
 
     /**
-     * Finds teachers qualified for a subject.
+     * Finds teachers qualified for a subject and available at a timeslot.
      */
-    List<AvailableTeacherDto> getAvailableTeachers(UUID subjectId);
+    List<AvailableTeacherDto> getAvailableTeachers(UUID subjectId, UUID timeslotId);
 
     /**
      * Finds rooms available at a timeslot, optionally filtered by room type.
