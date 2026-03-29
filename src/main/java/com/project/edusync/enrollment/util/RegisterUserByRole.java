@@ -4,6 +4,7 @@ import com.project.edusync.adm.model.entity.Section;
 import com.project.edusync.iam.model.entity.Role;
 import com.project.edusync.iam.model.entity.User;
 import com.project.edusync.iam.repository.UserRepository;
+import com.project.edusync.uis.model.entity.Guardian;
 import com.project.edusync.uis.model.entity.Staff;
 import com.project.edusync.uis.model.entity.Student;
 import com.project.edusync.uis.model.entity.UserProfile;
@@ -17,6 +18,7 @@ import com.project.edusync.uis.model.enums.StaffType;
 import com.project.edusync.uis.repository.StaffRepository;
 import com.project.edusync.uis.repository.StudentRepository;
 import com.project.edusync.uis.repository.UserProfileRepository;
+import com.project.edusync.uis.repository.GuardianRepository;
 import com.project.edusync.uis.repository.details.LibrarianDetailsRepository;
 import com.project.edusync.uis.repository.details.PrincipalDetailsRepository;
 import com.project.edusync.uis.repository.details.TeacherDetailsRepository;
@@ -45,6 +47,7 @@ public class RegisterUserByRole {
     private final UserProfileRepository userProfileRepository;
     private final StudentRepository studentRepository;
     private final StaffRepository staffRepository;
+    private final GuardianRepository guardianRepository;
 
     // --- Staff Details Repositories ---
     private final TeacherDetailsRepository teacherDetailsRepository;
@@ -131,7 +134,7 @@ public class RegisterUserByRole {
      * @param section The pre-fetched Section entity.
      */
     @Transactional
-    public void RegisterStudent(
+    public Student RegisterStudent(
             String email,
             String enrollmentNumber,
             String DEFAULT_PASSWORD,
@@ -161,8 +164,41 @@ public class RegisterUserByRole {
         student.setUserProfile(userProfile);
         student.setSection(section);
 
-        studentRepository.save(student);
+        Student savedStudent = studentRepository.save(student);
         log.info("Successfully created student: {}", email);
+        return savedStudent;
+    }
+
+    /**
+     * Orchestrates the full creation of a Guardian entity graph
+     * (User -> UserProfile -> Guardian) where phone number is username.
+     */
+    @Transactional
+    public Guardian RegisterGuardian(
+            String email,
+            String phoneNumber,
+            String DEFAULT_PASSWORD,
+            Role guardianRole,
+            String firstName,
+            String lastName,
+            String middleName,
+            String occupation,
+            String employer
+    ) {
+        log.info("Attempting to create Guardian user with phone username: {}", phoneNumber);
+        User user = RegisterUser(email, phoneNumber, DEFAULT_PASSWORD, guardianRole);
+        UserProfile userProfile = RegisterUserProfile(firstName, lastName, middleName, null, null, user);
+
+        Guardian guardian = new Guardian();
+        guardian.setUserProfile(userProfile);
+        guardian.setPhoneNumber(phoneNumber);
+        guardian.setOccupation(occupation);
+        guardian.setEmployer(employer);
+        guardian.setActive(true);
+
+        Guardian savedGuardian = guardianRepository.save(guardian);
+        log.info("Successfully created guardian profile for username: {}", phoneNumber);
+        return savedGuardian;
     }
 
     /**
