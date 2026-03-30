@@ -5,6 +5,8 @@ import com.project.edusync.iam.service.UserManagementService;
 import com.project.edusync.uis.model.dto.profile.ComprehensiveUserProfileResponseDTO;
 import com.project.edusync.uis.model.dto.profile.GuardianProfileDTO;
 import com.project.edusync.uis.model.dto.profile.LinkedStudentDTO;
+import com.project.edusync.uis.model.dto.profile.StaffKpiMetricsDTO;
+import com.project.edusync.uis.model.dto.profile.StudentKpiMetricsDTO;
 import com.project.edusync.uis.model.dto.profile.StudentGuardianDTO;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
@@ -554,5 +556,33 @@ public class UserManagementController {
             @PathVariable java.util.UUID staffId) {
         log.info("API Request: Get Full Staff Details [{}]", staffId);
         return ResponseEntity.ok(userManagementService.getStaffFullDetails(staffId));
+    }
+
+    @GetMapping("/student/{studentId}/kpi-metrics")
+    @PreAuthorize("hasAnyAuthority('ROLE_SUPER_ADMIN', 'ROLE_SCHOOL_ADMIN')")
+    @SecurityRequirement(name = "bearerAuth")
+    @Operation(
+            summary = "Get Student KPI Metrics",
+            description = "Returns lightweight KPI metrics for student profile hero banner."
+    )
+    public ResponseEntity<StudentKpiMetricsDTO> getStudentKpiMetrics(
+            @Parameter(description = "Student UUID", required = true, example = "39170ff6-80ff-4831-bd4d-dbfc07cc2d61")
+            @PathVariable java.util.UUID studentId) {
+        log.info("API Request: Get Student KPI Metrics [{}]", studentId);
+        return ResponseEntity.ok(userManagementService.getStudentKpiMetrics(studentId));
+    }
+
+    @GetMapping("/staff/{staffId}/kpi-metrics")
+    @PreAuthorize("hasAnyAuthority('ROLE_SUPER_ADMIN', 'ROLE_SCHOOL_ADMIN')")
+    @SecurityRequirement(name = "bearerAuth")
+    @Operation(
+            summary = "Get Staff KPI Metrics",
+            description = "Returns lightweight KPI metrics for staff profile hero banner."
+    )
+    public ResponseEntity<StaffKpiMetricsDTO> getStaffKpiMetrics(
+            @Parameter(description = "Staff UUID", required = true, example = "4e95ad14-20da-4939-b666-841f3259997d")
+            @PathVariable java.util.UUID staffId) {
+        log.info("API Request: Get Staff KPI Metrics [{}]", staffId);
+        return ResponseEntity.ok(userManagementService.getStaffKpiMetrics(staffId));
     }
 }

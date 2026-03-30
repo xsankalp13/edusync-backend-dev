@@ -10,6 +10,8 @@ import java.util.UUID;
 
 public interface TeacherDetailsRepository extends JpaRepository<TeacherDetails, Long> {
 
+    Optional<TeacherDetails> findByStaff_Id(Long staffId);
+
     @Query("SELECT t FROM TeacherDetails t WHERE t.id = :teacherId AND t.staff.isActive = true")
     Optional<TeacherDetails> findActiveById(Long teacherId);
 

@@ -1,6 +1,7 @@
 package com.project.edusync.adm.repository;
 
 import com.project.edusync.adm.model.entity.Schedule;
+import com.project.edusync.adm.model.entity.Timeslot;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Modifying;
@@ -218,4 +219,20 @@ public interface ScheduleRepository extends JpaRepository<Schedule, Long> {
             ORDER BY ts.startTime ASC
             """)
     List<Schedule> findDaySchedule(Long sectionId, Short dayOfWeek);
+
+    @Query("""
+            SELECT COUNT(DISTINCT s.section.id)
+            FROM Schedule s
+            WHERE s.teacher.id = :teacherId
+              AND s.isActive = true
+            """)
+    long countDistinctActiveSectionsByTeacherId(@Param("teacherId") Long teacherId);
+
+    @Query("""
+            SELECT DISTINCT s.timeslot
+            FROM Schedule s
+            WHERE s.teacher.id = :teacherId
+              AND s.isActive = true
+            """)
+    List<Timeslot> findDistinctActiveTimeslotsByTeacherId(@Param("teacherId") Long teacherId);
 }

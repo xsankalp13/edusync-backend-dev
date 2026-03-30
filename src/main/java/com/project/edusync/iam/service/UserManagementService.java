@@ -5,6 +5,8 @@ import com.project.edusync.iam.model.entity.User;
 import com.project.edusync.uis.model.dto.profile.ComprehensiveUserProfileResponseDTO;
 import com.project.edusync.uis.model.dto.profile.GuardianProfileDTO;
 import com.project.edusync.uis.model.dto.profile.LinkedStudentDTO;
+import com.project.edusync.uis.model.dto.profile.StaffKpiMetricsDTO;
+import com.project.edusync.uis.model.dto.profile.StudentKpiMetricsDTO;
 import com.project.edusync.uis.model.dto.profile.StudentGuardianDTO;
 
 import java.util.List;
@@ -175,4 +177,14 @@ public interface UserManagementService {
      * @return Full profile response including student/staff/guardian facets when applicable.
      */
     ComprehensiveUserProfileResponseDTO getStaffFullDetails(java.util.UUID staffId);
+
+    /**
+     * Returns lightweight KPI metrics for a student profile hero banner.
+     */
+    StudentKpiMetricsDTO getStudentKpiMetrics(java.util.UUID studentId);
+
+    /**
+     * Returns lightweight KPI metrics for a staff profile hero banner.
+     */
+    StaffKpiMetricsDTO getStaffKpiMetrics(java.util.UUID staffId);
 }
