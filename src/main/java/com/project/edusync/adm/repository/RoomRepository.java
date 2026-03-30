@@ -14,6 +14,9 @@ import java.util.UUID;
 @Repository
 public interface RoomRepository extends JpaRepository<Room, Long> {
 
+    @Query("SELECT r FROM Room r WHERE r.isActive = true")
+    List<Room> findAllActive();
+
     @Query("SELECT r FROM Room r WHERE r.uuid = :roomId AND r.isActive = true")
     Optional<Room> findActiveById(UUID roomId);
 
@@ -36,8 +39,23 @@ public interface RoomRepository extends JpaRepository<Room, Long> {
 
     @Query("SELECT CASE WHEN COUNT(r) > 0 THEN true ELSE false END " +
             "FROM Room r " +
+            "WHERE LOWER(r.name) = LOWER(:name) AND r.uuid != :excludeUuid AND r.isActive = true")
+    boolean existsByNameIgnoreCaseAndUuidNot(String name, UUID excludeUuid);
+
+    @Query("SELECT CASE WHEN COUNT(r) > 0 THEN true ELSE false END " +
+            "FROM Room r " +
             "WHERE r.name = :name AND r.isActive = true")
     boolean existsByName(String name);
+
+    @Query("SELECT CASE WHEN COUNT(r) > 0 THEN true ELSE false END " +
+            "FROM Room r " +
+            "WHERE LOWER(r.name) = LOWER(:name) AND r.isActive = true")
+    boolean existsByNameIgnoreCase(String name);
+
+    @Query("SELECT CASE WHEN COUNT(r) > 0 THEN true ELSE false END " +
+            "FROM Room r " +
+            "WHERE r.building.uuid = :buildingId")
+    boolean existsByBuildingUuid(UUID buildingId);
 
     /**
      * Finds available rooms of a specific type for a given timeslot.

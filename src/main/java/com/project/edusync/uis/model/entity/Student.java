@@ -28,6 +28,12 @@ public class Student extends AuditableEntity {
     @Column(name = "enrollment_date")
     private LocalDate enrollmentDate;
 
+    @Column(name = "expected_graduation_year")
+    private Integer expectedGraduationYear;
+
+    @Column(name = "counselor_name", length = 120)
+    private String counselorName;
+
     @Column(name = "roll_no", nullable = false)
     private Integer rollNo;
 

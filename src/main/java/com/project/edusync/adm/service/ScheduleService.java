@@ -22,4 +22,6 @@ public interface ScheduleService {
     void saveAsDraft(UUID sectionId, String statusType);
 
     List<ScheduleResponseDto> replaceSectionScheduleBulk(UUID sectionId, List<ScheduleRequestDto> schedules);
+
+    void deleteScheduleBySection(UUID sectionId);
 }

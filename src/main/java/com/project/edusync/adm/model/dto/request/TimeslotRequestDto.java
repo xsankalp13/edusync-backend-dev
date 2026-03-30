@@ -27,6 +27,7 @@ public class TimeslotRequestDto {
     @NotBlank(message = "Slot label cannot be blank")
     private String slotLabel; // e.g., "Period 1", "Lunch Break"
 
-    @NotNull(message = "isBreak flag cannot be null")
     private Boolean isBreak = false;
+
+    private Boolean isNonTeachingSlot = false;
 }

@@ -40,6 +40,7 @@ public class TimeslotServiceImpl implements TimeslotService {
         newTimeslot.setEndTime(timeslotRequestDto.getEndTime());
         newTimeslot.setSlotLabel(timeslotRequestDto.getSlotLabel());
         newTimeslot.setIsBreak(timeslotRequestDto.getIsBreak());
+        newTimeslot.setIsNonTeachingSlot(timeslotRequestDto.getIsNonTeachingSlot());
         newTimeslot.setIsActive(true);
 
         Timeslot savedTimeslot = timeslotRepository.save(newTimeslot);
@@ -96,6 +97,7 @@ public class TimeslotServiceImpl implements TimeslotService {
         existingTimeslot.setEndTime(timeslotRequestDto.getEndTime());
         existingTimeslot.setSlotLabel(timeslotRequestDto.getSlotLabel());
         existingTimeslot.setIsBreak(timeslotRequestDto.getIsBreak());
+        existingTimeslot.setIsNonTeachingSlot(timeslotRequestDto.getIsNonTeachingSlot());
 
         Timeslot updatedTimeslot = timeslotRepository.save(existingTimeslot);
         log.info("Timeslot with id {} updated successfully", updatedTimeslot.getUuid());
@@ -157,6 +159,7 @@ public class TimeslotServiceImpl implements TimeslotService {
                 .endTime(entity.getEndTime())
                 .slotLabel(entity.getSlotLabel())
                 .isBreak(entity.getIsBreak())
+                .isNonTeachingSlot(entity.getIsNonTeachingSlot())
                 .build();
     }
 }

@@ -43,6 +43,9 @@ public class Timeslot extends AuditableEntity {
     @Column(name = "is_break")
     private Boolean isBreak = false;
 
+    @Column(name = "is_non_teaching")
+    private Boolean isNonTeachingSlot = false;
+
     @Column(name = "is_active")
     private Boolean isActive = true;
 

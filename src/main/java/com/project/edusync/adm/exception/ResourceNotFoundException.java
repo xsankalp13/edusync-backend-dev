@@ -1,7 +1,10 @@
 package com.project.edusync.adm.exception;
 
-public class ResourceNotFoundException extends RuntimeException {
+import com.project.edusync.common.exception.EdusyncException;
+import org.springframework.http.HttpStatus;
+
+public class ResourceNotFoundException extends EdusyncException {
     public ResourceNotFoundException(String message) {
-        super(message);
+        super(message, HttpStatus.NOT_FOUND);
     }
 }

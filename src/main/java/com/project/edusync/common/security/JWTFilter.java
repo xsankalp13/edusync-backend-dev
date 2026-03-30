@@ -42,13 +42,19 @@ public class JWTFilter extends OncePerRequestFilter {
             @NonNull FilterChain filterChain) throws ServletException, IOException {
 
         final String requestTokenHeader = request.getHeader("Authorization");
+        String token = null;
 
-        if (requestTokenHeader == null || !requestTokenHeader.startsWith("Bearer ")) {
+        if (requestTokenHeader != null && requestTokenHeader.startsWith("Bearer ")) {
+            token = requestTokenHeader.substring(7); // "Bearer "
+        } else {
+            // Support SSE or other calls that cannot set headers
+            token = request.getParameter("token");
+        }
+
+        if (token == null) {
             filterChain.doFilter(request, response);
             return;
         }
-
-        String token = requestTokenHeader.substring(7); // "Bearer "
         String username = null;
         List<GrantedAuthority> authorities = null;
 

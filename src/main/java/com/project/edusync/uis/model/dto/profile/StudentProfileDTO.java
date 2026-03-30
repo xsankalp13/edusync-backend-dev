@@ -12,6 +12,9 @@ public class StudentProfileDTO {
     private String enrollmentNo;
     private String enrollmentStatus;
     private String profileUrl;
+    private java.time.LocalDate admissionDate;
+    private Integer expectedGraduationYear;
+    private String counselorName;
 
     // Nested medical profile
     private StudentMedicalRecordDTO medicalRecord;

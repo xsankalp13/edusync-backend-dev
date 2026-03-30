@@ -54,7 +54,7 @@ public class ScheduleController {
 
         List<ScheduleResponseDto> response = scheduleService.getScheduleForSection(sectionId);
         return ResponseEntity.ok()
-                .cacheControl(CacheControl.maxAge(3600, TimeUnit.SECONDS).cachePublic())
+                .cacheControl(CacheControl.noStore())
                 .body(response);
     }
 
@@ -72,7 +72,7 @@ public class ScheduleController {
     public ResponseEntity<EditorContextResponseDto> getEditorContext(@PathVariable UUID sectionId) {
         EditorContextResponseDto response = editorContextService.getEditorContext(sectionId);
         return ResponseEntity.ok()
-                .cacheControl(CacheControl.maxAge(3600, TimeUnit.SECONDS).cachePublic())
+                .cacheControl(CacheControl.noStore())
                 .body(response);
     }
 
@@ -89,7 +89,7 @@ public class ScheduleController {
     public ResponseEntity<List<TimetableOverviewResponseDto>> getScheduleOverview() {
         List<TimetableOverviewResponseDto> response = scheduleService.getScheduleOverview();
         return ResponseEntity.ok()
-                .cacheControl(CacheControl.maxAge(3600, TimeUnit.SECONDS).cachePublic())
+                .cacheControl(CacheControl.noStore())
                 .body(response);
     }
 
@@ -160,6 +160,22 @@ public class ScheduleController {
     })
     public ResponseEntity<Void> deleteScheduleById(@PathVariable UUID scheduleId) {
         scheduleService.deleteSchedule(scheduleId);
+        return ResponseEntity.noContent().build();
+    }
+ 
+    @DeleteMapping("/sections/{sectionId}/schedule")
+    @Operation(
+            summary = "Delete complete section schedule",
+            description = "Soft deletes all active timetable entries for the specified section ID.",
+            security = @SecurityRequirement(name = "bearerAuth")
+    )
+    @ApiResponses(value = {
+            @ApiResponse(responseCode = "204", description = "Complete section schedule deleted successfully"),
+            @ApiResponse(responseCode = "401", description = "Unauthorized - missing or invalid JWT"),
+            @ApiResponse(responseCode = "404", description = "Section not found")
+    })
+    public ResponseEntity<Void> deleteScheduleBySection(@PathVariable UUID sectionId) {
+        scheduleService.deleteScheduleBySection(sectionId);
         return ResponseEntity.noContent().build();
     }
 

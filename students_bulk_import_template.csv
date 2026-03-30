@@ -1,0 +1,4 @@
+firstName,lastName,middleName,email,dateOfBirth,rollNo,gender,enrollmentNumber,enrollmentDate,className,sectionName
+Aarav,Kumar,,aarav.kumar@student.edusync.com,2012-01-10,7,MALE,ENR-1001,2024-06-01,Class 10,A
+Diya,Singh,,diya.singh@student.edusync.com,2011-08-20,13,FEMALE,ENR-1002,2024-06-01,Class 10,A
+

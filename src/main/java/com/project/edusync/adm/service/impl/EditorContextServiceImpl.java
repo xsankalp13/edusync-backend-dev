@@ -13,15 +13,15 @@ import com.project.edusync.adm.repository.ScheduleRepository;
 import com.project.edusync.adm.repository.SectionRepository;
 import com.project.edusync.adm.repository.TimeslotRepository;
 import com.project.edusync.adm.service.EditorContextService;
+import com.project.edusync.uis.model.entity.details.TeacherDetails;
+import com.project.edusync.uis.repository.details.TeacherDetailsRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.cache.annotation.Cacheable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
-import java.util.ArrayList;
-import java.util.LinkedHashMap;
 import java.util.List;
-import java.util.Map;
+import java.util.Objects;
 import java.util.UUID;
 
 @Service
@@ -32,6 +32,7 @@ public class EditorContextServiceImpl implements EditorContextService {
     private final TimeslotRepository timeslotRepository;
     private final ScheduleRepository scheduleRepository;
     private final CurriculumMapRepository curriculumMapRepository;
+    private final TeacherDetailsRepository teacherDetailsRepository;
 
     @Override
     @Transactional(readOnly = true)
@@ -42,7 +43,7 @@ public class EditorContextServiceImpl implements EditorContextService {
 
         List<Timeslot> timeslots = timeslotRepository.findAllActive();
         List<Schedule> existingSchedule = scheduleRepository.findAllActiveWithReferencesBySectionUuid(sectionId);
-        List<ScheduleRepository.TeacherSubjectPairProjection> teacherPairs = scheduleRepository.findTeacherSubjectPairs();
+        List<TeacherDetails> teachers = teacherDetailsRepository.findAllActiveWithSubjects();
 
         return EditorContextResponseDto.builder()
                 .section(EditorContextResponseDto.SectionSummaryDto.builder()
@@ -52,7 +53,7 @@ public class EditorContextServiceImpl implements EditorContextService {
                         .build())
                 .timeslots(timeslots.stream().map(this::toTimeslotItem).toList())
                 .availableSubjects(extractSubjects(section))
-                .teachers(buildTeachers(teacherPairs))
+                .teachers(buildTeachers(teachers))
                 .existingSchedule(existingSchedule.stream().map(this::toExistingScheduleItem).toList())
                 .build();
     }
@@ -85,35 +86,38 @@ public class EditorContextServiceImpl implements EditorContextService {
                 .build();
     }
 
-    private List<EditorContextResponseDto.TeacherItemDto> buildTeachers(List<ScheduleRepository.TeacherSubjectPairProjection> pairs) {
-        Map<Long, TeacherAccumulator> byTeacherId = new LinkedHashMap<>();
+    private List<EditorContextResponseDto.TeacherItemDto> buildTeachers(List<TeacherDetails> teachers) {
+        return teachers.stream()
+                .map(teacher -> {
+                    String firstName = "";
+                    String lastName = "";
+                    
+                    if (teacher.getStaff() != null && teacher.getStaff().getUserProfile() != null) {
+                        firstName = teacher.getStaff().getUserProfile().getFirstName();
+                        lastName = teacher.getStaff().getUserProfile().getLastName();
+                    }
 
-        for (ScheduleRepository.TeacherSubjectPairProjection pair : pairs) {
-            TeacherAccumulator accumulator = byTeacherId.computeIfAbsent(pair.getTeacherId(), id ->
-                    new TeacherAccumulator(String.valueOf(id), buildName(pair.getFirstName(), pair.getLastName()), new ArrayList<>()));
-
-            if (pair.getSubjectUuid() != null && !accumulator.teachableSubjectIds.contains(pair.getSubjectUuid())) {
-                accumulator.teachableSubjectIds.add(pair.getSubjectUuid());
-            }
-        }
-
-        return byTeacherId.values().stream()
-                .map(a -> EditorContextResponseDto.TeacherItemDto.builder()
-                        .id(a.id)
-                        .name(a.name)
-                        .teachableSubjectIds(a.teachableSubjectIds)
-                        .build())
+                    return EditorContextResponseDto.TeacherItemDto.builder()
+                            .id(String.valueOf(teacher.getId()))
+                            .name(buildName(firstName, lastName))
+                            .teachableSubjectIds(teacher.getTeachableSubjects().stream()
+                                    .filter(Objects::nonNull)
+                                    .map(Subject::getUuid)
+                                    .filter(Objects::nonNull)
+                                    .toList())
+                            .build();
+                })
                 .toList();
     }
 
     private EditorContextResponseDto.ExistingScheduleItemDto toExistingScheduleItem(Schedule schedule) {
         return EditorContextResponseDto.ExistingScheduleItemDto.builder()
                 .uuid(schedule.getUuid())
-                .subjectId(schedule.getSubject().getUuid())
-                .teacherId(String.valueOf(schedule.getTeacher().getId()))
-                .roomId(schedule.getRoom().getUuid())
-                .timeslotId(schedule.getTimeslot().getUuid())
-                .slotLabel(schedule.getTimeslot().getSlotLabel())
+                .subjectId(schedule.getSubject() != null ? schedule.getSubject().getUuid() : null)
+                .teacherId(schedule.getTeacher() != null ? String.valueOf(schedule.getTeacher().getId()) : null)
+                .roomId(schedule.getRoom() != null ? schedule.getRoom().getUuid() : null)
+                .timeslotId(schedule.getTimeslot() != null ? schedule.getTimeslot().getUuid() : null)
+                .slotLabel(schedule.getTimeslot() != null ? schedule.getTimeslot().getSlotLabel() : null)
                 .build();
     }
 
@@ -122,8 +126,6 @@ public class EditorContextServiceImpl implements EditorContextService {
         String last = lastName == null ? "" : lastName;
         return (first + " " + last).trim();
     }
-
-    private record TeacherAccumulator(String id, String name, List<UUID> teachableSubjectIds) {}
 }
 
 

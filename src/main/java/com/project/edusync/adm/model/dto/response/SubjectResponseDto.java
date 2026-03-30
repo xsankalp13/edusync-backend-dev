@@ -2,6 +2,9 @@ package com.project.edusync.adm.model.dto.response;
 
 import lombok.Builder;
 import lombok.Data;
+import lombok.NoArgsConstructor;
+import lombok.AllArgsConstructor;
+
 import java.util.UUID;
 
 /**
@@ -9,6 +12,8 @@ import java.util.UUID;
  */
 @Data
 @Builder
+@NoArgsConstructor
+@AllArgsConstructor
 public class SubjectResponseDto {
 
     private UUID uuid;

@@ -1,6 +1,7 @@
 package com.project.edusync.enrollment.service;
 
 import com.project.edusync.enrollment.model.dto.BulkImportReportDTO;
+import com.project.edusync.enrollment.model.dto.BulkRoomImportReportDTO;
 import org.springframework.web.multipart.MultipartFile;
 
 import java.io.IOException;
@@ -20,4 +21,14 @@ public interface BulkImportService {
      * @throws IllegalArgumentException if userType is invalid.
      */
     BulkImportReportDTO importUsers(MultipartFile file, String userType, String sessionId) throws IOException, IllegalArgumentException;
+
+    /**
+     * Imports students and guardians from two separate CSV files.
+     * Guardians are matched by student enrollment number and linked after each student row is created.
+     */
+    BulkImportReportDTO importStudentsWithGuardians(MultipartFile studentsFile,
+                                                    MultipartFile guardiansFile,
+                                                    String sessionId) throws IOException;
+
+    BulkRoomImportReportDTO importRooms(MultipartFile file, String sessionId) throws IOException;
 }

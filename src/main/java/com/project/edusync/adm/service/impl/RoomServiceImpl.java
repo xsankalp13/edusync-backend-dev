@@ -1,11 +1,16 @@
 package com.project.edusync.adm.service.impl;
 
+import com.project.edusync.adm.exception.AlreadyBookedException;
 import com.project.edusync.adm.exception.DuplicateEntryException;
 import com.project.edusync.adm.exception.ResourceNotFoundException;
 import com.project.edusync.adm.model.dto.request.RoomRequestDto;
+import com.project.edusync.adm.model.dto.response.BuildingResponseDto;
 import com.project.edusync.adm.model.dto.response.RoomResponseDto;
+import com.project.edusync.adm.model.entity.Building;
 import com.project.edusync.adm.model.entity.Room;
+import com.project.edusync.adm.repository.BuildingRepository;
 import com.project.edusync.adm.repository.RoomRepository;
+import com.project.edusync.adm.repository.ScheduleRepository;
 import com.project.edusync.adm.service.RoomService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -22,20 +27,35 @@ import java.util.stream.Collectors;
 public class RoomServiceImpl implements RoomService {
 
     private final RoomRepository roomRepository;
+    private final BuildingRepository buildingRepository;
+    private final ScheduleRepository scheduleRepository;
 
     @Override
     public RoomResponseDto addRoom(RoomRequestDto roomRequestDto) {
         log.info("Attempting to create a new room with name: {}", roomRequestDto.getName());
 
         // Best Practice: Validate for uniqueness
-        if (roomRepository.existsByName(roomRequestDto.getName())) {
+        if (roomRepository.existsByNameIgnoreCase(roomRequestDto.getName())) {
             log.warn("Room creation failed. Name '{}' already exists.", roomRequestDto.getName());
             throw new DuplicateEntryException("Room with name " + roomRequestDto.getName() + " already exists.");
         }
 
+        Building building = getBuildingOrThrow(roomRequestDto.getBuildingId());
+
         Room newRoom = new Room();
         newRoom.setName(roomRequestDto.getName());
         newRoom.setRoomType(roomRequestDto.getRoomType());
+        newRoom.setSeatingType(roomRequestDto.getSeatingType());
+        newRoom.setRowCount(roomRequestDto.getRowCount());
+        newRoom.setColumnsPerRow(roomRequestDto.getColumnsPerRow());
+        newRoom.setSeatsPerUnit(roomRequestDto.getSeatsPerUnit());
+        newRoom.setFloorNumber(roomRequestDto.getFloorNumber());
+        newRoom.setBuilding(building);
+        newRoom.setHasProjector(Boolean.TRUE.equals(roomRequestDto.getHasProjector()));
+        newRoom.setHasAC(Boolean.TRUE.equals(roomRequestDto.getHasAC()));
+        newRoom.setHasWhiteboard(roomRequestDto.getHasWhiteboard() == null ? true : roomRequestDto.getHasWhiteboard());
+        newRoom.setIsAccessible(Boolean.TRUE.equals(roomRequestDto.getIsAccessible()));
+        newRoom.setOtherAmenities(roomRequestDto.getOtherAmenities());
         newRoom.setIsActive(true); // Explicitly set as active
 
         Room savedRoom = roomRepository.save(newRoom);
@@ -76,14 +96,27 @@ public class RoomServiceImpl implements RoomService {
 
         // Check uniqueness of name only if it's being changed
         if (!existingRoom.getName().equals(roomRequestDto.getName())) {
-            if (roomRepository.existsByNameAndUuidNot(roomRequestDto.getName(), roomId)) {
+            if (roomRepository.existsByNameIgnoreCaseAndUuidNot(roomRequestDto.getName(), roomId)) {
                 log.warn("Room update failed. Name '{}' already exists for another room.", roomRequestDto.getName());
                 throw new DuplicateEntryException("Room with name " + roomRequestDto.getName() + " already exists.");
             }
         }
 
+        Building building = getBuildingOrThrow(roomRequestDto.getBuildingId());
+
         existingRoom.setName(roomRequestDto.getName());
         existingRoom.setRoomType(roomRequestDto.getRoomType());
+        existingRoom.setSeatingType(roomRequestDto.getSeatingType());
+        existingRoom.setRowCount(roomRequestDto.getRowCount());
+        existingRoom.setColumnsPerRow(roomRequestDto.getColumnsPerRow());
+        existingRoom.setSeatsPerUnit(roomRequestDto.getSeatsPerUnit());
+        existingRoom.setFloorNumber(roomRequestDto.getFloorNumber());
+        existingRoom.setBuilding(building);
+        existingRoom.setHasProjector(Boolean.TRUE.equals(roomRequestDto.getHasProjector()));
+        existingRoom.setHasAC(Boolean.TRUE.equals(roomRequestDto.getHasAC()));
+        existingRoom.setHasWhiteboard(roomRequestDto.getHasWhiteboard() == null ? true : roomRequestDto.getHasWhiteboard());
+        existingRoom.setIsAccessible(Boolean.TRUE.equals(roomRequestDto.getIsAccessible()));
+        existingRoom.setOtherAmenities(roomRequestDto.getOtherAmenities());
 
         Room updatedRoom = roomRepository.save(existingRoom);
         log.info("Room with id {} updated successfully", updatedRoom.getUuid());
@@ -100,6 +133,11 @@ public class RoomServiceImpl implements RoomService {
             throw new ResourceNotFoundException("Room id: " + roomId + " not found.");
         }
 
+        if (scheduleRepository.existsActiveByRoomUuid(roomId)) {
+            log.warn("Failed to delete. Room id {} is linked to active timetable entries", roomId);
+            throw new AlreadyBookedException("Room is currently mapped in timetable. Reassign schedules before deleting this room.");
+        }
+
         roomRepository.softDeleteById(roomId);
         log.info("Room with id {} marked as inactive successfully", roomId);
     }
@@ -113,6 +151,28 @@ public class RoomServiceImpl implements RoomService {
                 .uuid(entity.getUuid())
                 .name(entity.getName())
                 .roomType(entity.getRoomType())
+                .seatingType(entity.getSeatingType())
+                .rowCount(entity.getRowCount())
+                .columnsPerRow(entity.getColumnsPerRow())
+                .seatsPerUnit(entity.getSeatsPerUnit())
+                .totalCapacity(entity.getTotalCapacity())
+                .floorNumber(entity.getFloorNumber())
+                .building(entity.getBuilding() == null ? null : new BuildingResponseDto(
+                        entity.getBuilding().getUuid(),
+                        entity.getBuilding().getName(),
+                        entity.getBuilding().getCode(),
+                        entity.getBuilding().getTotalFloors()
+                ))
+                .hasProjector(entity.getHasProjector())
+                .hasAC(entity.getHasAC())
+                .hasWhiteboard(entity.getHasWhiteboard())
+                .isAccessible(entity.getIsAccessible())
+                .otherAmenities(entity.getOtherAmenities())
                 .build();
+    }
+
+    private Building getBuildingOrThrow(UUID buildingId) {
+        return buildingRepository.findById(buildingId)
+                .orElseThrow(() -> new ResourceNotFoundException("Building not found with id: " + buildingId));
     }
 }

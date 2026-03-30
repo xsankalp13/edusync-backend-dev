@@ -4,10 +4,13 @@ import com.project.edusync.adm.exception.ResourceNotFoundException;
 import com.project.edusync.adm.model.dto.request.AcademicClassRequestDto;
 import com.project.edusync.adm.model.dto.request.SectionRequestDto;
 import com.project.edusync.adm.model.dto.response.AcademicClassResponseDto;
+import com.project.edusync.adm.model.dto.response.RoomBasicResponseDto;
 import com.project.edusync.adm.model.dto.response.SectionResponseDto;
 import com.project.edusync.adm.model.entity.AcademicClass;
+import com.project.edusync.adm.model.entity.Room;
 import com.project.edusync.adm.model.entity.Section;
 import com.project.edusync.adm.repository.AcademicClassRepository;
+import com.project.edusync.adm.repository.RoomRepository;
 import com.project.edusync.adm.repository.SectionRepository;
 import com.project.edusync.adm.service.AcademicClassService;
 import lombok.RequiredArgsConstructor;
@@ -26,6 +29,7 @@ public class AcademicClassServiceImpl implements AcademicClassService {
 
     private final AcademicClassRepository academicClassRepository;
     private final SectionRepository sectionRepository;
+    private final RoomRepository roomRepository;
 
 
     @Override
@@ -64,7 +68,7 @@ public class AcademicClassServiceImpl implements AcademicClassService {
         AcademicClass existingClass = academicClassRepository.findById(classId)
                 .orElseThrow(() -> {
                     log.warn("No class with id {} to update", classId);
-                    return new RuntimeException("No resource found to update");
+                    return new ResourceNotFoundException("No resource found to update");
                 });
         existingClass.setName(academicClassRequestDto.getName());
 
@@ -98,6 +102,7 @@ public class AcademicClassServiceImpl implements AcademicClassService {
         Section newSection = new Section();
         newSection.setSectionName(sectionRequestDto.getSectionName());
         newSection.setAcademicClass(parentClass); // Link to parent
+        newSection.setDefaultRoom(resolveDefaultRoom(sectionRequestDto.getDefaultRoomId()));
 
         Section savedSection = sectionRepository.save(newSection);
         log.info("Section '{}' created successfully with id {} for class id {}", savedSection.getSectionName(), savedSection.getId(), classId);
@@ -125,7 +130,7 @@ public class AcademicClassServiceImpl implements AcademicClassService {
         Section section = sectionRepository.findById(sectionId)
                 .orElseThrow(() -> {
                     log.warn("Section with id {} not found ",sectionId);
-                    return new RuntimeException("no such section found");
+                    return new ResourceNotFoundException("no such section found");
                 });
         return toSectionResponseDto(section); // Use private helper
     }
@@ -139,6 +144,7 @@ public class AcademicClassServiceImpl implements AcademicClassService {
                     return new ResourceNotFoundException("No section with id: " + sectionId);
                 });
         existingSection.setSectionName(sectionRequestDto.getSectionName());
+        existingSection.setDefaultRoom(resolveDefaultRoom(sectionRequestDto.getDefaultRoomId()));
 
         Section updatedSection = sectionRepository.save(existingSection);
         log.info("Section with id {} updated successfully", updatedSection.getId());
@@ -176,7 +182,18 @@ public class AcademicClassServiceImpl implements AcademicClassService {
         return SectionResponseDto.builder()
                 .uuid(entity.getUuid())
                 .sectionName(entity.getSectionName())
+                .defaultRoom(entity.getDefaultRoom() == null
+                        ? null
+                        : new RoomBasicResponseDto(entity.getDefaultRoom().getUuid(), entity.getDefaultRoom().getName()))
                 .build();
+    }
+
+    private Room resolveDefaultRoom(UUID defaultRoomId) {
+        if (defaultRoomId == null) {
+            return null;
+        }
+        return roomRepository.findActiveById(defaultRoomId)
+                .orElseThrow(() -> new ResourceNotFoundException("Default room not found with id: " + defaultRoomId));
     }
 
 }

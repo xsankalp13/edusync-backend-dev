@@ -162,7 +162,7 @@ public class ProfileServiceImpl implements ProfileService {
             try {
                 if (StaffType.TEACHER.equals(staff.getStaffType())) {
                     // Optimized: Passed Long ID directly.
-                    teacherDetailsRepository.findById(Integer.valueOf(staff.getId().toString()))
+                    teacherDetailsRepository.findById(staff.getId())
                             .ifPresentOrElse(
                                     td -> {
                                         log.debug("Fetched specialized Teacher details for Staff ID: {}", staff.getId());

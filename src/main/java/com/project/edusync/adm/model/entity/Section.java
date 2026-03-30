@@ -20,8 +20,8 @@ import java.util.Set;
 @Setter
 @NoArgsConstructor
 @AllArgsConstructor
-@EqualsAndHashCode(callSuper = true, exclude = {"academicClass", "schedules", "academicConstraints", "students"}) // Exclude relationships
-@ToString(callSuper = true, exclude = {"academicClass", "schedules", "academicConstraints", "students"}) // Exclude lazy relationships
+@EqualsAndHashCode(callSuper = true, exclude = {"academicClass", "defaultRoom", "schedules", "academicConstraints", "students"})
+@ToString(callSuper = true, exclude = {"academicClass", "defaultRoom", "schedules", "academicConstraints", "students"})
 @Entity
 @Table(name = "sections")
 public class Section extends AuditableEntity {
@@ -42,6 +42,10 @@ public class Section extends AuditableEntity {
     @ManyToOne(fetch = FetchType.LAZY, optional = false)
     @JoinColumn(name = "class_id", nullable = false) // This joins on the 'id' column of the 'classes' table
     private AcademicClass academicClass;
+
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "default_room_id")
+    private Room defaultRoom;
 
     /**
      * All schedule entries for this specific section.

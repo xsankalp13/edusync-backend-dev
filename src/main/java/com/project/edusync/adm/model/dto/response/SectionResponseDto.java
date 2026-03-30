@@ -17,5 +17,6 @@ public class SectionResponseDto {
 
     private UUID uuid;
     private String sectionName;
+    private RoomBasicResponseDto defaultRoom;
 
 }

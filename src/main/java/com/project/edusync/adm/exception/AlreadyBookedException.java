@@ -1,7 +1,10 @@
 package com.project.edusync.adm.exception;
 
-public class AlreadyBookedException extends RuntimeException {
+import com.project.edusync.common.exception.EdusyncException;
+import org.springframework.http.HttpStatus;
+
+public class AlreadyBookedException extends EdusyncException {
     public AlreadyBookedException(String message) {
-        super(message);
+        super(message, HttpStatus.CONFLICT);
     }
 }

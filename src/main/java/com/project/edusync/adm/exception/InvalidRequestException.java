@@ -1,7 +1,10 @@
 package com.project.edusync.adm.exception;
 
-public class InvalidRequestException extends RuntimeException {
+import com.project.edusync.common.exception.EdusyncException;
+import org.springframework.http.HttpStatus;
+
+public class InvalidRequestException extends EdusyncException {
     public InvalidRequestException(String message) {
-        super(message);
+        super(message, HttpStatus.BAD_REQUEST);
     }
 }

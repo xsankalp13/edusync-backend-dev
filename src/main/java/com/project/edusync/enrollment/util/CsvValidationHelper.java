@@ -9,6 +9,7 @@ import java.time.LocalDate;
 import java.time.format.DateTimeFormatter;
 import java.time.format.DateTimeParseException;
 import java.util.regex.Pattern;
+import java.math.BigDecimal;
 
 /**
  * A stateless Spring component providing utility methods for validating and
@@ -63,6 +64,42 @@ public class CsvValidationHelper {
             throw new DataParsingException("Invalid email format: '" + validatedEmail + "'.");
         }
         return validatedEmail;
+    }
+
+    /**
+     * Validates and normalizes phone numbers.
+     * Handles Scientific notation losslessly if possible (e.g. 9.19123E+11 -> 919123000000).
+     * @throws DataParsingException if the string is empty or invalid format.
+     */
+    public String validatePhoneNumber(String value, String fieldName) {
+        String validatedValue = validateString(value, fieldName);
+
+        // Handle scientific notation gracefully (e.g. "9.19123E+11" -> "919123000000")
+        if (validatedValue.toUpperCase().contains("E")) {
+            try {
+                BigDecimal bd = new BigDecimal(validatedValue);
+                validatedValue = bd.toPlainString();
+                // If it parses to something with decimals (like 919.5), strip decimal point
+                if (validatedValue.contains(".")) {
+                    validatedValue = validatedValue.substring(0, validatedValue.indexOf('.'));
+                }
+            } catch (NumberFormatException e) {
+                throw new DataParsingException("Invalid scientific notation for phone number: '" + value + "'.");
+            }
+        }
+
+        // Remove all non-numeric characters except leading '+'
+        String normalized = validatedValue.replaceAll("[^0-9+]", "");
+        
+        // Basic length validation
+        int digitCount = normalized.replaceAll("[^0-9]", "").length();
+        if (digitCount < 10 || digitCount > 15) {
+            throw new DataParsingException(
+                "Phone number '" + value + "' for " + fieldName + " is invalid. Must contain 10-15 digits."
+            );
+        }
+
+        return normalized;
     }
 
     /**

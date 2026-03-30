@@ -31,6 +31,7 @@ public class ScheduleResponseDto {
         private UUID uuid;
         private String sectionName;
         private String className;
+        private RoomBasicResponseDto defaultRoom;
     }
 
     @Data
@@ -55,6 +56,7 @@ public class ScheduleResponseDto {
         private UUID uuid;
         private String name;
         private String roomType;
+        private Integer totalCapacity;
     }
 
     @Data

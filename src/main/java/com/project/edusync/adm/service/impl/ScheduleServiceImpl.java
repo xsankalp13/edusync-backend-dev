@@ -4,6 +4,7 @@ import com.project.edusync.adm.exception.AlreadyBookedException;
 import com.project.edusync.adm.exception.InvalidRequestException;
 import com.project.edusync.adm.exception.ResourceNotFoundException;
 import com.project.edusync.adm.model.dto.request.ScheduleRequestDto;
+import com.project.edusync.adm.model.dto.response.RoomBasicResponseDto;
 import com.project.edusync.adm.model.dto.response.ScheduleResponseDto;
 import com.project.edusync.adm.model.dto.response.TimetableOverviewResponseDto;
 import com.project.edusync.adm.model.entity.*;
@@ -23,11 +24,9 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.ZoneOffset;
-import java.util.HashSet;
-import java.util.List;
-import java.util.Set;
-import java.util.UUID;
+import java.util.*;
 import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 @Service
 @Slf4j
@@ -76,6 +75,7 @@ public class ScheduleServiceImpl implements ScheduleService {
     }
 
     @Override
+    @Transactional
     @Caching(evict = {
             @CacheEvict(value = "sectionSchedules", key = "#requestDto.sectionId"),
             @CacheEvict(value = "editorContext", key = "#requestDto.sectionId"),
@@ -85,10 +85,13 @@ public class ScheduleServiceImpl implements ScheduleService {
         log.info("Attempting to create a new schedule entry for section {} at timeslot {}",
                 requestDto.getSectionId(), requestDto.getTimeslotId());
 
-        // 1. Validate for conflicts
-        validateScheduleConflicts(requestDto, null);
+        // 1. Inherit section default room when request does not send roomId
+        assignRoomIfMissing(requestDto);
 
-        // 2. Fetch all related entities
+        // 2. Validate for conflicts
+        validateScheduleConflicts(requestDto, null, null);
+
+        // 3. Build and save the schedule entity
         Schedule newSchedule = new Schedule();
         newSchedule.setSection(findSectionById(requestDto.getSectionId()));
         newSchedule.setSubject(findSubjectById(requestDto.getSubjectId()));
@@ -96,9 +99,9 @@ public class ScheduleServiceImpl implements ScheduleService {
         newSchedule.setRoom(findRoomById(requestDto.getRoomId()));
         newSchedule.setTimeslot(findTimeslotById(requestDto.getTimeslotId()));
         newSchedule.setIsActive(true);
-        newSchedule.setStatus(ScheduleStatus.NONE); // Example status
+        newSchedule.setStatus(ScheduleStatus.DRAFT);
 
-        // 3. Save and return
+        // 4. Save and return
         Schedule savedSchedule = scheduleRepository.save(newSchedule);
         log.info("Schedule entry {} created successfully", savedSchedule.getUuid());
 
@@ -119,8 +122,11 @@ public class ScheduleServiceImpl implements ScheduleService {
 
         UUID previousSectionId = existingSchedule.getSection().getUuid();
 
+        // 1. Inherit section default room when request does not send roomId
+        assignRoomIfMissing(requestDto);
+
         // 2. Validate for conflicts (excluding the current scheduleId)
-        validateScheduleConflicts(requestDto, scheduleId);
+        validateScheduleConflicts(requestDto, scheduleId, null);
 
         // 3. Fetch and update all related entities
         existingSchedule.setSection(findSectionById(requestDto.getSectionId()));
@@ -137,6 +143,7 @@ public class ScheduleServiceImpl implements ScheduleService {
         evictSectionScheduleCache(updatedSchedule.getSection().getUuid());
         evictEditorContextCache(previousSectionId);
         evictEditorContextCache(updatedSchedule.getSection().getUuid());
+
         evictAvailableTeachersCache();
 
         return toScheduleResponseDto(updatedSchedule);
@@ -196,19 +203,49 @@ public class ScheduleServiceImpl implements ScheduleService {
     public List<ScheduleResponseDto> replaceSectionScheduleBulk(UUID sectionId, List<ScheduleRequestDto> schedules) {
         log.info("Attempting bulk schedule replace for sectionId={} payloadSize={}", sectionId, schedules == null ? 0 : schedules.size());
 
-        if (sectionRepository.findById(sectionId).isEmpty()) {
-            throw new ResourceNotFoundException("No section resource found with id: " + sectionId);
-        }
+        Section section = findSectionById(sectionId);
         if (schedules == null || schedules.isEmpty()) {
             throw new InvalidRequestException("Bulk schedule payload must contain at least one schedule entry.");
         }
 
-        validateBulkPayload(sectionId, schedules);
+        // Pre-cache entities for performance
+        Map<UUID, Subject> subjectsMap = new HashMap<>();
+        Map<Long, TeacherDetails> teachersMap = new HashMap<>();
+        Map<UUID, Room> roomsMap = new HashMap<>();
+        Map<UUID, Timeslot> timeslotsMap = new HashMap<>();
 
+        // 1. Process each request to assign rooms if missing and validate
+        for (ScheduleRequestDto dto : schedules) {
+            if (!sectionId.equals(dto.getSectionId())) {
+                throw new InvalidRequestException("Each schedule row must use the same sectionId as the path parameter.");
+            }
+
+            // If roomId is missing, inherit the section default room
+            assignRoomIfMissing(dto);
+
+            // 2. Validate conflicts against OTHER sections
+            validateScheduleConflicts(dto, null, sectionId);
+        }
+
+        // 2. Internal payload validation (Double-check duplicates in the same payload for remaining logic)
+        validateBulkPayloadInternal(schedules);
+
+        // 3. Clear existing schedule
         scheduleRepository.softDeleteBySectionId(sectionId);
 
+        // 4. Build new entities using pre-cached data
         List<Schedule> newSchedules = schedules.stream()
-                .map(this::buildSchedule)
+                .map(dto -> {
+                    Schedule s = new Schedule();
+                    s.setSection(section);
+                    s.setSubject(subjectsMap.computeIfAbsent(dto.getSubjectId(), this::findSubjectById));
+                    s.setTeacher(teachersMap.computeIfAbsent(dto.getTeacherId(), this::findTeacherById));
+                    s.setRoom(roomsMap.computeIfAbsent(dto.getRoomId(), this::findRoomById));
+                    s.setTimeslot(timeslotsMap.computeIfAbsent(dto.getTimeslotId(), this::findTimeslotById));
+                    s.setIsActive(true);
+                    s.setStatus(ScheduleStatus.DRAFT);
+                    return s;
+                })
                 .toList();
 
         List<Schedule> saved = scheduleRepository.saveAll(newSchedules);
@@ -217,6 +254,22 @@ public class ScheduleServiceImpl implements ScheduleService {
     }
 
 
+    @Override
+    @Transactional
+    @Caching(evict = {
+            @CacheEvict(value = "sectionSchedules", key = "#sectionId"),
+            @CacheEvict(value = "editorContext", key = "#sectionId"),
+            @CacheEvict(value = "availableTeachers", allEntries = true)
+    })
+    public void deleteScheduleBySection(UUID sectionId) {
+        log.info("Attempting complete schedule delete for sectionId={}", sectionId);
+        if (sectionRepository.findById(sectionId).isEmpty()) {
+            throw new ResourceNotFoundException("No section resource found with id: " + sectionId);
+        }
+        scheduleRepository.softDeleteBySectionId(sectionId);
+        log.info("Complete schedule delete finished for sectionId={}", sectionId);
+    }
+
     // --- Private Helper Methods ---
 
     /**
@@ -224,33 +277,103 @@ public class ScheduleServiceImpl implements ScheduleService {
      * @param dto The DTO with new schedule details.
      * @param scheduleId The ID of the schedule to exclude from checks (null for creates).
      */
-    private void validateScheduleConflicts(ScheduleRequestDto dto, UUID scheduleId) {
-        if (scheduleRepository.existsTeacherConflict(dto.getTeacherId(), dto.getTimeslotId(), scheduleId)) {
-            log.warn("Validation failed: Teacher {} is already booked at timeslot {}", dto.getTeacherId(), dto.getTimeslotId());
-            throw new AlreadyBookedException("Teacher is already booked at this time.");
+    private void validateScheduleConflicts(ScheduleRequestDto dto, UUID scheduleId, UUID excludeSectionId) {
+        Optional<Schedule> teacherConflict = scheduleRepository.findTeacherConflict(dto.getTeacherId(), dto.getTimeslotId(), scheduleId, excludeSectionId);
+        if (teacherConflict.isPresent()) {
+            Schedule conf = teacherConflict.get();
+            String msg = String.format("Teacher '%s' is already booked on %s at %s for Class %s.",
+                    conf.getTeacher().getStaff().getUserProfile().getFirstName(),
+                    formatDayOfWeek(conf.getTimeslot()),
+                    formatTimeslot(conf.getTimeslot()),
+                    formatClassSection(conf.getSection()));
+            log.warn("Validation failed: {}", msg);
+            throw new AlreadyBookedException(msg);
         }
-        if (scheduleRepository.existsRoomConflict(dto.getRoomId(), dto.getTimeslotId(), scheduleId)) {
-            log.warn("Validation failed: Room {} is already booked at timeslot {}", dto.getRoomId(), dto.getTimeslotId());
-            throw new AlreadyBookedException("Room is already booked at this time.");
+
+        Optional<Schedule> roomConflict = scheduleRepository.findRoomConflict(dto.getRoomId(), dto.getTimeslotId(), scheduleId, excludeSectionId);
+        if (roomConflict.isPresent()) {
+            Schedule conf = roomConflict.get();
+            String msg = String.format("Room '%s' is already booked on %s at %s for Class %s.",
+                    conf.getRoom().getName(),
+                    formatDayOfWeek(conf.getTimeslot()),
+                    formatTimeslot(conf.getTimeslot()),
+                    formatClassSection(conf.getSection()));
+            log.warn("Validation failed: {}", msg);
+            throw new AlreadyBookedException(msg);
         }
-        if (scheduleRepository.existsSectionConflict(dto.getSectionId(), dto.getTimeslotId(), scheduleId)) {
-            log.warn("Validation failed: Section {} is already scheduled at timeslot {}", dto.getSectionId(), dto.getTimeslotId());
-            throw new AlreadyBookedException("Section is already scheduled at this time.");
+
+        Optional<Schedule> sectionConflict = scheduleRepository.findSectionConflict(dto.getSectionId(), dto.getTimeslotId(), scheduleId, excludeSectionId);
+        if (sectionConflict.isPresent()) {
+            Schedule conf = sectionConflict.get();
+            String msg = String.format("This section is already scheduled for '%s' on %s at %s.",
+                    conf.getSubject().getName(),
+                    formatDayOfWeek(conf.getTimeslot()),
+                    formatTimeslot(conf.getTimeslot()));
+            log.warn("Validation failed: {}", msg);
+            throw new AlreadyBookedException(msg);
         }
     }
 
-    private void validateBulkPayload(UUID sectionId, List<ScheduleRequestDto> schedules) {
+    private String formatTimeslot(Timeslot timeslot) {
+        if (timeslot == null) {
+            return "the selected timeslot";
+        }
+        String label = timeslot.getSlotLabel();
+        if (label != null && !label.isBlank()) {
+            return label + " (" + timeslot.getStartTime() + "-" + timeslot.getEndTime() + ")";
+        }
+        return timeslot.getStartTime() + "-" + timeslot.getEndTime();
+    }
+
+    private String formatClassSection(Section section) {
+        if (section == null || section.getAcademicClass() == null) {
+            return "the selected section";
+        }
+        return section.getAcademicClass().getName() + " " + section.getSectionName();
+    }
+
+    private String formatDayOfWeek(Timeslot timeslot) {
+        if (timeslot == null || timeslot.getDayOfWeek() == null) {
+            return "the selected day";
+        }
+        return switch (timeslot.getDayOfWeek()) {
+            case 1 -> "Monday";
+            case 2 -> "Tuesday";
+            case 3 -> "Wednesday";
+            case 4 -> "Thursday";
+            case 5 -> "Friday";
+            case 6 -> "Saturday";
+            case 7 -> "Sunday";
+            default -> "Day " + timeslot.getDayOfWeek();
+        };
+    }
+
+    private void assignRoomIfMissing(ScheduleRequestDto dto) {
+        if (dto.getRoomId() != null) return;
+
+        Section section = findSectionById(dto.getSectionId());
+        Room defaultRoom = section.getDefaultRoom();
+        if (defaultRoom == null) {
+            throw new InvalidRequestException(
+                    "Room ID is required because section '" + section.getSectionName() + "' has no default room configured."
+            );
+        }
+        if (!Boolean.TRUE.equals(defaultRoom.getIsActive())) {
+            throw new InvalidRequestException(
+                    "Section default room '" + defaultRoom.getName() + "' is inactive. Please select another room."
+            );
+        }
+
+        dto.setRoomId(defaultRoom.getUuid());
+        log.info("Inherited section default room '{}' for section '{}'", defaultRoom.getName(), section.getSectionName());
+    }
+
+    private void validateBulkPayloadInternal(List<ScheduleRequestDto> schedules) {
         Set<String> teacherTimeslot = new HashSet<>();
         Set<String> roomTimeslot = new HashSet<>();
         Set<UUID> sectionTimeslot = new HashSet<>();
 
         for (ScheduleRequestDto dto : schedules) {
-            if (!sectionId.equals(dto.getSectionId())) {
-                throw new InvalidRequestException("Each schedule row must use the same sectionId as the path parameter.");
-            }
-
-            validateScheduleConflicts(dto, null);
-
             String teacherKey = dto.getTeacherId() + "#" + dto.getTimeslotId();
             if (!teacherTimeslot.add(teacherKey)) {
                 throw new InvalidRequestException("Duplicate teacher-timeslot pair detected in bulk payload.");
@@ -309,6 +432,8 @@ public class ScheduleServiceImpl implements ScheduleService {
         }
     }
 
+
+
     // --- Entity Finder Helpers ---
 
     private Section findSectionById(UUID sectionId) {
@@ -350,6 +475,12 @@ public class ScheduleServiceImpl implements ScheduleService {
                         .uuid(entity.getSection().getUuid())
                         .sectionName(entity.getSection().getSectionName())
                         .className(entity.getSection().getAcademicClass().getName())
+                        .defaultRoom(entity.getSection().getDefaultRoom() == null
+                                ? null
+                                : new RoomBasicResponseDto(
+                                        entity.getSection().getDefaultRoom().getUuid(),
+                                        entity.getSection().getDefaultRoom().getName()
+                                ))
                         .build())
                 .subject(ScheduleResponseDto.NestedSubjectResponseDto.builder()
                         .uuid(entity.getSubject().getUuid())
@@ -364,6 +495,7 @@ public class ScheduleServiceImpl implements ScheduleService {
                         .uuid(entity.getRoom().getUuid())
                         .name(entity.getRoom().getName())
                         .roomType(entity.getRoom().getRoomType())
+                        .totalCapacity(entity.getRoom().getTotalCapacity())
                         .build())
                 .timeslot(ScheduleResponseDto.NestedTimeslotResponseDto.builder()
                         .uuid(entity.getTimeslot().getUuid())

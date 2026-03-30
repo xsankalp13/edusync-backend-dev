@@ -8,6 +8,8 @@ import lombok.Data;
 import lombok.NoArgsConstructor;
 
 import java.time.LocalDate;
+import java.util.List;
+import java.util.UUID;
 
 /**
  * A lightweight summary DTO for a Staff member — used in paginated admin list views.
@@ -43,6 +45,9 @@ public class StaffSummaryDTO {
     private LocalDate hireDate;
     private String officeLocation;
     private boolean active;
+
+    // --- Teaching Competencies (only populated for TEACHER staff type) ---
+    private List<UUID> teachableSubjectIds;
 }
 
 

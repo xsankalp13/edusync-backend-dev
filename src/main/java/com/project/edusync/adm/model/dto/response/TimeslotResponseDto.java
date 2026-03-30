@@ -18,5 +18,6 @@ public class TimeslotResponseDto {
     private LocalTime endTime;
     private String slotLabel;
     private Boolean isBreak;
+    private Boolean isNonTeachingSlot;
 
 }

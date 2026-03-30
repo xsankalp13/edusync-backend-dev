@@ -1,5 +1,6 @@
 package com.project.edusync.adm.service.impl;
 
+import com.project.edusync.adm.exception.ResourceNotFoundException;
 import com.project.edusync.adm.model.dto.response.AvailableRoomDto;
 import com.project.edusync.adm.model.dto.response.AvailableSubjectDto;
 import com.project.edusync.adm.model.dto.response.AvailableTeacherDto;
@@ -34,13 +35,16 @@ public class DataFetchServiceImpl implements DataFetchService {
     private final CurriculumMapRepository curriculumMapRepository;
 
     @Override
-    @Cacheable(value = "availableTeachers", key = "#subjectId")
-    public List<AvailableTeacherDto> getAvailableTeachers(UUID subjectId) {
-        log.info("Fetching qualified teachers for subject {} based on schedule history", subjectId);
+    @Cacheable(value = "availableTeachers", key = "{#subjectId, #timeslotId}")
+    public List<AvailableTeacherDto> getAvailableTeachers(UUID subjectId, UUID timeslotId) {
+        log.info("Fetching qualified and available teachers for subject {} at timeslot {}", subjectId, timeslotId);
 
-        // Call the updated repository method
-        List<TeacherDetails> teachers = teacherDetailsRepository
-                .findQualifiedTeachersForSubject(subjectId);
+        List<TeacherDetails> teachers;
+        if (timeslotId != null) {
+            teachers = teacherDetailsRepository.findAvailableTeachersForSlot(subjectId, timeslotId);
+        } else {
+            teachers = teacherDetailsRepository.findQualifiedTeachersForSubject(subjectId);
+        }
 
         return teachers.stream()
                 .map(this::toAvailableTeacherDto)
@@ -69,7 +73,7 @@ public class DataFetchServiceImpl implements DataFetchService {
         Section section = sectionRepository.findById(sectionId)
                 .orElseThrow(() -> {
                     log.warn("Section with id {} not found", sectionId);
-                    return new RuntimeException("No section resource found with id: " + sectionId);
+                    return new ResourceNotFoundException("No section resource found with id: " + sectionId);
                 });
 
         List<CurriculumMap> curriculumMaps = curriculumMapRepository.findActiveByClassUuid(section.getAcademicClass().getUuid());

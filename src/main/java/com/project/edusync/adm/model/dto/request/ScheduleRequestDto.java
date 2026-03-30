@@ -19,7 +19,7 @@ public class ScheduleRequestDto {
     @NotNull(message = "Teacher ID cannot be null")
     private Long teacherId;
 
-    @NotNull(message = "Room ID cannot be null")
+    // @NotNull(message = "Room ID cannot be null")
     private UUID roomId;
 
     @NotNull(message = "Timeslot ID cannot be null")

@@ -43,7 +43,6 @@ public class AuthUtil {
      *
      * @return The authenticated User entity.
      * @throws InsufficientAuthenticationException if no user is authenticated or is anonymous.
-     * @throws IllegalStateException if the principal is not of the expected User type.
      */
     public User getCurrentUser() {
         log.debug("Attempting to retrieve current authenticated user.");
@@ -70,7 +69,7 @@ public class AuthUtil {
         // If the principal is not what we expect, it's a critical configuration error.
         String principalType = (principal == null ? "null" : principal.getClass().getName());
         log.error("CRITICAL CONFIGURATION ERROR: Authenticated principal is not of the expected type 'User'. Found: {}. Please ensure your CustomUserDetailService returns the 'com.project.edusync.iam.model.entity.User' object.", principalType);
-        throw new IllegalStateException("Authenticated principal is not of the expected type 'User'. " +
+        throw new InsufficientAuthenticationException("Authenticated principal is not of the expected type 'User'. " +
                 "Found: " + principalType +
                 ". Please ensure your CustomUserDetailService returns the 'com.project.edusync.iam.model.entity.User' object.");
     }
@@ -80,7 +79,6 @@ public class AuthUtil {
      *
      * @return The Long user ID of the authenticated user.
      * @throws InsufficientAuthenticationException if no user is authenticated.
-     * @throws IllegalStateException if the principal is not of the expected User type.
      */
     public Long getCurrentUserId() {
         log.debug("Retrieving user ID for current user.");

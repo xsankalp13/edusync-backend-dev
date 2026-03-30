@@ -1,11 +1,18 @@
 package com.project.edusync.iam.service.impl;
 
 import com.project.edusync.adm.model.entity.Section;
+import com.project.edusync.adm.model.entity.Subject;
+import com.project.edusync.adm.model.entity.Timeslot;
+import com.project.edusync.adm.repository.ScheduleRepository;
+import com.project.edusync.adm.repository.SubjectRepository;
 import com.project.edusync.adm.repository.SectionRepository;
+import com.project.edusync.ams.model.repository.StaffDailyAttendanceRepository;
+import com.project.edusync.ams.model.repository.StudentDailyAttendanceRepository;
 import com.project.edusync.common.exception.EdusyncException;
 import com.project.edusync.common.exception.ResourceNotFoundException;
 import com.project.edusync.common.exception.iam.UserAlreadyExistsException;
 import com.project.edusync.common.service.EmailService;
+import com.project.edusync.em.model.repository.StudentMarkRepository;
 import com.project.edusync.iam.model.dto.*;
 import com.project.edusync.iam.model.entity.Role;
 import com.project.edusync.iam.model.entity.User;
@@ -23,9 +30,12 @@ import com.project.edusync.uis.model.entity.details.PrincipalDetails;
 import com.project.edusync.uis.model.entity.details.StudentDemographics;
 import com.project.edusync.uis.model.entity.details.TeacherDetails;
 import com.project.edusync.uis.model.entity.medical.StudentMedicalRecord;
+import com.project.edusync.uis.model.enums.StaffType;
 import com.project.edusync.uis.model.dto.profile.ComprehensiveUserProfileResponseDTO;
 import com.project.edusync.uis.model.dto.profile.GuardianProfileDTO;
 import com.project.edusync.uis.model.dto.profile.LinkedStudentDTO;
+import com.project.edusync.uis.model.dto.profile.StaffKpiMetricsDTO;
+import com.project.edusync.uis.model.dto.profile.StudentKpiMetricsDTO;
 import com.project.edusync.uis.model.dto.profile.StudentGuardianDTO;
 import com.project.edusync.uis.repository.*;
 import com.project.edusync.uis.repository.details.LibrarianDetailsRepository;
@@ -36,7 +46,7 @@ import com.project.edusync.uis.repository.medical.StudentMedicalRecordRepository
 import com.project.edusync.uis.service.ProfileService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.dao.DataIntegrityViolationException;
+import org.springframework.cache.annotation.CacheEvict;
 import org.springframework.http.HttpStatus;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
@@ -44,9 +54,13 @@ import org.springframework.transaction.annotation.Transactional;
 import org.springframework.util.StringUtils;
 
 import java.time.LocalDate;
+import java.math.BigDecimal;
+import java.math.RoundingMode;
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Set;
 import java.util.UUID;
 
 /**
@@ -80,10 +94,15 @@ public class UserManagementServiceImpl implements UserManagementService {
 
     // --- Extension Repositories ---
     private final TeacherDetailsRepository teacherDetailsRepository;
+    private final SubjectRepository subjectRepository;
     private final PrincipalDetailsRepository principalDetailsRepository;
     private final LibrarianDetailsRepository librarianDetailsRepository;
     private final StudentDemographicsRepository studentDemographicsRepository;
     private final StudentMedicalRecordRepository studentMedicalRecordRepository;
+    private final StudentDailyAttendanceRepository studentDailyAttendanceRepository;
+    private final StaffDailyAttendanceRepository staffDailyAttendanceRepository;
+    private final StudentMarkRepository studentMarkRepository;
+    private final ScheduleRepository scheduleRepository;
 
     // --- Mappers ---
     private final UserMapper userMapper;
@@ -167,11 +186,36 @@ public class UserManagementServiceImpl implements UserManagementService {
         // 2. Create Teacher Details Extension
         TeacherDetails details = teacherMapper.toEntity(request);
         details.setStaff(staff); // Link via @MapsId
+        details.setTeachableSubjects(resolveTeachableSubjects(request.getTeachableSubjectIds()));
 
         teacherDetailsRepository.save(details);
         log.info("Success: Teacher created with ID: {}", staff.getId());
 
         return staff.getUserProfile().getUser();
+    }
+
+    @Override
+    @Transactional
+    @CacheEvict(value = {"editorContext", "availableTeachers"}, allEntries = true)
+    public void bulkAssignSubjectToTeachers(BulkTeacherSubjectAssignmentRequestDTO request) {
+        log.info("Process started: Bulk teacher subject assignment. subjectId={}, teacherCount={}",
+                request.getSubjectId(), request.getTeacherIds().size());
+
+        Subject subject = subjectRepository.findActiveById(request.getSubjectId())
+                .orElseThrow(() -> new ResourceNotFoundException("Subject", "uuid", request.getSubjectId()));
+
+        List<TeacherDetails> teachersToUpdate = new ArrayList<>();
+        for (Long teacherId : request.getTeacherIds()) {
+            TeacherDetails teacherDetails = teacherDetailsRepository.findActiveById(teacherId)
+                    .orElseThrow(() -> new ResourceNotFoundException("Teacher", "id", teacherId));
+
+            teacherDetails.getTeachableSubjects().add(subject);
+            teachersToUpdate.add(teacherDetails);
+        }
+
+        teacherDetailsRepository.saveAll(teachersToUpdate);
+        log.info("Success: Bulk teacher subject assignment completed. subjectId={}, updatedTeachers={}",
+                request.getSubjectId(), teachersToUpdate.size());
     }
 
     @Override
@@ -368,7 +412,7 @@ public class UserManagementServiceImpl implements UserManagementService {
         // Assuming your User repository has a method for this, or you handle it via DataIntegrityViolationException
         // We will do a manual check for cleaner error messages
          if (userRepository.existsByEmail(request.getEmail())) {
-             throw new DataIntegrityViolationException("Email '" + request.getEmail() + "' already exists.");
+             throw new UserAlreadyExistsException("Email '" + request.getEmail() + "' already exists.");
          }
 
         // 2. Validate Role Existence
@@ -485,6 +529,7 @@ public class UserManagementServiceImpl implements UserManagementService {
 
     @Override
     @Transactional
+    @CacheEvict(value = {"editorContext", "availableTeachers"}, allEntries = true)
     public User updateStaff(UUID staffId, UpdateStaffRequestDTO request) {
         log.info("Process started: Updating Staff. UUID: {}", staffId);
 
@@ -552,12 +597,38 @@ public class UserManagementServiceImpl implements UserManagementService {
             staff.setStaffType(request.getStaffType());
         }
 
+        if (request.getTeachableSubjectIds() != null) {
+            StaffType effectiveStaffType = request.getStaffType() != null ? request.getStaffType() : staff.getStaffType();
+            if (!StaffType.TEACHER.equals(effectiveStaffType)) {
+                throw new EdusyncException("teachableSubjectIds is only supported for teacher staff records.", HttpStatus.BAD_REQUEST);
+            }
+
+            TeacherDetails teacherDetails = teacherDetailsRepository.findById(staff.getId())
+                    .orElseThrow(() -> new ResourceNotFoundException("TeacherDetails", "staffId", staff.getId()));
+            teacherDetails.setTeachableSubjects(resolveTeachableSubjects(request.getTeachableSubjectIds()));
+            teacherDetailsRepository.save(teacherDetails);
+        }
+
         userRepository.save(user);
         userProfileRepository.save(profile);
         staffRepository.save(staff);
 
         log.info("Success: Staff updated. UUID: {}", staffId);
         return user;
+    }
+
+    private Set<Subject> resolveTeachableSubjects(List<UUID> teachableSubjectIds) {
+        if (teachableSubjectIds == null || teachableSubjectIds.isEmpty()) {
+            return new HashSet<>();
+        }
+
+        Set<Subject> subjects = new HashSet<>();
+        for (UUID subjectId : teachableSubjectIds) {
+            Subject subject = subjectRepository.findActiveById(subjectId)
+                    .orElseThrow(() -> new ResourceNotFoundException("Subject", "uuid", subjectId));
+            subjects.add(subject);
+        }
+        return subjects;
     }
 
     @Override
@@ -797,5 +868,136 @@ public class UserManagementServiceImpl implements UserManagementService {
 
         log.info("Success: Full Staff details fetched. Staff UUID: {}, User ID: {}", staffId, userId);
         return response;
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public StudentKpiMetricsDTO getStudentKpiMetrics(UUID studentId) {
+        log.info("Process started: Fetching Student KPI metrics. UUID: {}", studentId);
+
+        Student student = studentRepository.findByUuid(studentId)
+                .orElseThrow(() -> new ResourceNotFoundException("Student", "uuid", studentId));
+
+        BigDecimal attendanceRate = calculateStudentAttendancePercentage(student.getId());
+        BigDecimal gpa = calculateStudentGpaOnFourScale(student.getId());
+
+        StudentKpiMetricsDTO dto = new StudentKpiMetricsDTO();
+        dto.setStudentId(student.getId());
+        dto.setAttendanceRatePercentage(attendanceRate);
+        dto.setGpa(gpa);
+        dto.setAcademicStanding(resolveAcademicStanding(gpa));
+        dto.setCurrentGrade(student.getSection().getAcademicClass().getName());
+        dto.setCurrentSection(student.getSection().getSectionName());
+        dto.setOpenDisciplinaryIncidents(0L);
+
+        log.info("Success: Student KPI metrics computed. studentUuid={}, studentId={}, attendance={}, gpa={}",
+                studentId, student.getId(), attendanceRate, gpa);
+        return dto;
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public StaffKpiMetricsDTO getStaffKpiMetrics(UUID staffId) {
+        log.info("Process started: Fetching Staff KPI metrics. UUID: {}", staffId);
+
+        Staff staff = staffRepository.findByUuid(staffId)
+                .orElseThrow(() -> new ResourceNotFoundException("Staff", "uuid", staffId));
+
+        BigDecimal attendanceRate = calculateStaffAttendancePercentage(staff.getId());
+        Long totalClassesAssigned = 0L;
+        Integer weeklyHoursAssigned = 0;
+
+        if (StaffType.TEACHER.equals(staff.getStaffType())) {
+            TeacherDetails teacherDetails = teacherDetailsRepository.findByStaff_Id(staff.getId())
+                    .orElse(null);
+
+            if (teacherDetails != null) {
+                totalClassesAssigned = scheduleRepository.countDistinctActiveSectionsByTeacherId(teacherDetails.getId());
+                weeklyHoursAssigned = calculateWeeklyHoursAssigned(teacherDetails.getId());
+            }
+        }
+
+        StaffKpiMetricsDTO dto = new StaffKpiMetricsDTO();
+        dto.setStaffId(staff.getId());
+        dto.setPerformanceRating(null);
+        dto.setTotalClassesAssigned(totalClassesAssigned);
+        dto.setWeeklyHoursAssigned(weeklyHoursAssigned);
+        dto.setAttendanceRatePercentage(attendanceRate);
+
+        log.info("Success: Staff KPI metrics computed. staffUuid={}, staffId={}, attendance={}, classesAssigned={}, weeklyHours={}",
+                staffId, staff.getId(), attendanceRate, totalClassesAssigned, weeklyHoursAssigned);
+        return dto;
+    }
+
+    private BigDecimal calculateStudentAttendancePercentage(Long studentId) {
+        long total = studentDailyAttendanceRepository.countByStudentId(studentId);
+        if (total == 0) {
+            return BigDecimal.ZERO;
+        }
+        long present = studentDailyAttendanceRepository.countPresentByStudentId(studentId);
+        return BigDecimal.valueOf(present)
+                .multiply(BigDecimal.valueOf(100))
+                .divide(BigDecimal.valueOf(total), 2, RoundingMode.HALF_UP);
+    }
+
+    private BigDecimal calculateStaffAttendancePercentage(Long staffId) {
+        long total = staffDailyAttendanceRepository.countByStaffId(staffId);
+        if (total == 0) {
+            return BigDecimal.ZERO;
+        }
+        long present = staffDailyAttendanceRepository.countPresentByStaffId(staffId);
+        return BigDecimal.valueOf(present)
+                .multiply(BigDecimal.valueOf(100))
+                .divide(BigDecimal.valueOf(total), 2, RoundingMode.HALF_UP);
+    }
+
+    private BigDecimal calculateStudentGpaOnFourScale(Long studentId) {
+        List<StudentMarkRepository.PerformanceTrendView> trend = studentMarkRepository.findPerformanceTrendByStudentId(studentId);
+        if (trend.isEmpty()) {
+            return BigDecimal.ZERO;
+        }
+
+        BigDecimal latestTenScale = trend.get(trend.size() - 1).getScore();
+        if (latestTenScale == null) {
+            return BigDecimal.ZERO;
+        }
+
+        return latestTenScale
+                .multiply(BigDecimal.valueOf(0.4))
+                .setScale(2, RoundingMode.HALF_UP);
+    }
+
+    private String resolveAcademicStanding(BigDecimal gpaOnFourScale) {
+        if (gpaOnFourScale == null) {
+            return "AT_RISK";
+        }
+        if (gpaOnFourScale.compareTo(BigDecimal.valueOf(3.7)) >= 0) {
+            return "EXCELLENT";
+        }
+        if (gpaOnFourScale.compareTo(BigDecimal.valueOf(3.0)) >= 0) {
+            return "GOOD";
+        }
+        if (gpaOnFourScale.compareTo(BigDecimal.valueOf(2.0)) >= 0) {
+            return "AVERAGE";
+        }
+        return "AT_RISK";
+    }
+
+    private Integer calculateWeeklyHoursAssigned(Long teacherId) {
+        List<Timeslot> timeslots = scheduleRepository.findDistinctActiveTimeslotsByTeacherId(teacherId);
+        if (timeslots.isEmpty()) {
+            return 0;
+        }
+
+        int minutes = timeslots.stream()
+                .mapToInt(ts -> {
+                    if (ts.getStartTime() == null || ts.getEndTime() == null) {
+                        return 0;
+                    }
+                    return (int) java.time.Duration.between(ts.getStartTime(), ts.getEndTime()).toMinutes();
+                })
+                .sum();
+
+        return (int) Math.round(minutes / 60.0);
     }
 }

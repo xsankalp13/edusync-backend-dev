@@ -42,6 +42,12 @@ public class UserProfile extends AuditableEntity {
     @Column(columnDefinition = "TEXT")
     private String bio;
 
+    @Column(name = "primary_language", length = 50)
+    private String primaryLanguage;
+
+    @Column(name = "blood_group", length = 10)
+    private String bloodGroup;
+
     @Enumerated(EnumType.STRING)
     @Column(name = "gender")
     private Gender gender;

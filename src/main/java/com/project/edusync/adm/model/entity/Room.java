@@ -19,8 +19,8 @@ import java.util.Set;
 @Setter
 @NoArgsConstructor
 @AllArgsConstructor
-@EqualsAndHashCode(callSuper = true, exclude = {"schedules"}) // Exclude relationships
-@ToString(callSuper = true, exclude = {"schedules"}) // Exclude lazy relationships
+@EqualsAndHashCode(callSuper = true, exclude = {"schedules", "building"})
+@ToString(callSuper = true, exclude = {"schedules", "building"})
 @Entity
 @Table(name = "rooms")
 public class Room extends AuditableEntity {
@@ -36,9 +36,54 @@ public class Room extends AuditableEntity {
 
     @Column(name = "capacity", nullable = false)
     private Integer capacity;
+    // Kept nullable at DB level for backward compatibility with existing rooms.
+    @Column(name = "row_count")
+    private Integer rowCount;
+
+    @Column(name = "columns_per_row")
+    private Integer columnsPerRow;
+
+    @Column(name = "seating_type", length = 50)
+    private String seatingType;
+
+    @Column(name = "seats_per_unit")
+    private Integer seatsPerUnit;
+
+    @Column(name = "total_capacity")
+    private Integer totalCapacity;
+
+    @Column(name = "floor_number")
+    private Integer floorNumber;
+
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "building_id")
+    private Building building;
+
+    @Column(name = "has_projector")
+    private Boolean hasProjector = false;
+
+    @Column(name = "has_ac")
+    private Boolean hasAC = false;
+
+    @Column(name = "has_whiteboard")
+    private Boolean hasWhiteboard = true;
+
+    @Column(name = "is_accessible")
+    private Boolean isAccessible = false;
+
+    @Column(name = "other_amenities", length = 500)
+    private String otherAmenities;
 
     @Column(name = "is_active")
     private Boolean isActive = true;
+
+    @PrePersist
+    @PreUpdate
+    public void calculateCapacity() {
+        if (rowCount != null && columnsPerRow != null && seatsPerUnit != null) {
+            this.totalCapacity = rowCount * columnsPerRow * seatsPerUnit;
+        }
+    }
 
     // --- Relationships ---
 

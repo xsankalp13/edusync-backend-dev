@@ -27,9 +27,10 @@ public class DataFetchController {
      */
     @GetMapping("/teachers/available")
     public ResponseEntity<List<AvailableTeacherDto>> getAvailableTeachers(
-            @RequestParam UUID subjectId) { // This is correct
+            @RequestParam UUID subjectId,
+            @RequestParam(required = false) UUID timeslotId) {
 
-        List<AvailableTeacherDto> response = dataFetchService.getAvailableTeachers(subjectId);
+        List<AvailableTeacherDto> response = dataFetchService.getAvailableTeachers(subjectId, timeslotId);
         return new ResponseEntity<>(response, HttpStatus.OK);
     }
 

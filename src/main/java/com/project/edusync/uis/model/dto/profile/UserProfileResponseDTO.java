@@ -20,6 +20,8 @@ public class UserProfileResponseDTO {
     private String profileUrl;
     private LocalDate dateOfBirth;
     private String bio;
+    private String primaryLanguage;
+    private String bloodGroup;
 
     // --- Aggregated from User entity ---
     private String username;

@@ -47,6 +47,8 @@ spring:
 # APPLICATION-SPECIFIC PROPERTIES
 # ===================================================================
 app:
+  cache:
+    version: ${APP_CACHE_VERSION:v1}
   razorpay:
     key-id: ${RAZORPAY_KEY_ID}
     key-secret: ${RAZORPAY_KEY_SECRET}
@@ -123,7 +125,7 @@ spring:
   jpa:
     # Allowed only in dev: auto-syncs entity changes to the DB schema.
     hibernate:
-      ddl-auto: validate
+      ddl-auto: update
     # Enabled only in dev for debugging SQL queries.
     show-sql: true
 

@@ -1,5 +1,6 @@
 package com.project.edusync.uis.model.entity.details;
 
+import com.project.edusync.adm.model.entity.Subject;
 import com.project.edusync.uis.model.entity.Staff;
 import com.project.edusync.uis.model.enums.EducationLevel;
 import jakarta.persistence.*;
@@ -9,7 +10,9 @@ import lombok.Setter;
 import org.hibernate.annotations.JdbcTypeCode;
 import org.hibernate.type.SqlTypes;
 
+import java.util.HashSet;
 import java.util.List;
+import java.util.Set;
 
 @Entity
 @Table(name = "teacher_details")
@@ -63,5 +66,13 @@ public class TeacherDetails {
     @JdbcTypeCode(SqlTypes.JSON)
     @Column(columnDefinition = "jsonb")
     private List<String> certifications;// e.g., "[\"First Aid\", \"Google Certified\"]"
+
+    @ManyToMany(fetch = FetchType.LAZY)
+    @JoinTable(
+            name = "teacher_teachable_subjects",
+            joinColumns = @JoinColumn(name = "teacher_id"),
+            inverseJoinColumns = @JoinColumn(name = "subject_id")
+    )
+    private Set<Subject> teachableSubjects = new HashSet<>();
 
 }

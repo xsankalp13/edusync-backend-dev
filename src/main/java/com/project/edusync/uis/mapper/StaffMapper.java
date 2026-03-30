@@ -10,6 +10,10 @@ import com.project.edusync.uis.model.entity.details.TeacherDetails;
 import org.mapstruct.Mapper;
 import org.mapstruct.Mapping;
 
+import java.util.List;
+import java.util.Objects;
+import java.util.UUID;
+
 /**
  * Comprehensive Mapper for Staff members.
  * <p>
@@ -43,10 +47,22 @@ public interface StaffMapper {
     /**
      * Maps specific details for Teaching staff.
      */
+    @Mapping(target = "teachableSubjectIds", expression = "java(mapTeachableSubjectIds(details))")
     TeacherDetailsDTO toTeacherDto(TeacherDetails details);
 
     /**
      * Maps specific details for Principal/Admin staff.
      */
     PrincipalDetailsDTO toPrincipalDto(PrincipalDetails details);
+
+    default List<UUID> mapTeachableSubjectIds(TeacherDetails details) {
+        if (details == null || details.getTeachableSubjects() == null) {
+            return List.of();
+        }
+        return details.getTeachableSubjects().stream()
+                .filter(Objects::nonNull)
+                .map(subject -> subject.getUuid())
+                .filter(Objects::nonNull)
+                .toList();
+    }
 }
