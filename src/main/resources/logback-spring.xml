@@ -1,39 +1,99 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <configuration>
-    <include resource="org/springframework/boot/logging/logback/defaults.xml"/>
 
-    <appender name="CONSOLE" class="ch.qos.logback.core.ConsoleAppender">
-        <encoder>
-            <pattern>${CONSOLE_LOG_PATTERN}</pattern>
-            <charset>utf8</charset>
-        </encoder>
-    </appender>
+  <!--
+    CLEAN LOGBACK CONFIGURATION
+    ============================================================
+    - No springProfile blocks (avoids profile-resolution timing issues).
+    - Pattern written inline in each appender (avoids ${PROPERTY}
+      substitution bugs that caused %msg to be silently dropped).
+    - Logging levels are controlled via logging.level.* in application.yml.
+    - File path comes from logging.file.name in application.yml.
+    ============================================================
+  -->
 
-    <appender name="FILE" class="ch.qos.logback.core.rolling.RollingFileAppender">
-        <encoder>
-            <pattern>${FILE_LOG_PATTERN}</pattern>
-            <charset>utf8</charset>
-        </encoder>
-        <file>logs/edusync-dev.log</file>
-        <rollingPolicy class="ch.qos.logback.core.rolling.SizeAndTimeBasedRollingPolicy">
-            <fileNamePattern>logs/edusync-dev.%d{yyyy-MM-dd}.%i.log</fileNamePattern>
-            <maxFileSize>10MB</maxFileSize>
-            <maxHistory>30</maxHistory>
-        </rollingPolicy>
-    </appender>
+  <!-- Read log file path from Spring Environment (set by application.yml) -->
+  <springProperty scope="context" name="LOG_FILE"
+                  source="logging.file.name"
+                  defaultValue="logs/edusync-dev.log"/>
 
-    <root level="INFO">
-        <appender-ref ref="CONSOLE"/>
-    </root>
+  <!-- ══════════════════════════════════════════════════
+       CONSOLE  — always on, human-readable.
+       Startup events (before first HTTP request) show:
+         [NO_TRACE] [NO_REQ] NA NA NA NA
+       This is correct: no MDC values exist outside a request.
+       ══════════════════════════════════════════════════ -->
+  <appender name="CONSOLE" class="ch.qos.logback.core.ConsoleAppender">
+    <encoder>
+      <pattern>%d{yyyy-MM-dd HH:mm:ss.SSS} %-5level [%X{traceId:-NO_TRACE}] [%X{requestId:-NO_REQ}] %X{httpMethod:-NA} %X{path:-NA} %X{status:-NA} %X{duration:-NA} %logger{36} - %msg%n</pattern>
+    </encoder>
+  </appender>
 
-    <logger name="com.project.edusync" level="DEBUG" additivity="false">
-        <appender-ref ref="CONSOLE"/>
-        <appender-ref ref="FILE"/>
-    </logger>
+  <!-- ══════════════════════════════════════════════════
+       FILE  — rolling file on disk (required for the
+       SuperAdmin /api/v1/super/logs tail endpoint).
+       ══════════════════════════════════════════════════ -->
+  <appender name="FILE" class="ch.qos.logback.core.rolling.RollingFileAppender">
+    <file>${LOG_FILE}</file>
+    <rollingPolicy class="ch.qos.logback.core.rolling.SizeAndTimeBasedRollingPolicy">
+      <fileNamePattern>${LOG_FILE}.%d{yyyy-MM-dd}.%i.log</fileNamePattern>
+      <maxFileSize>25MB</maxFileSize>
+      <maxHistory>7</maxHistory>
+      <totalSizeCap>1GB</totalSizeCap>
+    </rollingPolicy>
+    <encoder>
+      <pattern>%d{yyyy-MM-dd HH:mm:ss.SSS} %-5level [%X{traceId:-NO_TRACE}] [%X{requestId:-NO_REQ}] %X{httpMethod:-NA} %X{path:-NA} %X{status:-NA} %X{duration:-NA} %logger{36} - %msg%n</pattern>
+    </encoder>
+  </appender>
 
-    <logger name="org.springframework" level="WARN"/>
-    <logger name="org.hibernate" level="WARN"/>
-    <logger name="org.hibernate.SQL" level="DEBUG"/>
-    <logger name="com.zaxxer.hikari" level="INFO"/>
+  <!-- Async wrapper: file writes never block request threads -->
+  <appender name="ASYNC_FILE" class="ch.qos.logback.classic.AsyncAppender">
+    <queueSize>5000</queueSize>
+    <discardingThreshold>0</discardingThreshold>
+    <neverBlock>true</neverBlock>
+    <appender-ref ref="FILE"/>
+  </appender>
+
+  <!-- ══════════════════════════════════════════════════
+       LOGGER LEVELS
+       Fine-grained control. additivity=false ensures each
+       logger writes only to its own appender-refs, not to
+       root as well (prevents double-logging).
+       ══════════════════════════════════════════════════ -->
+
+  <!-- Application code: DEBUG to see full service/repo flow -->
+  <logger name="com.project.edusync" level="DEBUG" additivity="false">
+    <appender-ref ref="CONSOLE"/>
+    <appender-ref ref="ASYNC_FILE"/>
+  </logger>
+
+  <!-- Hibernate SQL: DEBUG in dev to see generated queries -->
+  <logger name="org.hibernate.SQL" level="DEBUG" additivity="false">
+    <appender-ref ref="CONSOLE"/>
+    <appender-ref ref="ASYNC_FILE"/>
+  </logger>
+
+  <!-- Hibernate DDL warnings (sequence-exists noise): silenced -->
+  <logger name="org.hibernate.tool.schema" level="ERROR" additivity="false">
+    <appender-ref ref="CONSOLE"/>
+    <appender-ref ref="ASYNC_FILE"/>
+  </logger>
+
+  <!-- Spring internals: INFO only (no debug auth token chatter) -->
+  <logger name="org.springframework.security" level="INFO" additivity="false">
+    <appender-ref ref="CONSOLE"/>
+    <appender-ref ref="ASYNC_FILE"/>
+  </logger>
+
+  <logger name="org.springframework.web" level="INFO" additivity="false">
+    <appender-ref ref="CONSOLE"/>
+    <appender-ref ref="ASYNC_FILE"/>
+  </logger>
+
+  <!-- Everything else: INFO -->
+  <root level="INFO">
+    <appender-ref ref="CONSOLE"/>
+    <appender-ref ref="ASYNC_FILE"/>
+  </root>
 
 </configuration>

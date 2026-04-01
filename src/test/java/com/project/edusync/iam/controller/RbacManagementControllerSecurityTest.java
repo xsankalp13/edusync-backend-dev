@@ -3,6 +3,7 @@ package com.project.edusync.iam.controller;
 import com.project.edusync.common.security.AuthUtil;
 import com.project.edusync.common.security.CustomUserDetailService;
 import com.project.edusync.iam.model.dto.rbac.PermissionResponseDTO;
+import com.project.edusync.iam.model.dto.rbac.RoleSummaryDTO;
 import com.project.edusync.iam.service.RbacManagementService;
 import org.junit.jupiter.api.Test;
 import org.mockito.Mockito;
@@ -91,6 +92,22 @@ class RbacManagementControllerSecurityTest {
     @WithMockUser(authorities = {"profile:read:own"})
     void listPermissionsForbiddenWhenPermissionMissing() throws Exception {
         mockMvc.perform(get("/api/v1/auth/iam/rbac/permissions"))
+                .andExpect(status().isForbidden());
+    }
+
+    @Test
+    @WithMockUser(roles = {"SUPER_ADMIN"})
+    void listRolesAllowedForSuperAdmin() throws Exception {
+        when(rbacManagementService.listRoles()).thenReturn(List.of(new RoleSummaryDTO(1, "SUPER_ADMIN")));
+
+        mockMvc.perform(get("/api/v1/auth/iam/rbac/roles"))
+                .andExpect(status().isOk());
+    }
+
+    @Test
+    @WithMockUser(authorities = {"rbac:permission:read"})
+    void listRolesForbiddenForNonSuperAdmin() throws Exception {
+        mockMvc.perform(get("/api/v1/auth/iam/rbac/roles"))
                 .andExpect(status().isForbidden());
     }
 }

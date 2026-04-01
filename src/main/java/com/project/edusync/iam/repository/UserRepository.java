@@ -7,10 +7,13 @@ import org.springframework.data.repository.query.Param;
 
 import java.util.Optional;
 import java.util.Set;
+import java.util.UUID;
 
 public interface UserRepository extends JpaRepository<User, Integer> {
     Optional<User> findByUsername(String username);
     Optional<User> findByEmail(String email);
+
+    Optional<User> findByUuid(UUID uuid);
 
     /**
      * Finds a user by their username and eagerly fetches their roles
@@ -27,6 +30,8 @@ public interface UserRepository extends JpaRepository<User, Integer> {
     Optional<User> findByUsernameWithAuthorities(@Param("username") String username);
 
     boolean existsByEmail(String email);
+
+    boolean existsByRoles_Name(String roleName);
 
     @Query("SELECT u.email FROM User u WHERE u.email IN :emails")
     Set<String> findEmailsThatExist(@Param("emails") Set<String> emails);

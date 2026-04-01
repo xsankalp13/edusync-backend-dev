@@ -45,10 +45,6 @@ public class WebSecurityConfig {
             "/swagger-ui.html"
     };
 
-    private static final String[] MONITORING_WHITELIST = {
-            "/actuator/**" // Essential for health checks and metrics
-    };
-
     // SSE stream for bulk import progress.
     // EventSource (browser API) cannot send Authorization headers,
     // so the stream path is open. The sessionId UUID is the access token.
@@ -96,7 +92,8 @@ public class WebSecurityConfig {
                         .requestMatchers(SWAGGER_WHITELIST).permitAll()
 
                         // 3. Actuator Endpoints (Monitoring)
-                        .requestMatchers(MONITORING_WHITELIST).permitAll()
+                        .requestMatchers("/actuator/health").permitAll()
+                        .requestMatchers("/actuator/**").hasRole("SUPER_ADMIN")
 
                         // 4. SSE stream for bulk import progress (EventSource cannot send JWT headers)
                         .requestMatchers(Arrays.stream(SSE_WHITELIST)

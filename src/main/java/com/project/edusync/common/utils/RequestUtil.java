@@ -17,15 +17,14 @@ public class RequestUtil {
         // load balancers (like NGINX, AWS ELB, etc.) to store the
         // *original* client's IP.
         String xfHeader = request.getHeader("X-Forwarded-For");
-        log.info("Attempting IP extraction using X-Forwarded-For");
+        log.trace("Attempting IP extraction using X-Forwarded-For");
         if (xfHeader != null && StringUtils.hasText(xfHeader)) {
             // It can be a list: "client, proxy1, proxy2". We want the first one.
             String extractedIp = xfHeader.split(",")[0].trim();
-            log.info("IP extracted from request :  {}", extractedIp);
+            log.trace("IP extracted from request: {}", extractedIp);
             return extractedIp;
         }
-        log.info("IP extraction failed using X-Forwarded-For");
-        log.info("Attempting to get the IP of the machine making the request : {}", request.getRemoteAddr());
+        log.trace("IP extraction failed using X-Forwarded-For, falling back to remote address: {}", request.getRemoteAddr());
         // If 'X-Forwarded-For' is not present, we fall back to the
         // IP of the machine that made the direct request (which might
         // be a proxy, but it's the best we have).

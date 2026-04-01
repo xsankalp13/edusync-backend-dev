@@ -4,6 +4,8 @@ import com.project.edusync.uis.model.entity.Guardian;
 import com.project.edusync.uis.model.entity.Student;
 import com.project.edusync.uis.model.entity.StudentGuardianRelationship;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Query;
+import org.springframework.data.repository.query.Param;
 
 import java.util.List;
 import java.util.Optional;
@@ -13,6 +15,19 @@ public interface StudentGuardianRelationshipRepository extends JpaRepository<Stu
     boolean existsByStudentAndGuardian(Student student, Guardian guardian);
     List<StudentGuardianRelationship> findByStudent(Student student);
     List<StudentGuardianRelationship> findByGuardian(Guardian guardian);
+
+    @Query("""
+            SELECT sgr
+            FROM StudentGuardianRelationship sgr
+            JOIN FETCH sgr.guardian g
+            JOIN FETCH sgr.student s
+            JOIN FETCH s.userProfile sup
+            JOIN FETCH s.section sec
+            JOIN FETCH sec.academicClass ac
+            WHERE g.id IN :guardianIds
+            """)
+    List<StudentGuardianRelationship> findAllWithStudentGraphByGuardianIds(@Param("guardianIds") List<Long> guardianIds);
+
     void deleteByStudentAndGuardian(Student student, Guardian guardian);
 }
 
