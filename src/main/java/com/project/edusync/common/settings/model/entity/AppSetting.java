@@ -1,33 +1,54 @@
 package com.project.edusync.common.settings.model.entity;
 
-import com.project.edusync.common.model.AuditableEntity;
+import com.project.edusync.common.settings.model.enums.SettingGroup;
+import com.project.edusync.common.settings.model.enums.SettingType;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
+import jakarta.persistence.EnumType;
+import jakarta.persistence.Enumerated;
+import jakarta.persistence.Id;
 import jakarta.persistence.Table;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;
+
+import java.time.Instant;
 
 @Entity
 @Table(name = "app_settings")
 @Getter
 @Setter
 @NoArgsConstructor
-public class AppSetting extends AuditableEntity {
+public class AppSetting {
 
-    @Column(name = "setting_key", nullable = false, unique = true, length = 150)
-    private String settingKey;
+    @Id
+    @Column(name = "setting_key", nullable = false, length = 150)
+    private String key;
 
-    @Column(name = "setting_value", nullable = false, length = 4000)
-    private String settingValue;
+    @Column(name = "setting_value", columnDefinition = "TEXT", nullable = false)
+    private String value;
 
-    @Column(name = "is_encrypted", nullable = false)
-    private boolean encrypted;
+    @Enumerated(EnumType.STRING)
+    @Column(nullable = false, length = 20)
+    private SettingType type;
 
-    @Column(name = "category", length = 100)
-    private String category;
+    @Enumerated(EnumType.STRING)
+    @Column(nullable = false, length = 20)
+    private SettingGroup settingGroup;
 
-    @Column(name = "description", length = 500)
+    @Column(length = 500)
     private String description;
+
+    @Column(nullable = false)
+    private boolean requiresRestart;
+
+    @Column(nullable = false)
+    private boolean sensitive;
+
+    @Column(nullable = false)
+    private Instant updatedAt;
+
+    @Column(length = 100)
+    private String updatedBy;
 }
 

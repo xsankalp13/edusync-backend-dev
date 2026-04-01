@@ -3,68 +3,53 @@ package com.project.edusync.common.settings.controller;
 import com.project.edusync.common.settings.model.dto.AppSettingBulkUpsertRequestDto;
 import com.project.edusync.common.settings.model.dto.AppSettingRequestDto;
 import com.project.edusync.common.settings.model.dto.AppSettingResponseDto;
+import com.project.edusync.common.settings.model.dto.PublicWhitelabelSettingsResponseDto;
+import com.project.edusync.common.settings.model.enums.SettingGroup;
 import com.project.edusync.common.settings.service.AppSettingService;
 import io.swagger.v3.oas.annotations.Operation;
-import io.swagger.v3.oas.annotations.responses.ApiResponse;
-import io.swagger.v3.oas.annotations.responses.ApiResponses;
 import io.swagger.v3.oas.annotations.security.SecurityRequirement;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
-import org.springframework.web.bind.annotation.*;
+import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PatchMapping;
+import org.springframework.web.bind.annotation.RequestBody;
+import org.springframework.web.bind.annotation.RequestParam;
+import org.springframework.web.bind.annotation.RestController;
 
 import java.util.List;
+import java.util.Map;
 
 @RestController
-@RequestMapping("${api.url}/auth/app-settings")
 @RequiredArgsConstructor
-@Tag(name = "App Settings", description = "DB-backed runtime application settings")
+@Tag(name = "SuperAdmin Settings", description = "Runtime app settings and public whitelabel metadata")
 public class AppSettingController {
 
     private final AppSettingService appSettingService;
 
-    @GetMapping
-    @PreAuthorize("hasAnyAuthority('ROLE_SCHOOL_ADMIN', 'ROLE_SUPER_ADMIN')")
-    @Operation(summary = "List app settings", security = @SecurityRequirement(name = "bearerAuth"))
-    public ResponseEntity<List<AppSettingResponseDto>> getAll(@RequestParam(defaultValue = "false") boolean revealSecrets) {
-        return ResponseEntity.ok(appSettingService.getAllSettings(revealSecrets));
+    @GetMapping("${api.url}/super/settings")
+    @PreAuthorize("hasRole('SUPER_ADMIN')")
+    @Operation(summary = "List app settings grouped by setting group", security = @SecurityRequirement(name = "bearerAuth"))
+    public ResponseEntity<Map<String, List<AppSettingResponseDto>>> getSettings(
+            @RequestParam(value = "group", required = false) SettingGroup group) {
+        return ResponseEntity.ok(appSettingService.getSettings(group));
     }
 
-    @GetMapping("/{key}")
-    @PreAuthorize("hasAnyAuthority('ROLE_SCHOOL_ADMIN', 'ROLE_SUPER_ADMIN')")
-    @Operation(summary = "Get app setting by key", security = @SecurityRequirement(name = "bearerAuth"))
-    public ResponseEntity<AppSettingResponseDto> getByKey(
-            @PathVariable String key,
-            @RequestParam(defaultValue = "false") boolean revealSecrets) {
-        return ResponseEntity.ok(appSettingService.getSetting(key, revealSecrets));
+    @PatchMapping("${api.url}/super/settings")
+    @PreAuthorize("hasRole('SUPER_ADMIN')")
+    @Operation(summary = "Bulk update app settings", security = @SecurityRequirement(name = "bearerAuth"))
+    public ResponseEntity<AppSettingBulkUpsertRequestDto> patchSettings(
+            @Valid @RequestBody List<@Valid AppSettingRequestDto> request) {
+        return ResponseEntity.ok(appSettingService.patchSettings(request));
     }
 
-    @PutMapping("/{key}")
-    @PreAuthorize("hasAnyAuthority('ROLE_SCHOOL_ADMIN', 'ROLE_SUPER_ADMIN')")
-    @Operation(summary = "Upsert app setting", security = @SecurityRequirement(name = "bearerAuth"))
-    @ApiResponses({
-            @ApiResponse(responseCode = "200", description = "Setting saved")
-    })
-    public ResponseEntity<AppSettingResponseDto> upsert(
-            @PathVariable String key,
-            @Valid @RequestBody AppSettingRequestDto requestDto) {
-        AppSettingRequestDto effective = new AppSettingRequestDto(
-                key,
-                requestDto.value(),
-                requestDto.category(),
-                requestDto.description(),
-                requestDto.encrypted()
-        );
-        return ResponseEntity.ok(appSettingService.upsertSetting(effective));
-    }
-
-    @PostMapping("/bulk")
-    @PreAuthorize("hasAnyAuthority('ROLE_SCHOOL_ADMIN', 'ROLE_SUPER_ADMIN')")
-    @Operation(summary = "Bulk upsert app settings", security = @SecurityRequirement(name = "bearerAuth"))
-    public ResponseEntity<List<AppSettingResponseDto>> bulkUpsert(@Valid @RequestBody AppSettingBulkUpsertRequestDto requestDto) {
-        return ResponseEntity.ok(appSettingService.upsertBulk(requestDto.settings()));
+    @GetMapping("${api.url}/public/settings/whitelabel")
+    @Operation(summary = "Public whitelabel + feature flags for frontend boot")
+    public ResponseEntity<PublicWhitelabelSettingsResponseDto> getPublicWhitelabelSettings() {
+        return ResponseEntity.ok(appSettingService.getPublicWhitelabelSettings());
     }
 }
+
 

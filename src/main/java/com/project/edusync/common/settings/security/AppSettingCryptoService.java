@@ -1,79 +1,55 @@
 package com.project.edusync.common.settings.security;
 
 import com.project.edusync.common.exception.EdusyncException;
-import lombok.extern.slf4j.Slf4j;
-import org.springframework.beans.factory.annotation.Value;
+import lombok.RequiredArgsConstructor;
+import org.jasypt.encryption.StringEncryptor;
 import org.springframework.http.HttpStatus;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
 
-import javax.crypto.Cipher;
-import javax.crypto.spec.GCMParameterSpec;
-import javax.crypto.spec.SecretKeySpec;
-import java.nio.ByteBuffer;
-import java.nio.charset.StandardCharsets;
-import java.security.MessageDigest;
-import java.security.SecureRandom;
-import java.util.Base64;
-
 @Component
-@Slf4j
+@RequiredArgsConstructor
 public class AppSettingCryptoService {
 
-    private static final int IV_LENGTH = 12;
-    private static final int TAG_LENGTH_BITS = 128;
+    private static final String ENC_PREFIX = "ENC(";
+    private static final String ENC_SUFFIX = ")";
 
-    @Value("${APP_SETTINGS_ENCRYPTION_KEY:}")
-    private String encryptionKey;
+    private final StringEncryptor jasyptEncryptor;
 
-    public String encrypt(String plainText) {
-        ensureKeyPresent();
-        try {
-            byte[] iv = new byte[IV_LENGTH];
-            new SecureRandom().nextBytes(iv);
+    @Value("${JASYPT_ENCRYPTOR_PASSWORD:${APP_SETTINGS_ENCRYPTION_KEY:}}")
+    private String jasyptPassword;
 
-            Cipher cipher = Cipher.getInstance("AES/GCM/NoPadding");
-            cipher.init(Cipher.ENCRYPT_MODE, buildKey(), new GCMParameterSpec(TAG_LENGTH_BITS, iv));
-            byte[] encrypted = cipher.doFinal(plainText.getBytes(StandardCharsets.UTF_8));
+    public String encryptForStorage(String rawValue) {
+        ensureConfigured();
+        String source = rawValue == null ? "" : rawValue;
+        return ENC_PREFIX + jasyptEncryptor.encrypt(source) + ENC_SUFFIX;
+    }
 
-            ByteBuffer byteBuffer = ByteBuffer.allocate(iv.length + encrypted.length);
-            byteBuffer.put(iv);
-            byteBuffer.put(encrypted);
-            return Base64.getEncoder().encodeToString(byteBuffer.array());
-        } catch (Exception ex) {
-            log.error("Failed to encrypt app setting value", ex);
-            throw new EdusyncException("Unable to encrypt setting value.", HttpStatus.INTERNAL_SERVER_ERROR);
+    public String decryptFromStorage(String storedValue) {
+        ensureConfigured();
+        if (storedValue == null) {
+            return "";
         }
-    }
-
-    public String decrypt(String cipherText) {
-        ensureKeyPresent();
-        try {
-            byte[] decoded = Base64.getDecoder().decode(cipherText);
-            byte[] iv = new byte[IV_LENGTH];
-            byte[] encrypted = new byte[decoded.length - IV_LENGTH];
-
-            System.arraycopy(decoded, 0, iv, 0, IV_LENGTH);
-            System.arraycopy(decoded, IV_LENGTH, encrypted, 0, encrypted.length);
-
-            Cipher cipher = Cipher.getInstance("AES/GCM/NoPadding");
-            cipher.init(Cipher.DECRYPT_MODE, buildKey(), new GCMParameterSpec(TAG_LENGTH_BITS, iv));
-            return new String(cipher.doFinal(encrypted), StandardCharsets.UTF_8);
-        } catch (Exception ex) {
-            log.error("Failed to decrypt app setting value", ex);
-            throw new EdusyncException("Unable to decrypt setting value.", HttpStatus.INTERNAL_SERVER_ERROR);
+        if (!isWrapped(storedValue)) {
+            throw new EdusyncException("Encrypted setting is stored in invalid format.", HttpStatus.INTERNAL_SERVER_ERROR);
         }
+        String cipher = storedValue.substring(ENC_PREFIX.length(), storedValue.length() - ENC_SUFFIX.length());
+        return jasyptEncryptor.decrypt(cipher);
     }
 
-    private SecretKeySpec buildKey() throws Exception {
-        MessageDigest digest = MessageDigest.getInstance("SHA-256");
-        byte[] key = digest.digest(encryptionKey.getBytes(StandardCharsets.UTF_8));
-        return new SecretKeySpec(key, "AES");
+    public boolean isWrapped(String value) {
+        return value != null && value.startsWith(ENC_PREFIX) && value.endsWith(ENC_SUFFIX);
     }
 
-    private void ensureKeyPresent() {
-        if (encryptionKey == null || encryptionKey.isBlank()) {
-            throw new EdusyncException("APP_SETTINGS_ENCRYPTION_KEY is not configured on server.", HttpStatus.INTERNAL_SERVER_ERROR);
+    private void ensureConfigured() {
+        if (jasyptPassword == null || jasyptPassword.isBlank()) {
+            throw new EdusyncException(
+                    "Encryption key is not configured. Set JASYPT_ENCRYPTOR_PASSWORD (or APP_SETTINGS_ENCRYPTION_KEY for backward compatibility).",
+                    HttpStatus.INTERNAL_SERVER_ERROR
+            );
         }
     }
 }
+
+
 
