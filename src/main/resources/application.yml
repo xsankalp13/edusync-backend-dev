@@ -91,7 +91,7 @@ api:
 
 logging:
   # Log file path — read by logback-spring.xml via <springProperty source="logging.file.name"/>
-  # Also used by the SuperAdmin /api/v1/super/logs tail endpoint.
+  # Also used by the SuperAdmin /api/v1/super/logs tail endpoint .
   file:
     name: ${LOG_FILE_NAME:logs/edusync-dev.log}
 
