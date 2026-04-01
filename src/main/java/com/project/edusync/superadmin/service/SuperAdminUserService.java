@@ -12,10 +12,11 @@ public interface SuperAdminUserService {
 
     Page<GuardianSummaryDto> listGuardians(String search, Pageable pageable);
 
-    MessageResponse forceLogout(UUID userUuid);
+    MessageResponse forceLogout(UUID staffUuid);
 
     MessageResponse invalidateAllSessions();
 
-    SuperAdminResetPasswordResponseDto resetPassword(UUID userUuid, String newPassword);
+    SuperAdminResetPasswordResponseDto resetPassword(UUID staffUuid, String newPassword);
 }
+
 

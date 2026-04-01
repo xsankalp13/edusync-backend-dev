@@ -1,8 +1,6 @@
 package com.project.edusync.superadmin.controller;
 
 import com.project.edusync.common.model.dto.response.MessageResponse;
-import com.project.edusync.common.utils.RequestUtil;
-import com.project.edusync.superadmin.audit.service.AuditLogService;
 import com.project.edusync.superadmin.model.dto.GuardianSummaryDto;
 import com.project.edusync.superadmin.model.dto.SuperAdminResetPasswordRequestDto;
 import com.project.edusync.superadmin.model.dto.SuperAdminResetPasswordResponseDto;
@@ -10,7 +8,6 @@ import com.project.edusync.superadmin.service.SuperAdminUserService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.security.SecurityRequirement;
 import io.swagger.v3.oas.annotations.tags.Tag;
-import jakarta.servlet.http.HttpServletRequest;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
@@ -26,7 +23,6 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
-import java.util.Map;
 import java.util.UUID;
 
 @RestController
@@ -36,8 +32,6 @@ import java.util.UUID;
 public class SuperAdminUserController {
 
     private final SuperAdminUserService superAdminUserService;
-    private final AuditLogService auditLogService;
-    private final RequestUtil requestUtil;
 
     @GetMapping("/users/guardians")
     @PreAuthorize("hasRole('SUPER_ADMIN')")
@@ -59,65 +53,37 @@ public class SuperAdminUserController {
         return ResponseEntity.ok(superAdminUserService.listGuardians(search, pageable));
     }
 
-    @PostMapping("/users/{userUuid}/force-logout")
+    @PostMapping("/users/{staffUuid}/force-logout")
     @PreAuthorize("hasRole('SUPER_ADMIN')")
-    @Operation(summary = "Force logout a specific user", security = @SecurityRequirement(name = "bearerAuth"))
+    @Operation(summary = "Force logout a specific staff user", security = @SecurityRequirement(name = "bearerAuth"))
     public ResponseEntity<MessageResponse> forceLogout(
-            @PathVariable UUID userUuid,
-            HttpServletRequest request) {
+            @PathVariable UUID staffUuid) {
 
-        MessageResponse response = superAdminUserService.forceLogout(userUuid);
-        auditLogService.logAsync(
-                "FORCE_LOGOUT",
-                "User",
-                userUuid.toString(),
-                userUuid.toString(),
-                Map.of("before", Map.of(), "after", Map.of("sessionsInvalidated", true)),
-                requestUtil.getClientIp(request),
-                request.getHeader("User-Agent")
-        );
+        MessageResponse response = superAdminUserService.forceLogout(staffUuid);
         return ResponseEntity.ok(response);
     }
 
     @PostMapping("/sessions/invalidate-all")
     @PreAuthorize("hasRole('SUPER_ADMIN')")
     @Operation(summary = "Force logout all users", security = @SecurityRequirement(name = "bearerAuth"))
-    public ResponseEntity<MessageResponse> invalidateAllSessions(HttpServletRequest request) {
+    public ResponseEntity<MessageResponse> invalidateAllSessions() {
         MessageResponse response = superAdminUserService.invalidateAllSessions();
-        auditLogService.logAsync(
-                "FORCE_LOGOUT",
-                "Session",
-                "ALL",
-                "All sessions",
-                Map.of("before", Map.of(), "after", Map.of("scope", "ALL_USERS")),
-                requestUtil.getClientIp(request),
-                request.getHeader("User-Agent")
-        );
         return ResponseEntity.ok(response);
     }
 
-    @PostMapping("/users/{userUuid}/reset-password")
+    @PostMapping("/users/{staffUuid}/reset-password")
     @PreAuthorize("hasRole('SUPER_ADMIN')")
-    @Operation(summary = "Reset user password", security = @SecurityRequirement(name = "bearerAuth"))
+    @Operation(summary = "Reset staff user password", security = @SecurityRequirement(name = "bearerAuth"))
     public ResponseEntity<SuperAdminResetPasswordResponseDto> resetPassword(
-            @PathVariable UUID userUuid,
-            @RequestBody(required = false) SuperAdminResetPasswordRequestDto requestBody,
-            HttpServletRequest request) {
+            @PathVariable UUID staffUuid,
+            @RequestBody(required = false) SuperAdminResetPasswordRequestDto requestBody) {
 
         String newPassword = requestBody == null ? null : requestBody.newPassword();
-        SuperAdminResetPasswordResponseDto response = superAdminUserService.resetPassword(userUuid, newPassword);
-
-        auditLogService.logAsync(
-                "PASSWORD_RESET",
-                "User",
-                userUuid.toString(),
-                userUuid.toString(),
-                Map.of("before", Map.of(), "after", Map.of("passwordReset", true)),
-                requestUtil.getClientIp(request),
-                request.getHeader("User-Agent")
-        );
+        SuperAdminResetPasswordResponseDto response = superAdminUserService.resetPassword(staffUuid, newPassword);
 
         return ResponseEntity.ok(response);
     }
 }
+
+
 

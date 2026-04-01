@@ -27,8 +27,19 @@ public class ApplicationLogServiceImpl implements ApplicationLogService {
     private static final int DEFAULT_LINES = 200;
     private static final int MAX_LINES = 2000;
     private static final Set<String> ALLOWED_LEVELS = Set.of("ERROR", "WARN", "INFO", "DEBUG");
+    private static final Pattern LOG_ENTRY_START = Pattern.compile(
+            "\\d{4}-\\d{2}-\\d{2}\\s+\\d{2}:\\d{2}:\\d{2}\\.\\d{3}\\s+(TRACE|DEBUG|INFO|WARN|ERROR)\\s+"
+    );
 
-    private static final Pattern LOG_PATTERN = Pattern.compile(
+    private static final Pattern MDC_LOG_PATTERN = Pattern.compile(
+            "^(\\d{4}-\\d{2}-\\d{2}\\s+\\d{2}:\\d{2}:\\d{2}\\.\\d{3})\\s+"
+                    + "(TRACE|DEBUG|INFO|WARN|ERROR)\\s+"
+                    + "\\[([^\\]]+)]\\s+"
+                    + "\\[([^\\]]+)]\\s+"
+                    + ".*?\\|\\s+([^\\-]+)\\s+-\\s*(.*)$"
+    );
+
+    private static final Pattern LEGACY_LOG_PATTERN = Pattern.compile(
             "^(\\S+)\\s+(TRACE|DEBUG|INFO|WARN|ERROR)\\s+.*?\\[([^\\]]+)]\\s+([^:]+)\\s*:\\s*(.*)$"
     );
 
@@ -101,25 +112,62 @@ public class ApplicationLogServiceImpl implements ApplicationLogService {
             return;
         }
 
-        LogEntryDto entry = parseEntry(line);
-        if (levelFilter == null || levelFilter.equals(entry.level())) {
-            collector.add(entry);
+        for (String candidate : splitCompoundLine(line)) {
+            if (candidate.isBlank()) {
+                continue;
+            }
+
+            LogEntryDto entry = parseEntry(candidate);
+            if (levelFilter == null || levelFilter.equals(entry.level())) {
+                collector.add(entry);
+            }
         }
     }
 
-    private LogEntryDto parseEntry(String line) {
-        Matcher matcher = LOG_PATTERN.matcher(line);
-        if (!matcher.matches()) {
-            return new LogEntryDto(null, "INFO", "unknown", "unknown", line);
+    private List<String> splitCompoundLine(String line) {
+        List<Integer> starts = new ArrayList<>();
+        Matcher matcher = LOG_ENTRY_START.matcher(line);
+        while (matcher.find()) {
+            starts.add(matcher.start());
         }
 
-        return new LogEntryDto(
-                matcher.group(1),
-                matcher.group(2),
-                matcher.group(4).trim(),
-                matcher.group(3).trim(),
-                matcher.group(5)
-        );
+        if (starts.size() <= 1) {
+            return List.of(line);
+        }
+
+        List<String> parts = new ArrayList<>(starts.size());
+        for (int i = 0; i < starts.size(); i++) {
+            int start = starts.get(i);
+            int end = (i + 1 < starts.size()) ? starts.get(i + 1) : line.length();
+            parts.add(line.substring(start, end).trim());
+        }
+        return parts;
+    }
+
+    private LogEntryDto parseEntry(String line) {
+        Matcher mdcMatcher = MDC_LOG_PATTERN.matcher(line);
+        if (mdcMatcher.matches()) {
+            return new LogEntryDto(
+                    mdcMatcher.group(1),
+                    mdcMatcher.group(2),
+                    mdcMatcher.group(5).trim(),
+                    mdcMatcher.group(4).trim(),
+                    mdcMatcher.group(6)
+            );
+        }
+
+        Matcher legacyMatcher = LEGACY_LOG_PATTERN.matcher(line);
+        if (legacyMatcher.matches()) {
+            return new LogEntryDto(
+                    legacyMatcher.group(1),
+                    legacyMatcher.group(2),
+                    legacyMatcher.group(4).trim(),
+                    legacyMatcher.group(3).trim(),
+                    legacyMatcher.group(5)
+            );
+        }
+
+        return new LogEntryDto(null, "INFO", "unknown", "unknown", line);
     }
 
     private int normalizeLines(Integer lines) {
@@ -140,4 +188,5 @@ public class ApplicationLogServiceImpl implements ApplicationLogService {
         return normalized;
     }
 }
+
 

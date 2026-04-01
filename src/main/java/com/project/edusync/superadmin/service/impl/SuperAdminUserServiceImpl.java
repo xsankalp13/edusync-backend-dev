@@ -12,10 +12,12 @@ import com.project.edusync.superadmin.model.dto.GuardianSummaryDto;
 import com.project.edusync.superadmin.model.dto.SuperAdminResetPasswordResponseDto;
 import com.project.edusync.superadmin.service.SuperAdminUserService;
 import com.project.edusync.uis.model.entity.Guardian;
+import com.project.edusync.uis.model.entity.Staff;
 import com.project.edusync.uis.model.entity.Student;
 import com.project.edusync.uis.model.entity.StudentGuardianRelationship;
 import com.project.edusync.uis.model.entity.UserProfile;
 import com.project.edusync.uis.repository.GuardianRepository;
+import com.project.edusync.uis.repository.StaffRepository;
 import com.project.edusync.uis.repository.StudentGuardianRelationshipRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Page;
@@ -34,7 +36,6 @@ import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.HashMap;
 import java.util.List;
-import java.util.Locale;
 import java.util.Map;
 import java.util.UUID;
 
@@ -43,6 +44,7 @@ import java.util.UUID;
 public class SuperAdminUserServiceImpl implements SuperAdminUserService {
 
     private final GuardianRepository guardianRepository;
+    private final StaffRepository staffRepository;
     private final StudentGuardianRelationshipRepository relationshipRepository;
     private final UserRepository userRepository;
     private final RefreshTokenRepository refreshTokenRepository;
@@ -80,9 +82,8 @@ public class SuperAdminUserServiceImpl implements SuperAdminUserService {
 
     @Override
     @Transactional
-    public MessageResponse forceLogout(UUID userUuid) {
-        User user = userRepository.findByUuid(userUuid)
-                .orElseThrow(() -> new ResourceNotFoundException("User", "uuid", userUuid));
+    public MessageResponse forceLogout(UUID staffUuid) {
+        User user = resolveStaffUser(staffUuid);
 
         refreshTokenRepository.invalidateAllActiveByUser(user, Instant.now());
         return new MessageResponse("User sessions invalidated successfully.");
@@ -97,9 +98,8 @@ public class SuperAdminUserServiceImpl implements SuperAdminUserService {
 
     @Override
     @Transactional
-    public SuperAdminResetPasswordResponseDto resetPassword(UUID userUuid, String newPassword) {
-        User user = userRepository.findByUuid(userUuid)
-                .orElseThrow(() -> new ResourceNotFoundException("User", "uuid", userUuid));
+    public SuperAdminResetPasswordResponseDto resetPassword(UUID staffUuid, String newPassword) {
+        User user = resolveStaffUser(staffUuid);
 
         String effectivePassword = newPassword;
         String temporaryPassword = null;
@@ -120,6 +120,21 @@ public class SuperAdminUserServiceImpl implements SuperAdminUserService {
         userRepository.save(user);
 
         return new SuperAdminResetPasswordResponseDto("Password reset successfully.", temporaryPassword);
+    }
+
+    private User resolveStaffUser(UUID staffUuid) {
+        Staff staff = staffRepository.findByUuid(staffUuid)
+                .orElseThrow(() -> new ResourceNotFoundException("Staff", "uuid", staffUuid));
+
+        User user = staff.getUser();
+        if (user == null && staff.getUserProfile() != null) {
+            user = staff.getUserProfile().getUser();
+        }
+        if (user == null) {
+            throw new ResourceNotFoundException("User", "staffUuid", staffUuid);
+        }
+
+        return user;
     }
 
     private GuardianSummaryDto toGuardianSummary(Guardian guardian, List<StudentGuardianRelationship> relationships) {
@@ -212,7 +227,7 @@ public class SuperAdminUserServiceImpl implements SuperAdminUserService {
         if (!StringUtils.hasText(value)) {
             return;
         }
-        if (!builder.isEmpty()) {
+        if (builder.length() > 0) {
             builder.append(' ');
         }
         builder.append(value.trim());
@@ -247,4 +262,6 @@ public class SuperAdminUserServiceImpl implements SuperAdminUserService {
         return password.toString();
     }
 }
+
+
 
