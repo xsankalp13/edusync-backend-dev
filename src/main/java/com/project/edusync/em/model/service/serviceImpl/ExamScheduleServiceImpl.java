@@ -104,7 +104,7 @@ public class ExamScheduleServiceImpl implements ExamScheduleService {
         if (!dto.getEndTime().isAfter(dto.getStartTime())) {
             throw new EdusyncException("EM-400", "End time must be after start time", HttpStatus.BAD_REQUEST);
         }
-        if (dto.getPassingMarks().compareTo(dto.getMaxMarks()) > 0) {
+        if (dto.getPassingMarks() != null && dto.getPassingMarks().compareTo(dto.getMaxMarks()) > 0) {
             throw new EdusyncException("EM-400", "Passing marks cannot be greater than max marks", HttpStatus.BAD_REQUEST);
         }
     }
@@ -137,7 +137,13 @@ public class ExamScheduleServiceImpl implements ExamScheduleService {
 
         entity.setExamDate(dto.getExamDate());
         entity.setDuration(dto.getDuration());
-        entity.setMaxMarks(dto.getMaxMarks().intValue());
+        entity.setMaxMarks(dto.getMaxMarks().intValue()); // Fix: convert BigDecimal to int
+
+        if (dto.getMaxStudentsPerSeat() != null) {
+            entity.setMaxStudentsPerSeat(dto.getMaxStudentsPerSeat());
+        } else {
+            entity.setMaxStudentsPerSeat(1); // default to 1
+        }
     }
 
     private ExamScheduleResponseDTO mapEntityToResponse(ExamSchedule entity) {
@@ -160,6 +166,7 @@ public class ExamScheduleServiceImpl implements ExamScheduleService {
                 .maxMarks(java.math.BigDecimal.valueOf(entity.getMaxMarks()))
                 .passingMarks(java.math.BigDecimal.valueOf(entity.getMaxMarks())) // TODO: replace with actual field if available
                 .totalStudents(totalStudents)
+                .maxStudentsPerSeat(entity.getMaxStudentsPerSeat())
                 .build();
     }
 }

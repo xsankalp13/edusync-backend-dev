@@ -53,5 +53,9 @@ public class ExamScheduleRequestDTO {
     @Size(max = 50, message = "Room number must be under 50 characters")
     private String roomNumber;
 
+    private Integer maxStudentsPerSeat;
+
     public Integer getDuration() { return duration; }
+    public Integer getMaxStudentsPerSeat() { return maxStudentsPerSeat; }
+    public void setMaxStudentsPerSeat(Integer maxStudentsPerSeat) { this.maxStudentsPerSeat = maxStudentsPerSeat; }
 }

@@ -67,10 +67,19 @@ public class PastPaperServiceImpl implements PastPaperService {
         try {
             MediaUploadProperties.Cloudinary cfg = mediaUploadProperties.getCloudinary();
             String folder = cfg.getFolder() != null ? cfg.getFolder() : "past-papers";
-            String publicId = folder + "/" + UUID.randomUUID() + "_" + file.getOriginalFilename();
+            
+            // Clean filename by stripping extension to prevent double extensions in Cloudinary
+            String originalName = file.getOriginalFilename();
+            String nameWithoutExtension = originalName != null && originalName.contains(".") 
+                ? originalName.substring(0, originalName.lastIndexOf('.')) 
+                : (originalName != null ? originalName : "file");
+
+            String publicId = folder + "/" + UUID.randomUUID() + "_" + nameWithoutExtension;
+            
             var uploadResult = cloudinary.uploader().upload(file.getBytes(), ObjectUtils.asMap(
                     "public_id", publicId,
-                    "resource_type", "auto"
+                    "resource_type", "auto",
+                    "flags", "attachment" // Suggest download instead of browser preview if supported
             ));
             fileUrl = (String) uploadResult.get("secure_url");
             mimeType = (String) uploadResult.getOrDefault("resource_type", mimeType);

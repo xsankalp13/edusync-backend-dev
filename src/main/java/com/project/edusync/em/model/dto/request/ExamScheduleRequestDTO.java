@@ -19,6 +19,9 @@ public class ExamScheduleRequestDTO {
     @NotNull
     @Positive
     private Integer maxMarks;
+    @Positive
+    private Integer passingMarks;
+    private Integer maxStudentsPerSeat;
     // getters and setters
     public Long getAcademicClassId() { return academicClassId; }
     public void setAcademicClassId(Long academicClassId) { this.academicClassId = academicClassId; }
@@ -32,5 +35,9 @@ public class ExamScheduleRequestDTO {
     public void setDuration(Integer duration) { this.duration = duration; }
     public Integer getMaxMarks() { return maxMarks; }
     public void setMaxMarks(Integer maxMarks) { this.maxMarks = maxMarks; }
+    public Integer getPassingMarks() { return passingMarks; }
+    public void setPassingMarks(Integer passingMarks) { this.passingMarks = passingMarks; }
+    public Integer getMaxStudentsPerSeat() { return maxStudentsPerSeat; }
+    public void setMaxStudentsPerSeat(Integer maxStudentsPerSeat) { this.maxStudentsPerSeat = maxStudentsPerSeat; }
 }
 

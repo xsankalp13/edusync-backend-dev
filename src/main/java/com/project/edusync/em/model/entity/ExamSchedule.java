@@ -51,6 +51,9 @@ public class ExamSchedule {
     @Column(nullable = false)
     private Integer maxMarks;
 
+    @Column(name = "max_students_per_seat", nullable = false)
+    private Integer maxStudentsPerSeat = 1;
+
     @Column(nullable = false, updatable = false)
     private LocalDateTime createdAt;
 

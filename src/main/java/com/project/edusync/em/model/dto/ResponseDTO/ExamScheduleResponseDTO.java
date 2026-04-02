@@ -38,4 +38,5 @@ public class ExamScheduleResponseDTO {
     private BigDecimal passingMarks;
     private String roomNumber;
     private Long totalStudents;
+    private Integer maxStudentsPerSeat;
 }
