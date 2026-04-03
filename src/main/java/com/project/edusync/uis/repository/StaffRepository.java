@@ -15,6 +15,8 @@ public interface StaffRepository extends JpaRepository<Staff, Long> {
 
     boolean existsByEmployeeId(String employeeId);
 
+    Optional<Staff> findByEmployeeId(String employeeId);
+
     Optional<Staff> findByUserProfile(UserProfile userProfile);
 
     /**
@@ -68,4 +70,6 @@ public interface StaffRepository extends JpaRepository<Staff, Long> {
     Page<Staff> searchStaff(@Param("query") String query, @Param("active") Boolean active, Pageable pageable);
 
     Optional<Staff> findByUuid(java.util.UUID uuid);
+
+    Optional<Staff> findByUserProfile_User_Id(Long userId);
 }
