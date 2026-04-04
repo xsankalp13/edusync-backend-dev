@@ -19,6 +19,7 @@ import com.project.edusync.iam.model.entity.User;
 import com.project.edusync.iam.repository.RoleRepository;
 import com.project.edusync.iam.repository.UserRepository;
 import com.project.edusync.iam.service.UserManagementService;
+import com.project.edusync.notifications.model.StudentCreatedEvent;
 import com.project.edusync.uis.mapper.*;
 import com.project.edusync.uis.model.entity.Staff;
 import com.project.edusync.uis.model.entity.Student;
@@ -47,6 +48,7 @@ import com.project.edusync.uis.service.ProfileService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.cache.annotation.CacheEvict;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.http.HttpStatus;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
@@ -104,6 +106,8 @@ public class UserManagementServiceImpl implements UserManagementService {
     private final StudentMarkRepository studentMarkRepository;
     private final ScheduleRepository scheduleRepository;
 
+    // --- notification service ---
+    private final ApplicationEventPublisher eventPublisher;
     // --- Mappers ---
     private final UserMapper userMapper;
     private final UserProfileMapper userProfileMapper;
@@ -168,6 +172,13 @@ public class UserManagementServiceImpl implements UserManagementService {
         Student savedStudent = studentRepository.save(student);
         log.debug("Core Student record saved. ID: {}", savedStudent.getId());
         log.info("Success: Comprehensive Student enrollment complete. Enrollment #: {}", savedStudent.getEnrollmentNumber());
+        eventPublisher.publishEvent(
+                new StudentCreatedEvent(
+                        user.getUsername(),
+                        user.getEmail(),
+                        "919999999999"
+                )
+        );
         return user;
     }
 
