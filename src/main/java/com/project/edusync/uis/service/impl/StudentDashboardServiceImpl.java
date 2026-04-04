@@ -317,7 +317,7 @@ public class StudentDashboardServiceImpl implements StudentDashboardService, Das
         }
 
         return new OverviewResponseDTO.PendingAssignmentDTO(
-                examSchedule.getScheduleId(),
+                examSchedule.getId(),
                 examSchedule.getSubject().getName(),
                 "Prepare for %s".formatted(examSchedule.getExam().getName()),
                 dueDate,

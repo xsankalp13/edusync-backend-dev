@@ -10,6 +10,13 @@ public record PublicWhitelabelSettingsResponseDto(
         String timezone,
         String currency,
         String dateFormat,
+        String schoolShortName,
+        String schoolTagline,
+        String schoolAddress,
+        String schoolPhone,
+        String schoolEmail,
+        String idCardHeaderMode,
+        String idCardHeaderImageUrl,
         Map<String, Boolean> features
 ) {
 }

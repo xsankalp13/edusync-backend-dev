@@ -23,6 +23,8 @@ import java.util.UUID;
 @AllArgsConstructor
 public class ExamScheduleRequestDTO {
 
+    @NotNull(message = "Duration (minutes) is required")
+    private Integer duration;
     @NotNull(message = "Class UUID is required")
     private UUID classId;
 
@@ -50,4 +52,6 @@ public class ExamScheduleRequestDTO {
 
     @Size(max = 50, message = "Room number must be under 50 characters")
     private String roomNumber;
+
+    public Integer getDuration() { return duration; }
 }

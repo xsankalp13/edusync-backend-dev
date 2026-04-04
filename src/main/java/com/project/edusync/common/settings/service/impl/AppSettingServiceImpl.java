@@ -125,6 +125,15 @@ public class AppSettingServiceImpl implements AppSettingService {
                 readString(byKey, "school.timezone", "Asia/Kolkata"),
                 readString(byKey, "school.currency", "INR"),
                 readString(byKey, "school.date_format", "DD/MM/YYYY"),
+
+                readString(byKey, "school.short_name", ""),
+                readString(byKey, "school.tagline", ""),
+                readString(byKey, "school.address", ""),
+                readString(byKey, "school.phone", ""),
+                readString(byKey, "school.email", ""),
+                readString(byKey, "school.id_card_header_mode", "TEXT"),
+                readString(byKey, "school.id_card_header_image_url", ""),
+
                 features
         );
 

@@ -11,6 +11,8 @@ import lombok.Data;
  */
 @Data
 @Builder
+@lombok.NoArgsConstructor
+@lombok.AllArgsConstructor
 public class AvailableTeacherDto {
     @JsonSerialize(using = ToStringSerializer.class)
     private Long id;

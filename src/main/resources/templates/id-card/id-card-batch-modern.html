@@ -1,0 +1,101 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org">
+<head>
+    <meta charset="UTF-8" />
+    <title>ID Card Batch — Modern</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; -webkit-print-color-adjust: exact; }
+        body { font-family: 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; font-size: 8pt; color: #2d3748; }
+        @page { size: A4; margin: 8mm; }
+        .page { width: 190mm; page-break-after: always; }
+        .page:last-child { page-break-after: avoid; }
+        .card-grid { display: table; width: 100%; border-collapse: separate; border-spacing: 3mm; }
+        .card-row { display: table-row; }
+        .card-cell { display: table-cell; vertical-align: top; padding: 1mm; width: 25%; }
+
+        /* ── Card Style ── */
+        .card-v {
+            width: 53.975mm; height: 85.725mm;
+            background: #ffffff; border-radius: 10px;
+            position: relative; overflow: hidden;
+            border: 1px dashed #bbb;
+        }
+        .side-bar { position: absolute; left: 0; top: 0; bottom: 0; width: 4px; z-index: 20; }
+        .header-accent {
+            height: 60px; display: flex; flex-direction: column;
+            align-items: center; padding-top: 8px; z-index: 1; position: relative; color: #fff;
+        }
+        .school-logo { width: 20px; height: 20px; border-radius: 50%; margin-bottom: 3px; border: 1px solid rgba(255,255,255,0.3); }
+        .school-name { font-size: 6pt; font-weight: 800; text-align: center; line-height: 1.1; padding: 0 6px; }
+        .card-type { font-size: 4pt; font-weight: 700; letter-spacing: 1px; text-transform: uppercase; margin-top: 2px; color: rgba(255,255,255,0.85); }
+        .gold-divider { height: 2px; width: 100%; z-index: 10; }
+        .photo-section { display: flex; justify-content: center; margin-top: -18px; z-index: 15; position: relative; }
+        .photo-section img {
+            width: 48px; height: 60px; border-radius: 8px;
+            border: 3px solid #ffffff; object-fit: cover; background: #fff;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+        }
+        .details { padding: 4px 8px; text-align: center; }
+        .person-name { font-size: 7pt; font-weight: 800; color: #111827; margin-bottom: 1px; }
+        .person-subtitle { font-size: 5pt; font-weight: 700; color: #6b7280; text-transform: uppercase; letter-spacing: 0.3px; margin-bottom: 4px; }
+        .info-grid { width: 100%; text-align: left; margin-top: 2px; }
+        .data-row { display: table; width: 100%; margin-bottom: 2px; }
+        .data-label { display: table-cell; width: 32px; font-size: 4pt; font-weight: 700; color: #9ca3af; text-transform: uppercase; vertical-align: top; }
+        .data-value { display: table-cell; font-size: 5.5pt; font-weight: 600; color: #111827; vertical-align: top; }
+        .footer-v {
+            height: 20px; background: #f9fafb; border-top: 1px solid #f3f4f6;
+            display: table; width: 100%;
+            position: absolute; bottom: 0; left: 0; padding: 0 6px;
+        }
+        .footer-left { display: table-cell; vertical-align: middle; font-size: 4pt; font-weight: 700; color: #9ca3af; }
+        .footer-right { display: table-cell; vertical-align: middle; text-align: right; width: 22px; }
+        .footer-right img { width: 18px; height: 18px; }
+    </style>
+</head>
+<body>
+    <div class="page" th:each="page : ${pages}">
+        <div class="card-grid">
+            <!-- Row 1: first 4 cards -->
+            <div class="card-row">
+                <div class="card-cell" th:each="card, iterStat : ${page.cards}" th:if="${iterStat.index < 4}">
+                    <div class="card-v">
+                        <div class="side-bar"></div>
+                        <div class="header-accent" th:style="'background-color:' + ${primaryColor}">
+                            <img class="school-logo" th:if="${schoolLogoBase64 != null and !schoolLogoBase64.isEmpty()}" th:src="${schoolLogoBase64}" alt="L" />
+                            <div class="school-name" th:text="${schoolName}">School</div>
+                            <div class="card-type" th:text="${card.type}">STUDENT</div>
+                        </div>
+                        <div class="gold-divider"></div>
+                        <div class="photo-section"><img th:src="${card.photoBase64}" alt="P" /></div>
+                        <div class="details">
+                            <div class="person-name" th:text="${card.name}">Name</div>
+                            <!-- Student subtitle -->
+                            <div class="person-subtitle" th:if="${card.type == 'STUDENT'}" th:text="${card.className} + ' — ' + ${card.sectionName}">10-A</div>
+                            <!-- Staff subtitle -->
+                            <div class="person-subtitle" th:if="${card.type == 'STAFF'}" th:text="${card.jobTitle}">Teacher</div>
+                            <div class="info-grid">
+                                <!-- Student fields -->
+                                <div th:if="${card.type == 'STUDENT'}">
+                                    <div class="data-row"><span class="data-label">Enroll</span><span class="data-value" th:text="${card.enrollmentNumber}">E</span></div>
+                                    <div class="data-row"><span class="data-label">Roll</span><span class="data-value" th:text="${card.rollNo}">R</span></div>
+                                    <div class="data-row" th:if="${card.bloodGroup != null and !card.bloodGroup.isEmpty()}"><span class="data-label">Blood</span><span class="data-value" th:text="${card.bloodGroup}">B</span></div>
+                                </div>
+                                <!-- Staff fields -->
+                                <div th:if="${card.type == 'STAFF'}">
+                                    <div class="data-row"><span class="data-label">EMP ID</span><span class="data-value" th:text="${card.employeeId}">E</span></div>
+                                    <div class="data-row"><span class="data-label">Dept</span><span class="data-value" th:text="${card.department}">D</span></div>
+                                    <div class="data-row" th:if="${card.bloodGroup != null and !card.bloodGroup.isEmpty()}"><span class="data-label">Blood</span><span class="data-value" th:text="${card.bloodGroup}">B</span></div>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="footer-v">
+                            <div class="footer-left" th:text="'Valid: ' + ${academicYear}">Valid: 2025-2026</div>
+                            <div class="footer-right"><img th:if="${card.qrCodeBase64 != null and !card.qrCodeBase64.isEmpty()}" th:src="${card.qrCodeBase64}" alt="QR" /></div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</body>
+</html>

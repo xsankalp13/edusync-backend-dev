@@ -22,7 +22,7 @@ public interface StudentMarkRepository extends JpaRepository<StudentMark, Long> 
 
     Optional<StudentMark> findByUuid(UUID uuid);
 
-    List<StudentMark> findByExamSchedule_ScheduleId(Long scheduleId);
+    List<StudentMark> findByExamSchedule_Id(Long id);
 
     @Query("""
             SELECT e.name as term,

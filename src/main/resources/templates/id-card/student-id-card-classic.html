@@ -1,0 +1,546 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org">
+<head>
+    <meta charset="UTF-8" />
+    <title>Student ID Card — Classic</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        @page { size: 2.125in 3.375in; margin: 0; }
+
+        body {
+            width: 2.125in;
+            height: 3.375in;
+            font-family: 'Segoe UI', Tahoma, Geneva, sans-serif;
+            font-size: 8pt;
+            color: #1a2a4a;
+            background: #ffffff;
+        }
+
+        .page {
+            width: 2.125in;
+            height: 3.375in;
+            position: relative;
+            overflow: hidden;
+            page-break-after: always;
+            background: #ffffff;
+        }
+
+        /* ════════════════ FRONT HEADER ════════════════ */
+
+        .front-header {
+            position: relative;
+            width: 100%;
+            height: 80px;
+            background: #ffc603;
+        }
+
+        .front-header-inner {
+            position: relative;
+            z-index: 5;
+            text-align: left;
+            padding-top: 6px;
+            padding-right: 40px;
+            padding-left: 40px;
+        }
+
+        .front-header-inner.image-mode {
+            text-align: center;
+            padding-right: 0;
+            padding-left: 0;
+        }
+
+        .inst-name-stack {
+            width: 100%;
+            text-align: center;
+        }
+
+        .logo-badge {
+            position: absolute;
+            top: 10px;
+            right: 5px;
+            z-index: 10;
+            width: 52px;
+            height: 52px;
+            border-radius: 50%;
+            background: transparent;
+            border: 2px solid #FFC107;
+            overflow: hidden;
+            text-align: center;
+        }
+        .logo-badge img {
+            width: 100%;
+            height: 100%;
+            border-radius: 50%;
+            margin-top: 0;
+        }
+
+        .inst-name-large {
+            font-size: 15.5pt;
+            font-weight: 900;
+            color: #ffffff;
+            letter-spacing: 2.2px;
+            line-height: 1;
+            margin-left: 0;
+            text-transform: uppercase;
+        }
+
+        .inst-name-small {
+            font-size: 10.2pt;
+            font-weight: 800;
+            color: #E3F2FD;
+            letter-spacing: 1.1px;
+            margin-top: 2px;
+            margin-left: 0;
+            min-width: 108px;
+            text-align: center;
+            text-transform: uppercase;
+        }
+
+        .inst-name-full {
+            font-size: 10pt;
+            font-weight: 800;
+            color: #ffffff;
+            letter-spacing: 0.8px;
+            line-height: 1.1;
+            text-transform: uppercase;
+        }
+
+        .inst-subtitle {
+            font-size: 6pt;
+            font-weight: 700;
+            color: #BBDEFB;
+            letter-spacing: 1.2px;
+            text-transform: uppercase;
+            margin-top: 1px;
+            margin-left: 0;
+        }
+
+        .inst-address {
+            font-size: 4.3pt;
+            color: #E3F2FD;
+            margin-top: 3px;
+            text-align: left;
+            line-height: 1.5;
+            margin-left: 3px;
+        }
+
+        /* SVG wave — bottom of header */
+        .header-wave {
+            position: absolute;
+            bottom: -1px;
+            left: 0;
+            width: 100%;
+            height: 22px;
+            z-index: 6;
+            display: block;
+        }
+
+        /* ════════════════ FRONT PHOTO & DETAILS ════════════════ */
+
+        .photo-section {
+            text-align: center;
+            margin-top: 30px;
+            position: relative;
+            z-index: 4;
+        }
+        .photo-section img {
+            width: 68px;
+            height: 84px;
+            border: 2.5px solid #1565C0;
+            display: inline-block;
+        }
+
+        .student-name {
+            text-align: center;
+            margin-top: 5px;
+            font-size: 9pt;
+            font-weight: 900;
+            color: #1565C0;
+            letter-spacing: 0.5px;
+            text-transform: uppercase;
+        }
+
+        .detail-wrap {
+            padding: 0 10px;
+            margin-top: 4px;
+            margin-left: 5px;
+        }
+        .detail-table {
+            width: 100%;
+            border-collapse: collapse;
+        }
+        .detail-table td {
+            font-size: 5.8pt;
+            color: #1a2a4a;
+            padding: 1.3px 0;
+            vertical-align: top;
+        }
+        .detail-table td.lbl {
+            font-weight: 700;
+            width: 70px;
+        }
+        .detail-table td.col {
+            width: 8px;
+            font-weight: 700;
+        }
+        .detail-table td.val {
+            font-weight: 600;
+        }
+
+        /* ════════════════ FRONT FOOTER WAVE ════════════════ */
+
+        .front-footer-wave {
+            position: absolute;
+            bottom: 0;
+            left: 0;
+            width: 100%;
+            height: 46px;
+            z-index: 3;
+            display: block;
+        }
+
+        .front-footer-content {
+            position: absolute;
+            bottom: 0;
+            left: 0;
+            right: 0;
+            height: 46px;
+            z-index: 5;
+            padding: 0;
+        }
+
+        .sig-block {
+            position: absolute;
+            left: 10px;
+            bottom: 6px;
+            text-align: left;
+        }
+        .sig-img {
+            height: 16px;
+            width: auto;
+            display: block;
+            margin: 0 0 1px 0;
+        }
+        .sig-label {
+            font-size: 4.5pt;
+            color: black;
+            font-weight: 700;
+            text-transform: uppercase;
+        }
+
+        .barcode-block {
+            position: absolute;
+            right: 10px;
+            bottom: 8px;
+            z-index: 7;
+        }
+        .barcode-block img {
+            height: 24px;
+            width: auto;
+            display: block;
+            border: #ffc603 solid 1px;
+        }
+
+        .header-brand-image-wrap {
+            width: 100%;
+            text-align: center;
+            padding-right: 0;
+            margin-top: 2px;
+            position: relative;
+            height: 52px;
+        }
+        .header-brand-image {
+            width: 82%;
+            max-height: 52px;
+            display: block;
+            position: absolute;
+            top: 5px;
+            left: 59px;
+        }
+        .header-card-type {
+            text-align: center;
+            position: absolute;
+            top: 75px;
+            font-size: 6.5pt;
+            color: #1a2a4a;
+            font-weight: 800;
+            margin: 6px auto 0 auto;
+            text-transform: uppercase;
+            letter-spacing: 0.7px;
+            width: 100%;
+            display: block;
+        }
+
+        /* ════════════════ BACK PAGE ════════════════ */
+
+        .back-header-wave {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 36px;
+            z-index: 6;
+            display: block;
+        }
+
+        .back-body {
+            position: relative;
+            z-index: 4;
+            padding: 40px 12px 0 12px;
+        }
+
+        .addr-wrap {
+            margin-bottom: 8px;
+        }
+        .addr-lbl {
+            font-size: 5.5pt;
+            font-weight: 700;
+            color: #1a2a4a;
+            margin-bottom: 2px;
+        }
+        .addr-val {
+            font-size: 5.8pt;
+            color: #1a2a4a;
+            font-weight: 600;
+            line-height: 1.4;
+        }
+
+        .blue-line-thick { height: 2px; background: #1976D2; margin: 5px 0 2px 0; }
+        .blue-line-thin  { height: 1px; background: #64B5F6; margin: 0 0 5px 0; }
+
+        .emergency-box {
+            border: 1px solid #90CAF9;
+            background: #E3F2FD;
+            border-radius: 6px;
+            padding: 4px 6px;
+            margin-bottom: 6px;
+        }
+        .emergency-title {
+            font-size: 4.8pt;
+            font-weight: 800;
+            text-transform: uppercase;
+            color: #0D47A1;
+            letter-spacing: 0.5px;
+            margin-bottom: 2px;
+        }
+        .emergency-name {
+            font-size: 5.3pt;
+            font-weight: 700;
+            color: #0B3D91;
+            line-height: 1.35;
+        }
+        .emergency-phone {
+            font-size: 5.5pt;
+            font-weight: 800;
+            color: #B71C1C;
+            margin-top: 1px;
+        }
+
+        .rules-list {
+            list-style: none;
+            padding: 0;
+            margin: 0 0 6px 0;
+        }
+        .rules-list li {
+            font-size: 4.9pt;
+            color: #263238;
+            padding-left: 10px;
+            position: relative;
+            line-height: 1.45;
+            margin-bottom: 2px;
+        }
+        .rules-list li::before {
+            content: "•";
+            position: absolute;
+            left: 0;
+            font-weight: 700;
+        }
+
+        .validity-block {
+            text-align: center;
+            font-size: 6pt;
+            font-weight: 800;
+            color: #1565C0;
+            margin-bottom: 6px;
+            text-transform: uppercase;
+        }
+
+        .return-label {
+            text-align: center;
+            font-size: 5.5pt;
+            font-style: italic;
+            color: #1a2a4a;
+            font-weight: 600;
+            margin-bottom: 4px;
+        }
+
+        .return-block { text-align: center; }
+        .return-inst-large {
+            font-size: 14pt;
+            font-weight: 900;
+            color: #1565C0;
+            letter-spacing: 2px;
+            line-height: 1;
+        }
+        .return-details {
+            font-size: 4.8pt;
+            color: #37474F;
+            line-height: 1.65;
+            margin-top: 2px;
+        }
+
+        .qr-section {
+            position: absolute;
+            bottom: 6px;
+            width: 100%;
+            text-align: center;
+            z-index: 5;
+        }
+        .qr-section img {
+            width: 38px;
+            height: 38px;
+            border: 1px solid #BBDEFB;
+            padding: 1px;
+            display: inline-block;
+        }
+        .powered {
+            font-size: 4pt;
+            color: #90A4AE;
+            margin-top: 2px;
+        }
+    </style>
+</head>
+<body>
+
+<div class="page">
+    <div class="front-header">
+        <div class="logo-badge" th:if="${schoolLogoBase64 != null and !schoolLogoBase64.isEmpty()}">
+            <img th:src="${schoolLogoBase64}" alt="Logo" />
+        </div>
+        <div class="front-header-inner" th:classappend="${idCardHeaderImageEnabled != null and idCardHeaderImageEnabled} ? ' image-mode' : ''">
+            <div class="inst-name-stack" th:if="${!(idCardHeaderImageEnabled != null and idCardHeaderImageEnabled)}">
+                <div class="inst-name-large" th:if="${schoolShortName != null and !schoolShortName.isEmpty()}" th:text="${schoolShortName}">SSM</div>
+                <div class="inst-name-small" th:if="${schoolShortName != null and !schoolShortName.isEmpty()}" th:text="${schoolName}">Shyamdih</div>
+                <div class="inst-name-full" th:if="${schoolShortName == null or schoolShortName.isEmpty()}" th:text="${schoolName}">School Name</div>
+            </div>
+            <div class="header-brand-image-wrap" th:if="${idCardHeaderImageEnabled != null and idCardHeaderImageEnabled}">
+                <img class="header-brand-image" th:src="${idCardHeaderImageBase64}" alt="School Header" />
+                <div class="header-card-type" th:text="${studentCardTypeLabel}">Student ID Card</div>
+            </div>
+            <div class="inst-subtitle" th:if="${!(idCardHeaderImageEnabled != null and idCardHeaderImageEnabled)}" th:text="${schoolTagline}">Tagline</div>
+            <div class="inst-address" th:if="${!(idCardHeaderImageEnabled != null and idCardHeaderImageEnabled)}">
+                <span th:text="${schoolAddress}">Address</span><br/>
+                <span th:text="${schoolPhone}">Phone</span>
+            </div>
+        </div>
+        <svg class="header-wave" viewBox="0 0 204 22" preserveAspectRatio="none" xmlns="http://www.w3.org/2000/svg">
+            <path d="M0,6 C30,18 60,0 102,8 C144,16 174,2 204,10 L204,22 L0,22 Z" fill="#ffc603" fill-opacity="0.55"/>
+            <path d="M0,13 C40,3 80,20 120,12 C155,5 180,18 204,12 L204,22 L0,22 Z" fill="#ffffff"/>
+        </svg>
+    </div>
+
+    <div class="photo-section">
+        <img th:src="${photoBase64}" alt="Photo" />
+    </div>
+
+    <div class="student-name" th:text="${studentName}">STUDENT NAME</div>
+
+    <div class="detail-wrap">
+        <table class="detail-table">
+            <tr>
+                <td class="lbl">Class</td>
+                <td class="col">:</td>
+                <td class="val" th:text="${className} + ' ' + ${sectionName}">10th A</td>
+            </tr>
+            <tr>
+                <td class="lbl">Roll No.</td>
+                <td class="col">:</td>
+                <td class="val" th:text="${rollNo}">101</td>
+            </tr>
+            <tr>
+                <td class="lbl">Admission No.</td>
+                <td class="col">:</td>
+                <td class="val" th:text="${enrollmentNumber}">ADM001</td>
+            </tr>
+            <tr>
+                <td class="lbl">Date of Birth</td>
+                <td class="col">:</td>
+                <td class="val" th:text="${dateOfBirth}">01/01/2010</td>
+            </tr>
+        </table>
+    </div>
+
+    <svg class="front-footer-wave" viewBox="0 0 204 46" preserveAspectRatio="none" xmlns="http://www.w3.org/2000/svg">
+        <path d="M0,28 C40,14 80,34 120,22 C155,12 180,28 204,18 L204,46 L0,46 Z" fill="#ffc603" fill-opacity="0.5"/>
+        <path d="M0,34 C40,20 80,40 120,30 C155,20 180,36 204,26 L204,46 L0,46 Z" fill="#ffc603"/>
+    </svg>
+
+    <div class="front-footer-content">
+        <div class="sig-block">
+            <img class="sig-img" th:if="${signatureBase64 != null and !signatureBase64.isEmpty()}" th:src="${signatureBase64}" alt="Signature" />
+            <div class="sig-label">Sign of Principal</div>
+        </div>
+        <div class="barcode-block" th:if="${barcodeBase64 != null and !barcodeBase64.isEmpty()}">
+            <img th:src="${barcodeBase64}" alt="Barcode" />
+        </div>
+    </div>
+</div>
+
+<div class="page">
+    <svg class="back-header-wave" viewBox="0 0 204 36" preserveAspectRatio="none" xmlns="http://www.w3.org/2000/svg">
+        <rect width="204" height="36" fill="#ffc603"/>
+        <path d="M0,14 C40,26 80,8 120,20 C155,30 180,14 204,22 L204,36 L0,36 Z" fill="#ffc603" fill-opacity="0.5"/>
+        <path d="M0,22 C40,10 80,28 120,18 C155,8 180,24 204,16 L204,36 L0,36 Z" fill="#ffffff"/>
+    </svg>
+
+    <div class="back-body">
+        <div class="addr-wrap">
+            <div class="addr-lbl">Permanent Address</div>
+            <div class="addr-val" th:text="${studentAddress}">Address goes here...</div>
+        </div>
+
+        <div class="emergency-box">
+            <div class="emergency-title">Emergency Contact</div>
+            <div class="emergency-name" th:if="${emergencyContactName != null and !emergencyContactName.isEmpty()}">
+                <span th:text="${emergencyContactName}">Guardian Name</span>
+                <span th:if="${emergencyContactRelation != null and !emergencyContactRelation.isEmpty()}" th:text="' (' + ${emergencyContactRelation} + ')'">(Guardian)</span>
+            </div>
+            <div class="emergency-name" th:if="${emergencyContactName == null or emergencyContactName.isEmpty()}">
+                School Helpdesk
+            </div>
+            <div class="emergency-phone"
+                 th:text="${(emergencyContactPhone != null and !emergencyContactPhone.isEmpty()) ? emergencyContactPhone : schoolPhone}">
+                +91 0000000000
+            </div>
+        </div>
+
+        <div class="blue-line-thick"></div>
+        <div class="blue-line-thin"></div>
+
+        <ul class="rules-list">
+            <li>This card is related to the Identity of the student.</li>
+            <li>In the event of loss, please return to the college.</li>
+            <li>The student must carry this card in the campus.</li>
+        </ul>
+
+        <div class="validity-block" th:text="'Session: ' + ${academicYear}">Session: 2025-2026</div>
+
+        <div class="return-label">If found please return to:-</div>
+        <div class="return-block">
+            <div class="return-inst-large" th:text="${(schoolShortName != null and !schoolShortName.isEmpty()) ? schoolShortName : schoolName}">School</div>
+            <div class="return-details">
+                <span th:text="${schoolAddress}">Address</span><br/>
+                <span th:text="${schoolPhone}">Phone</span><br/>
+                <span th:text="${schoolEmail}">Email</span>
+            </div>
+        </div>
+    </div>
+
+    <div class="qr-section">
+        <img th:if="${qrCodeBase64 != null and !qrCodeBase64.isEmpty()}" th:src="${qrCodeBase64}" alt="QR Code" /><br/>
+        <div class="powered">Powered by <b>Shiksha Intelligence</b></div>
+    </div>
+</div>
+
+</body>
+</html>

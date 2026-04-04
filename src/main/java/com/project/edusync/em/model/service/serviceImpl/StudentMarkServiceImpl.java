@@ -45,7 +45,7 @@ public class StudentMarkServiceImpl implements StudentMarkService {
                 .orElseThrow(() -> new EdusyncException("EM-404", "Exam Schedule not found", HttpStatus.NOT_FOUND));
 
         // 1. Fetch all existing marks for this schedule to handle "Upsert" efficiently
-        Map<Long, StudentMark> existingMarksMap = studentMarkRepository.findByExamSchedule_ScheduleId(scheduleId)
+        Map<Long, StudentMark> existingMarksMap = studentMarkRepository.findByExamSchedule_Id(scheduleId)
                 .stream()
                 .collect(Collectors.toMap(mark -> mark.getStudent().getId(), Function.identity()));
 
@@ -53,7 +53,7 @@ public class StudentMarkServiceImpl implements StudentMarkService {
 
         for (StudentMarkRequestDTO dto : bulkRequest.getMarks()) {
             // Validate marks against schedule max marks
-            validateMarks(dto, schedule.getMaxMarks());
+            validateMarks(dto, BigDecimal.valueOf(schedule.getMaxMarks()));
 
             StudentMark mark = existingMarksMap.getOrDefault(dto.getStudentId(), new StudentMark());
 
@@ -72,7 +72,7 @@ public class StudentMarkServiceImpl implements StudentMarkService {
                 mark.setGrade("ABS");
             } else {
                 mark.setMarksObtained(dto.getMarksObtained());
-                mark.setGrade(calculateGrade(dto.getMarksObtained(), schedule.getMaxMarks()));
+                mark.setGrade(calculateGrade(dto.getMarksObtained(), BigDecimal.valueOf(schedule.getMaxMarks())));
             }
             mark.setRemarks(dto.getRemarks());
 
@@ -88,14 +88,14 @@ public class StudentMarkServiceImpl implements StudentMarkService {
         StudentMark mark = studentMarkRepository.findByUuid(markUuid)
                 .orElseThrow(() -> new EdusyncException("EM-404", "Mark entry not found", HttpStatus.NOT_FOUND));
 
-        validateMarks(requestDTO, mark.getExamSchedule().getMaxMarks());
+        validateMarks(requestDTO, BigDecimal.valueOf(mark.getExamSchedule().getMaxMarks()));
 
         mark.setAttendanceStatus(requestDTO.getAttendanceStatus());
         mark.setMarksObtained(requestDTO.getMarksObtained());
         mark.setRemarks(requestDTO.getRemarks());
         // Recalculate grade
         if (requestDTO.getAttendanceStatus() == StudentAttendanceStatus.PRESENT && requestDTO.getMarksObtained() != null) {
-            mark.setGrade(calculateGrade(requestDTO.getMarksObtained(), mark.getExamSchedule().getMaxMarks()));
+            mark.setGrade(calculateGrade(requestDTO.getMarksObtained(), BigDecimal.valueOf(mark.getExamSchedule().getMaxMarks())));
         } else if (requestDTO.getAttendanceStatus() == StudentAttendanceStatus.ABSENT) {
             mark.setGrade("ABS");
         }
@@ -109,7 +109,7 @@ public class StudentMarkServiceImpl implements StudentMarkService {
         if (!examScheduleRepository.existsById(scheduleId)) {
             throw new EdusyncException("EM-404", "Exam Schedule not found", HttpStatus.NOT_FOUND);
         }
-        return studentMarkRepository.findByExamSchedule_ScheduleId(scheduleId)
+        return studentMarkRepository.findByExamSchedule_Id(scheduleId)
                 .stream()
                 .map(this::toResponseDTO)
                 .collect(Collectors.toList());
@@ -147,7 +147,7 @@ public class StudentMarkServiceImpl implements StudentMarkService {
     private StudentMarkResponseDTO toResponseDTO(StudentMark entity) {
         return StudentMarkResponseDTO.builder()
                 .markUuid(entity.getUuid())
-                .scheduleId(entity.getExamSchedule().getScheduleId())
+                .scheduleId(entity.getExamSchedule().getId())
                 .studentId(entity.getStudent().getId())
                 // Assuming Student has a UserProfile with names. Adjust path if needed based on exact UIS structure.
                 .studentName(entity.getStudent().getUserProfile().getFirstName() + " " + entity.getStudent().getUserProfile().getLastName())

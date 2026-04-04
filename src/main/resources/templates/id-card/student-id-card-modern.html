@@ -1,0 +1,168 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org">
+<head>
+    <meta charset="UTF-8" />
+    <title>Student ID Card — Modern</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        @page { size: 2.125in 3.375in; margin: 0; }
+        body { width: 2.125in; height: 3.375in; font-family: 'Segoe UI', Arial, sans-serif; font-size: 8pt; color: #1f2937; background: #ffffff; }
+
+        .page { width: 2.125in; height: 3.375in; position: relative; overflow: hidden; page-break-after: always; display: block; }
+
+        .side-bar { position: absolute; left: 0; top: 0; height: 3.375in; width: 5px; z-index: 20; }
+
+        .header-accent { height: 110px; text-align: center; padding-top: 8px; color: #fff; position: relative; }
+        .header-bg { position: absolute; top: 0; left: 0; right: 0; bottom: 0; z-index: -1; }
+        
+        .school-logo { width: 42px; height: 42px; border-radius: 50%; background: white; margin: 0 auto 4px auto; display: block; padding: 2px; }
+        .school-logo img { width: 38px; height: 38px; border-radius: 50%; display: block; }
+        .header-brand-image { width: 82%; max-height: 52px; margin: 0 auto 4px auto; display: block; }
+        .school-name { font-size: 7.5pt; font-weight: bold; text-transform: uppercase; line-height: 1.1; padding: 0 10px; }
+        .card-type { font-size: 4.5pt; font-weight: bold; letter-spacing: 1px; text-transform: uppercase; margin: 4px auto 0 auto; padding-bottom: 4px; color: #f3f4f6; text-align: center; width: 100%; display: block; }
+
+        .accent-bar { height: 3px; width: 100%; display: block; }
+
+        .photo-section { text-align: center; margin-top: -25px; position: relative; z-index: 15; height: 95px; }
+        .photo-section img { width: 72px; height: 88px; border-radius: 10px; border: 2px solid #e5e7eb; background: #ffffff; display: inline-block; }
+
+        .details { padding: 4px 15px 0 15px; text-align: center; height: 80px; overflow: hidden; }
+        .student-name { font-size: 9pt; font-weight: bold; color: #111827; margin-bottom: 2px; }
+        .student-class { font-size: 6pt; font-weight: bold; color: #6b7280; text-transform: uppercase; margin-bottom: 6px; }
+        
+        table.info-grid { width: 100%; border-collapse: collapse; margin-top: 4px; }
+        table.info-grid td { padding-bottom: 3px; border-bottom: 1px solid #f9fafb; font-size: 6.5pt; color: #111827; font-weight: bold; text-align: left; }
+        table.info-grid td.label { width: 45px; font-size: 5pt; color: #9ca3af; text-transform: uppercase; }
+
+        .footer-v { position: absolute; bottom: 0; left: 0; right: 0; height: 36px; background: #f9fafb; border-top: 1px solid #f3f4f6; padding: 4px 12px; }
+        .footer-table { width: 100%; height: 28px; border-collapse: collapse; }
+        .footer-table td.valid-text { font-size: 4.5pt; font-weight: bold; color: #9ca3af; vertical-align: middle; text-transform: uppercase; }
+        .footer-table td.barcode-cell { text-align: right; vertical-align: middle; }
+        .footer-barcode img { height: 20px; width: auto; display: inline-block; }
+
+        /* BACK SIDE */
+        .back-title { font-size: 7.5pt; font-weight: bold; color: #111827; text-transform: uppercase; padding: 15px 15px 5px 15px; text-align: center; }
+        .back-divider { height: 2px; margin: 0 40px 10px 40px; }
+        
+        .back-content { padding: 0 15px; }
+        .address-section { font-size: 6pt; line-height: 1.4; color: #4b5563; margin-bottom: 8px; }
+        .address-section b { color: #6b7280; text-transform: uppercase; font-size: 5pt; }
+        .student-addr { font-size: 6pt; line-height: 1.3; color: #4b5563; margin-bottom: 8px; }
+        .student-addr b { color: #6b7280; text-transform: uppercase; font-size: 5pt; }
+
+        .emergency-box { background: #fef2f2; border: 1px solid #fecaca; padding: 6px; margin-bottom: 8px; border-radius: 6px; }
+        .emergency-box b { color: #dc2626; font-size: 5pt; text-transform: uppercase; display: block; margin-bottom: 2px; }
+        .emergency-box div { font-size: 6pt; color: #1f2937; font-weight: bold; }
+        .emergency-phone { color: #dc2626 !important; }
+
+        .signature-area { text-align: center; margin-top: 10px; }
+        .sig-line { width: 70px; height: 1px; background: #d1d5db; margin: 0 auto 3px auto; }
+        .sig-text { font-size: 4.5pt; color: #9ca3af; text-transform: uppercase; font-weight: bold; }
+
+        .qr-section { position: absolute; bottom: 10px; width: 100%; text-align: center; }
+        .qr-section img.qr { width: 45px; height: 45px; border: 1px solid #e5e7eb; padding: 2px; display: inline-block; margin-bottom: 4px; border-radius: 6px; }
+        .qr-section .powered { font-size: 4.5pt; color: #9ca3af; }
+
+
+        .property-notice { font-size: 5pt; color: #9ca3af; text-align: center; line-height: 1.4; padding: 0 15px; margin-top: 8px; font-style: italic; }
+    </style>
+</head>
+<body>
+
+    <!-- FRONT PAGE -->
+    <div class="page">
+        <div class="side-bar" th:style="'background-color:' + ${accentColor}"></div>
+        <div class="header-accent">
+            <div class="header-bg" th:style="${(idCardHeaderImageEnabled != null and idCardHeaderImageEnabled) ? 'background-color:#ffc603' : 'background-color:' + primaryColor}"></div>
+            <div th:if="${idCardHeaderImageEnabled != null and idCardHeaderImageEnabled}">
+                <img class="header-brand-image" th:src="${idCardHeaderImageBase64}" alt="School Header" />
+            </div>
+            <div class="school-logo" th:if="${!(idCardHeaderImageEnabled != null and idCardHeaderImageEnabled)}">
+                <img th:if="${schoolLogoBase64 != null and !schoolLogoBase64.isEmpty()}" th:src="${schoolLogoBase64}" alt="Logo" />
+            </div>
+            <div class="school-name" th:if="${!(idCardHeaderImageEnabled != null and idCardHeaderImageEnabled)}" th:text="${schoolName}">School Name</div>
+            <div class="card-type" th:if="${idCardHeaderImageEnabled != null and idCardHeaderImageEnabled}" th:style="'color:#1f2937'" th:text="${studentCardTypeLabel}">Student ID Card</div>
+            <div class="card-type" th:if="${!(idCardHeaderImageEnabled != null and idCardHeaderImageEnabled)}">Student Identity Card</div>
+        </div>
+        <div class="accent-bar" th:style="'background-color:' + ${accentColor}"></div>
+
+
+        <div class="photo-section">
+            <img th:src="${photoBase64}" alt="Photo" />
+        </div>
+
+        <div class="details">
+            <div class="student-name" th:text="${studentName}">Name</div>
+            <div class="student-class" th:text="${className} + ' — ' + ${sectionName}">Class</div>
+            <table class="info-grid">
+                <tr><td class="label">Enroll</td><td th:text="${enrollmentNumber}">#</td></tr>
+                <tr><td class="label">Roll No</td><td th:text="${rollNo}">#</td></tr>
+                <tr><td class="label">DOB</td><td th:text="${dateOfBirth}">DOB</td></tr>
+                <tr th:if="${bloodGroup != null and !bloodGroup.isEmpty()}"><td class="label">Blood</td><td th:text="${bloodGroup}">O+</td></tr>
+            </table>
+        </div>
+
+        <div class="footer-v">
+            <table class="footer-table">
+                <tr>
+                    <td class="valid-text" th:text="'SESSION: ' + ${academicYear}">SESSION</td>
+                    <td class="barcode-cell" th:if="${barcodeBase64 != null and !barcodeBase64.isEmpty()}">
+                        <div class="footer-barcode"><img th:src="${barcodeBase64}" alt="Barcode" /></div>
+                    </td>
+                </tr>
+            </table>
+        </div>
+    </div>
+
+    <!-- BACK PAGE -->
+    <div class="page">
+        <div class="side-bar" th:style="'background-color:' + ${accentColor}"></div>
+        
+        <div class="back-title" th:text="${schoolName}">School Name</div>
+        <div class="back-divider" th:style="'background-color:' + ${accentColor}"></div>
+
+        <div class="back-content">
+            <div class="address-section">
+                <b>Institution:</b><br/>
+                <span th:text="${schoolAddress != null and !schoolAddress.isEmpty()} ? ${schoolAddress} : 'Address not on file'">Addr</span><br/>
+                <span th:if="${schoolPhone != null and !schoolPhone.isEmpty()}">
+                    <b>Contact:</b> <span th:text="${schoolPhone}">Phone</span>
+                </span>
+            </div>
+
+            <div class="student-addr">
+                <b>Student Residence:</b><br/>
+                <span th:text="${studentAddress != null and !studentAddress.isEmpty()} ? ${studentAddress} : 'Please update address'">Addr</span>
+            </div>
+
+            <div class="emergency-box">
+                <b>Emergency Contact:</b>
+                <div th:if="${emergencyContactName != null and !emergencyContactName.isEmpty()}">
+                    <span th:text="${emergencyContactName}">Guardian</span>
+                    <span th:if="${emergencyContactRelation != null and !emergencyContactRelation.isEmpty()}" th:text="' (' + ${emergencyContactRelation} + ')'"></span>
+                </div>
+                <div th:if="${emergencyContactName == null or emergencyContactName.isEmpty()}" style="font-style: italic; color: #9ca3af; font-size: 5pt; font-weight: normal;">
+                    Please update emergency contact
+                </div>
+                <div class="emergency-phone" th:if="${emergencyContactPhone != null and !emergencyContactPhone.isEmpty()}" th:text="'☎ ' + ${emergencyContactPhone}">Phone</div>
+            </div>
+
+            <div class="signature-area">
+                <div class="sig-line"></div>
+                <div class="sig-text">Authorized Signatory</div>
+            </div>
+
+            <div class="property-notice">
+                This card is the property of <span th:text="${schoolName}">School</span>.
+                If found, please return to <span th:text="${schoolAddress != null and !schoolAddress.isEmpty()} ? ${schoolAddress} : 'the school'">address</span>.
+            </div>
+        </div>
+
+        <div class="qr-section">
+            <img class="qr" th:if="${qrCodeBase64 != null and !qrCodeBase64.isEmpty()}" th:src="${qrCodeBase64}" alt="QR" /><br/>
+            <span class="powered">Powered by <b>Shiksha Intelligence</b></span>
+        </div>
+    </div>
+
+</body>
+</html>

@@ -1,10 +1,8 @@
 package com.project.edusync.em.model.service.serviceImpl;
 
 import com.project.edusync.adm.model.entity.AcademicClass;
-import com.project.edusync.adm.model.entity.Section;
 import com.project.edusync.adm.model.entity.Subject;
 import com.project.edusync.adm.repository.AcademicClassRepository;
-import com.project.edusync.adm.repository.SectionRepository;
 import com.project.edusync.adm.repository.SubjectRepository;
 import com.project.edusync.common.exception.emException.EdusyncException;
 import com.project.edusync.common.exception.emException.ExamNotFoundException;
@@ -33,8 +31,8 @@ public class ExamScheduleServiceImpl implements ExamScheduleService {
     private final ExamRepository examRepository;
     // Repositories for ADM entities
     private final AcademicClassRepository academicClassRepository;
-    private final SectionRepository sectionRepository;
     private final SubjectRepository subjectRepository;
+    private final com.project.edusync.adm.repository.TimeslotRepository timeslotRepository;
 
     @Override
     public ExamScheduleResponseDTO createSchedule(UUID examUuid, ExamScheduleRequestDTO requestDTO) {
@@ -101,7 +99,6 @@ public class ExamScheduleServiceImpl implements ExamScheduleService {
     }
 
     private void mapDtoToEntity(ExamScheduleRequestDTO dto, ExamSchedule entity) {
-        // Fetch related ADM entities. Assuming they have 'findByUuid' methods.
         AcademicClass academicClass = academicClassRepository.findById(dto.getClassId())
                 .orElseThrow(() -> new EdusyncException("ADM-404", "Class not found", HttpStatus.NOT_FOUND));
         entity.setAcademicClass(academicClass);
@@ -110,42 +107,42 @@ public class ExamScheduleServiceImpl implements ExamScheduleService {
                 .orElseThrow(() -> new EdusyncException("ADM-404", "Subject not found", HttpStatus.NOT_FOUND));
         entity.setSubject(subject);
 
-        if (dto.getSectionId() != null) {
-            Section section = sectionRepository.findById(dto.getSectionId())
-                    .orElseThrow(() -> new EdusyncException("ADM-404", "Section not found", HttpStatus.NOT_FOUND));
-            // Validate section belongs to class
-            if (!section.getAcademicClass().equals(academicClass)) {
-                throw new EdusyncException("EM-400", "Section does not belong to the selected class", HttpStatus.BAD_REQUEST);
-            }
-            entity.setSection(section);
-        } else {
-            entity.setSection(null);
-        }
+        // --- Timeslot mapping ---
+        // NOTE: Timeslot requires dayOfWeek, startTime, endTime. We use examDate.getDayOfWeek().getValue() for dayOfWeek.
+        java.time.LocalTime startTime = dto.getStartTime();
+        java.time.LocalTime endTime = dto.getEndTime();
+        Short dayOfWeek = dto.getExamDate() != null ? (short) dto.getExamDate().getDayOfWeek().getValue() : null;
+        com.project.edusync.adm.model.entity.Timeslot timeslot = timeslotRepository
+                .findByStartTimeAndEndTime(startTime, endTime)
+                .orElseGet(() -> {
+                    com.project.edusync.adm.model.entity.Timeslot ts = new com.project.edusync.adm.model.entity.Timeslot();
+                    ts.setStartTime(startTime);
+                    ts.setEndTime(endTime);
+                    ts.setDayOfWeek(dayOfWeek);
+                    ts.setIsActive(true);
+                    return timeslotRepository.save(ts);
+                });
+        entity.setTimeslot(timeslot);
 
         entity.setExamDate(dto.getExamDate());
-        entity.setStartTime(dto.getStartTime());
-        entity.setEndTime(dto.getEndTime());
-        entity.setMaxMarks(dto.getMaxMarks());
-        entity.setPassingMarks(dto.getPassingMarks());
-        entity.setRoomNumber(dto.getRoomNumber());
+        entity.setDuration(dto.getDuration());
+        entity.setMaxMarks(dto.getMaxMarks().intValue());
     }
 
     private ExamScheduleResponseDTO mapEntityToResponse(ExamSchedule entity) {
         return ExamScheduleResponseDTO.builder()
-                .scheduleId(entity.getScheduleId())
+                .scheduleId(entity.getId())
                 .examUuid(entity.getExam().getUuid())
                 .classId(entity.getAcademicClass().getUuid())
                 .className(entity.getAcademicClass().getName())
-                .sectionId(entity.getSection() != null ? entity.getSection().getUuid() : null)
-                .sectionName(entity.getSection() != null ? entity.getSection().getSectionName() : null)
                 .subjectId(entity.getSubject().getUuid())
                 .subjectName(entity.getSubject().getName())
                 .examDate(entity.getExamDate())
-                .startTime(entity.getStartTime())
-                .endTime(entity.getEndTime())
-                .maxMarks(entity.getMaxMarks())
-                .passingMarks(entity.getPassingMarks())
-                .roomNumber(entity.getRoomNumber())
+                .startTime(entity.getTimeslot() != null ? entity.getTimeslot().getStartTime() : null)
+                .endTime(entity.getTimeslot() != null ? entity.getTimeslot().getEndTime() : null)
+                .maxMarks(java.math.BigDecimal.valueOf(entity.getMaxMarks()))
+                .passingMarks(java.math.BigDecimal.valueOf(entity.getMaxMarks())) // TODO: replace with actual field if available
+                .roomNumber(null) // TODO: replace with actual field if available
                 .build();
     }
 }

@@ -14,6 +14,8 @@ import java.util.UUID;
 
 @Repository
 public interface TimeslotRepository extends JpaRepository<Timeslot, Long> {
+    @Query("SELECT t FROM Timeslot t WHERE t.startTime = :startTime AND t.endTime = :endTime AND t.isActive = true")
+    Optional<Timeslot> findByStartTimeAndEndTime(LocalTime startTime, LocalTime endTime);
 
     @Query("SELECT t FROM Timeslot t WHERE t.uuid = :timeslotId AND t.isActive = true")
     Optional<Timeslot> findActiveById(UUID timeslotId);

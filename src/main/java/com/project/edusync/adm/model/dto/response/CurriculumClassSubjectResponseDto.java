@@ -7,6 +7,8 @@ import java.util.UUID;
 
 @Data
 @Builder
+@lombok.NoArgsConstructor
+@lombok.AllArgsConstructor
 public class CurriculumClassSubjectResponseDto {
     private UUID curriculumMapId;
     private UUID classId;

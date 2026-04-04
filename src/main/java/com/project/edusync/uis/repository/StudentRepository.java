@@ -61,4 +61,20 @@ public interface StudentRepository extends JpaRepository<Student, Long> {
     Optional<Student> findByUuid(java.util.UUID uuid);
 
     Optional<Student> findByUserProfile_User_Id(Long userId);
+
+    @Query("SELECT s FROM Student s " +
+           "JOIN FETCH s.userProfile up " +
+           "JOIN FETCH up.user u " +
+           "JOIN FETCH s.section sec " +
+           "JOIN FETCH sec.academicClass ac " +
+           "WHERE s.section.id = :sectionId AND s.isActive = true")
+    java.util.List<Student> findAllBySectionIdWithDetails(@Param("sectionId") Long sectionId);
+
+    @Query("SELECT s FROM Student s " +
+           "JOIN FETCH s.userProfile up " +
+           "JOIN FETCH up.user u " +
+           "JOIN FETCH s.section sec " +
+           "JOIN FETCH sec.academicClass ac " +
+           "WHERE sec.uuid = :sectionUuid AND s.isActive = true")
+    java.util.List<Student> findAllBySectionUuidWithDetails(@Param("sectionUuid") java.util.UUID sectionUuid);
 }

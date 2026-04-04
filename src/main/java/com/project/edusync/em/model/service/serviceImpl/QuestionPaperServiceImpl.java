@@ -43,12 +43,12 @@ public class QuestionPaperServiceImpl implements QuestionPaperService {
                 .orElseThrow(() -> new EdusyncException("EM-404", "Exam Schedule not found", HttpStatus.NOT_FOUND));
 
         // 1. Check if a paper already exists for this schedule
-        if (schedule.getQuestionPaper() != null) {
+        if (questionPaperRepository.findByExamSchedule_Id(schedule.getId()).isPresent()) {
             throw new EdusyncException("EM-409", "A question paper already exists for this schedule", HttpStatus.CONFLICT);
         }
 
         // 2. Validate total marks against schedule
-        if (requestDTO.getTotalMarks().compareTo(schedule.getMaxMarks()) != 0) {
+        if (requestDTO.getTotalMarks().compareTo(BigDecimal.valueOf(schedule.getMaxMarks())) != 0) {
             throw new EdusyncException("EM-400",
                     "Paper total marks (" + requestDTO.getTotalMarks() + ") must match schedule max marks (" + schedule.getMaxMarks() + ")",
                     HttpStatus.BAD_REQUEST);
@@ -106,7 +106,7 @@ public class QuestionPaperServiceImpl implements QuestionPaperService {
     @Transactional(readOnly = true)
     public QuestionPaperResponseDTO getQuestionPaperByScheduleId(Long scheduleId) {
         log.info("Fetching question paper for schedule ID: {}", scheduleId);
-        QuestionPaper paper = questionPaperRepository.findByExamSchedule_ScheduleId(scheduleId)
+        QuestionPaper paper = questionPaperRepository.findByExamSchedule_Id(scheduleId)
                 .orElseThrow(() -> new EdusyncException("EM-404", "No question paper found for this schedule", HttpStatus.NOT_FOUND));
         return toResponseDTO(paper);
     }
@@ -124,7 +124,7 @@ public class QuestionPaperServiceImpl implements QuestionPaperService {
     private QuestionPaperResponseDTO toResponseDTO(QuestionPaper entity) {
         return QuestionPaperResponseDTO.builder()
                 .uuid(entity.getUuid())
-                .scheduleId(entity.getExamSchedule().getScheduleId())
+                .scheduleId(entity.getExamSchedule().getId())
                 .paperName(entity.getPaperName())
                 .totalMarks(entity.getTotalMarks())
                 .durationMinutes(entity.getDurationMinutes())

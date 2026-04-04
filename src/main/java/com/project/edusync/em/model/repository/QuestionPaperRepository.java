@@ -10,5 +10,5 @@ import java.util.UUID;
 @Repository
 public interface QuestionPaperRepository extends JpaRepository<QuestionPaper, Long> {
     Optional<QuestionPaper> findByUuid(UUID uuid);
-    Optional<QuestionPaper> findByExamSchedule_ScheduleId(Long scheduleId);
+    Optional<QuestionPaper> findByExamSchedule_Id(Long id);
 }
