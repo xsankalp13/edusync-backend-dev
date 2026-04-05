@@ -16,6 +16,8 @@ import java.util.List;
 public interface LeaveManagementService {
 
     Page<LeaveApplicationResponseDTO> listApplications(
+            Long currentUserId,
+            boolean canViewAll,
             Long staffId,
             LeaveApplicationStatus status,
             String leaveTypeCode,
@@ -26,15 +28,25 @@ public interface LeaveManagementService {
 
     LeaveApplicationResponseDTO getApplicationById(Long applicationId);
 
+    LeaveApplicationResponseDTO getApplicationByIdentifier(String identifier);
+
     LeaveApplicationResponseDTO applyForCurrentStaff(LeaveApplicationCreateDTO dto);
 
-    LeaveApplicationResponseDTO approve(Long applicationId, LeaveReviewDTO dto);
+    LeaveApplicationResponseDTO approve(Long applicationId, Long reviewerUserId, LeaveReviewDTO dto);
 
-    LeaveApplicationResponseDTO reject(Long applicationId, LeaveReviewDTO dto);
+    LeaveApplicationResponseDTO approveByIdentifier(String identifier, Long reviewerUserId, LeaveReviewDTO dto);
+
+    LeaveApplicationResponseDTO reject(Long applicationId, Long reviewerUserId, LeaveReviewDTO dto);
+
+    LeaveApplicationResponseDTO rejectByIdentifier(String identifier, Long reviewerUserId, LeaveReviewDTO dto);
 
     LeaveApplicationResponseDTO cancelByCurrentStaff(Long applicationId);
 
+    LeaveApplicationResponseDTO cancelByCurrentStaffIdentifier(String identifier);
+
     List<LeaveBalanceResponseDTO> getBalanceForStaff(Long staffId, String academicYear);
+
+    List<LeaveBalanceResponseDTO> getBalanceForStaffIdentifier(String staffIdentifier, String academicYear);
 
     Page<LeaveBalanceResponseDTO> getAllBalances(String academicYear, Pageable pageable);
 

@@ -71,6 +71,12 @@ public class LeaveApplication extends AuditableEntity {
     @Column(name = "reviewed_on")
     private LocalDateTime reviewedOn;
 
+    @Column(name = "reviewed_by_user_id")
+    private Long reviewedByUserId;
+
+    @Column(name = "reviewed_by_name", length = 200)
+    private String reviewedByName;
+
     @Column(name = "review_remarks", length = 500)
     private String reviewRemarks;
 

@@ -18,7 +18,11 @@ public interface AcademicCalendarService {
 
     CalendarEventResponseDTO updateEvent(Long eventId, CalendarEventUpdateDTO dto);
 
+    CalendarEventResponseDTO updateEventByIdentifier(String identifier, CalendarEventUpdateDTO dto);
+
     void deleteEvent(Long eventId);
+
+    void deleteEventByIdentifier(String identifier);
 
     CalendarSummaryDTO getSummary(String academicYear);
 }

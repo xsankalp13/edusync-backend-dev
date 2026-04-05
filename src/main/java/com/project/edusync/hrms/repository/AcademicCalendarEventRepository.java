@@ -24,5 +24,7 @@ public interface AcademicCalendarEventRepository extends JpaRepository<AcademicC
     boolean existsByAcademicYearAndDateAndIsActiveTrue(String academicYear, LocalDate date);
 
     boolean existsByAcademicYearAndDateAndIsActiveTrueAndIdNot(String academicYear, LocalDate date, Long id);
+
+    Optional<AcademicCalendarEvent> findByUuid(java.util.UUID uuid);
 }
 

@@ -14,6 +14,10 @@ public interface StaffGradeService {
 
     StaffGradeResponseDTO updateGrade(Long gradeId, StaffGradeUpdateDTO dto);
 
+    StaffGradeResponseDTO updateGradeByIdentifier(String identifier, StaffGradeUpdateDTO dto);
+
     void deleteGrade(Long gradeId);
+
+    void deleteGradeByIdentifier(String identifier);
 }
 

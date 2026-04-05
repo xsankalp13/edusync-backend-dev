@@ -1,12 +1,15 @@
 package com.project.edusync.hrms.model.entity;
 
 import com.project.edusync.common.model.AuditableEntity;
+import com.project.edusync.uis.model.enums.StaffCategory;
 import jakarta.persistence.CollectionTable;
 import jakarta.persistence.Column;
 import jakarta.persistence.ElementCollection;
 import jakarta.persistence.Entity;
 import jakarta.persistence.FetchType;
 import jakarta.persistence.JoinColumn;
+import jakarta.persistence.EnumType;
+import jakarta.persistence.Enumerated;
 import jakarta.persistence.Table;
 import jakarta.persistence.UniqueConstraint;
 import lombok.Getter;
@@ -68,6 +71,12 @@ public class LeaveTypeConfig extends AuditableEntity {
     @CollectionTable(name = "hrms_leave_type_config_grades", joinColumns = @JoinColumn(name = "leave_type_id"))
     @Column(name = "grade_code", length = 30)
     private Set<String> applicableGrades = new HashSet<>();
+
+    @ElementCollection(fetch = FetchType.LAZY)
+    @CollectionTable(name = "hrms_leave_type_applicable_categories", joinColumns = @JoinColumn(name = "leave_type_id"))
+    @Enumerated(EnumType.STRING)
+    @Column(name = "category", length = 40)
+    private Set<StaffCategory> applicableCategories = new HashSet<>();
 
     @Column(name = "sort_order")
     private Integer sortOrder;

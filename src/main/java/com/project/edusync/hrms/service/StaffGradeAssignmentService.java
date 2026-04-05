@@ -13,7 +13,11 @@ public interface StaffGradeAssignmentService {
 
     StaffGradeAssignmentResponseDTO getCurrentAssignment(Long staffId);
 
+    StaffGradeAssignmentResponseDTO getCurrentAssignmentByIdentifier(String staffIdentifier);
+
     List<StaffGradeAssignmentResponseDTO> getHistory(Long staffId);
+
+    List<StaffGradeAssignmentResponseDTO> getHistoryByIdentifier(String staffIdentifier);
 
     Page<StaffGradeAssignmentResponseDTO> listCurrentAssignments(Pageable pageable);
 }

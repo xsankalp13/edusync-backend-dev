@@ -15,5 +15,7 @@ public interface StaffGradeRepository extends JpaRepository<StaffGrade, Long> {
     boolean existsByGradeCodeIgnoreCaseAndActiveTrue(String gradeCode);
 
     boolean existsByGradeCodeIgnoreCaseAndActiveTrueAndIdNot(String gradeCode, Long id);
+
+    Optional<StaffGrade> findByUuid(java.util.UUID uuid);
 }
 

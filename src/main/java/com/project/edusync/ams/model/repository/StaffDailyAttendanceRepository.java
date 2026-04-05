@@ -1,8 +1,7 @@
 package com.project.edusync.ams.model.repository;
 
 import com.project.edusync.ams.model.entity.StaffDailyAttendance;
-import org.springframework.data.domain.Page;
-import org.springframework.data.domain.Pageable;
+import com.project.edusync.uis.model.enums.StaffCategory;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
@@ -47,4 +46,70 @@ public interface StaffDailyAttendanceRepository extends JpaRepository<StaffDaily
               AND sda.attendanceType.isPresentMark = true
             """)
     long countPresentByStaffId(@Param("staffId") Long staffId);
+
+    long countByStaffIdAndAttendanceDateBetween(Long staffId, LocalDate startDate, LocalDate endDate);
+
+    @Query("""
+            SELECT COUNT(sda)
+            FROM StaffDailyAttendance sda
+            WHERE sda.staffId = :staffId
+              AND sda.attendanceDate BETWEEN :startDate AND :endDate
+              AND sda.attendanceType.isPresentMark = true
+            """)
+    long countPresentByStaffIdAndDateBetween(
+            @Param("staffId") Long staffId,
+            @Param("startDate") LocalDate startDate,
+            @Param("endDate") LocalDate endDate
+    );
+
+    @Query("""
+            SELECT COUNT(sda)
+            FROM StaffDailyAttendance sda
+            WHERE sda.staffId = :staffId
+              AND sda.attendanceDate BETWEEN :startDate AND :endDate
+              AND sda.attendanceType.isAbsenceMark = true
+            """)
+    long countAbsentByStaffIdAndDateBetween(
+            @Param("staffId") Long staffId,
+            @Param("startDate") LocalDate startDate,
+            @Param("endDate") LocalDate endDate
+    );
+
+    @Query("""
+            SELECT COUNT(DISTINCT sda.staffId)
+            FROM StaffDailyAttendance sda
+            WHERE sda.attendanceDate = :date
+              AND sda.attendanceType.isPresentMark = true
+            """)
+    long countDistinctPresentStaffByDate(@Param("date") LocalDate date);
+
+    @Query("""
+            SELECT COUNT(DISTINCT sda.staffId)
+            FROM StaffDailyAttendance sda
+            WHERE sda.attendanceDate = :date
+              AND sda.attendanceType.isAbsenceMark = true
+            """)
+    long countDistinctAbsentStaffByDate(@Param("date") LocalDate date);
+
+    @Query("""
+            SELECT COUNT(DISTINCT sda.staffId)
+            FROM StaffDailyAttendance sda, Staff st
+            WHERE st.id = sda.staffId
+              AND st.isActive = true
+              AND st.category = :category
+              AND sda.attendanceDate = :date
+              AND sda.attendanceType.isPresentMark = true
+            """)
+    long countDistinctPresentStaffByDateAndCategory(@Param("date") LocalDate date, @Param("category") StaffCategory category);
+
+    @Query("""
+            SELECT COUNT(DISTINCT sda.staffId)
+            FROM StaffDailyAttendance sda, Staff st
+            WHERE st.id = sda.staffId
+              AND st.isActive = true
+              AND st.category = :category
+              AND sda.attendanceDate = :date
+              AND sda.attendanceType.isAbsenceMark = true
+            """)
+    long countDistinctAbsentStaffByDateAndCategory(@Param("date") LocalDate date, @Param("category") StaffCategory category);
 }

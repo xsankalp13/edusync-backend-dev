@@ -2,6 +2,7 @@ package com.project.edusync.hrms.repository;
 
 import com.project.edusync.hrms.model.entity.LeaveApplication;
 import com.project.edusync.hrms.model.enums.LeaveApplicationStatus;
+import com.project.edusync.uis.model.enums.StaffCategory;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
@@ -10,6 +11,7 @@ import org.springframework.data.repository.query.Param;
 
 import java.time.LocalDate;
 import java.math.BigDecimal;
+import java.util.Optional;
 
 public interface LeaveApplicationRepository extends JpaRepository<LeaveApplication, Long> {
 
@@ -90,4 +92,18 @@ public interface LeaveApplicationRepository extends JpaRepository<LeaveApplicati
               AND la.toDate >= :date
             """)
     long countDistinctStaffOnApprovedLeave(@Param("date") LocalDate date);
+
+    @Query("""
+            SELECT COUNT(DISTINCT la.staff.id)
+            FROM LeaveApplication la
+            WHERE la.active = true
+              AND la.staff.isActive = true
+              AND la.staff.category = :category
+              AND la.status = com.project.edusync.hrms.model.enums.LeaveApplicationStatus.APPROVED
+              AND la.fromDate <= :date
+              AND la.toDate >= :date
+            """)
+    long countDistinctStaffOnApprovedLeaveByCategoryAndDate(@Param("category") StaffCategory category, @Param("date") LocalDate date);
+
+    Optional<LeaveApplication> findByUuid(java.util.UUID uuid);
 }
