@@ -69,4 +69,12 @@ public interface StudentDailyAttendanceRepository extends JpaRepository<StudentD
               AND sda.attendanceType.isPresentMark = true
             """)
     long countPresentByStudentId(@Param("studentId") Long studentId);
+
+    // 1. At-Risk Students (Grouped by Student ID)
+    @Query(value = "SELECT student_id FROM student_daily_attendance WHERE student_id IN :studentIds GROUP BY student_id HAVING COUNT(*) > :threshold", nativeQuery = true)
+    List<Long> findAtRiskStudents(@Param("studentIds") List<Long> studentIds, @Param("threshold") long threshold);
+
+    // 2. Heatmap Density (Grouped by Date, since Subject-level isn't tracked here)
+    @Query(value = "SELECT attendance_date, COUNT(*) FROM student_daily_attendance WHERE student_id IN :studentIds GROUP BY attendance_date", nativeQuery = true)
+    List<Object[]> findAbsenceDensityByDate(@Param("studentIds") List<Long> studentIds);
 }

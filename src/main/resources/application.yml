@@ -96,6 +96,11 @@ app:
 api:
   url: ${BASE_URL}${API_VERSION}
 
+jasypt:
+  encryptor:
+    password: ${JASYPT_ENCRYPTOR_PASSWORD:Htrihaonlnlsafnirn1239u129#2381$}
+
+
 logging:
   # Log file path — read by logback-spring.xml via <springProperty source="logging.file.name"/>
   # Also used by the SuperAdmin /api/v1/super/logs tail endpoint .

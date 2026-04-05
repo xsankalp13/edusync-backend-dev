@@ -78,6 +78,9 @@ public interface ScheduleRepository extends JpaRepository<Schedule, Long> {
     @Query("SELECT s FROM Schedule s WHERE s.section.uuid = :sectionId AND s.isActive = true")
     List<Schedule> findAllActiveBySectionUuid(UUID sectionId);
 
+    @Query("SELECT s FROM Schedule s JOIN FETCH s.teacher td JOIN FETCH td.staff st WHERE st.id = :staffId AND s.isActive = true")
+    List<Schedule> findAllActiveByTeacherStaffId(@Param("staffId") Long staffId);
+
     @Query("""
             SELECT s.subject.uuid as subjectId,
                    COUNT(s.id) as scheduledPeriods

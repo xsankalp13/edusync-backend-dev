@@ -59,6 +59,16 @@ public class ScheduleServiceImpl implements ScheduleService {
 
     @Override
     @Transactional(readOnly = true)
+    public List<ScheduleResponseDto> getScheduleForTeacher(Long staffId) {
+        log.info("Fetching schedule for staff id: {}", staffId);
+        List<Schedule> schedules = scheduleRepository.findAllActiveByTeacherStaffId(staffId);
+        return schedules.stream()
+                .map(this::toScheduleResponseDto)
+                .collect(Collectors.toList());
+    }
+
+    @Override
+    @Transactional(readOnly = true)
     public List<TimetableOverviewResponseDto> getScheduleOverview() {
         return scheduleRepository.findTimetableOverview().stream()
                 .map(row -> TimetableOverviewResponseDto.builder()
