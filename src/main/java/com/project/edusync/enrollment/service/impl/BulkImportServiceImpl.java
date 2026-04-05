@@ -92,8 +92,7 @@ public class BulkImportServiceImpl implements BulkImportService {
     private static final List<String> STUDENT_HEADER = Arrays.asList(
             "firstName", "lastName", "middleName", "email", "dateOfBirth",
             "rollNo", "gender", "enrollmentNumber", "enrollmentDate",
-            "className", "sectionName"
-    );
+            "className", "sectionName");
 
     // Common staff fields + all *possible* specific fields
     // This provides a single, verifiable header for the "staff.csv"
@@ -108,27 +107,22 @@ public class BulkImportServiceImpl implements BulkImportService {
             // Librarian (18-19)
             "librarySystemPermissions", "mlisDegree",
             // Security (20-21)
-            "assignedGate", "shiftTiming"
-    );
+            "assignedGate", "shiftTiming");
 
     private static final List<String> GUARDIAN_HEADER = Arrays.asList(
             "studentEnrollmentNumber", "firstName", "lastName", "middleName", "email", "phoneNumber",
-            "relationshipType", "occupation", "employer", "primaryContact", "canPickup", "financialContact", "canViewGrades"
-    );
+            "relationshipType", "occupation", "employer", "primaryContact", "canPickup", "financialContact",
+            "canViewGrades");
 
     private static final List<String> ROOM_HEADER = Arrays.asList(
             "name", "roomType", "seatingType", "rowCount", "columnsPerRow", "seatsPerUnit", "floorNumber",
-            "building", "hasProjector", "hasAC", "hasWhiteboard", "isAccessible", "otherAmenities"
-    );
+            "building", "hasProjector", "hasAC", "hasWhiteboard", "isAccessible", "otherAmenities");
 
     private static final Set<String> VALID_ROOM_TYPES = Set.of(
-            "CLASSROOM", "LABORATORY", "COMPUTER_LAB", "LIBRARY", "OTHER"
-    );
+            "CLASSROOM", "LABORATORY", "COMPUTER_LAB", "LIBRARY", "OTHER");
 
     private static final Set<String> VALID_SEATING_TYPES = Set.of(
-            "BENCH", "DESK_CHAIR", "WORKSTATION", "TERMINAL"
-    );
-
+            "BENCH", "DESK_CHAIR", "WORKSTATION", "TERMINAL");
 
     @Value("${edusync.bulk-import.default-password:Welcome@123}")
     private String DEFAULT_PASSWORD;
@@ -154,15 +148,16 @@ public class BulkImportServiceImpl implements BulkImportService {
      * Silently swallows IO errors so that an SSE glitch never aborts the import.
      */
     private void emitEvent(String sessionId, BulkImportProgressEvent event) {
-        if (sessionId == null) return;
+        if (sessionId == null)
+            return;
         SseEmitter emitter = sseEmitterRegistry.get(sessionId);
-        if (emitter == null) return;
+        if (emitter == null)
+            return;
         try {
             emitter.send(
-                SseEmitter.event()
-                    .name(event.getEventType())
-                    .data(objectMapper.writeValueAsString(event))
-            );
+                    SseEmitter.event()
+                            .name(event.getEventType())
+                            .data(objectMapper.writeValueAsString(event)));
         } catch (IOException e) {
             log.warn("Failed to emit SSE event for session {}: {}", sessionId, e.getMessage());
         }
@@ -182,16 +177,16 @@ public class BulkImportServiceImpl implements BulkImportService {
         final Map<String, Section> sectionCache = sectionRepository.findAllWithClass().stream()
                 .collect(Collectors.toMap(
                         s -> s.getAcademicClass().getName() + ":" + s.getSectionName(),
-                        s -> s
-                ));
-        log.info("Caches built with {} roles and {} sections. Starting row processing...", roleCache.size(), sectionCache.size());
+                        s -> s));
+        log.info("Caches built with {} roles and {} sections. Starting row processing...", roleCache.size(),
+                sectionCache.size());
 
         BulkImportReportDTO report = new BulkImportReportDTO();
         report.setStatus("PROCESSING");
         int rowNumber = 1, successCount = 0, failureCount = 0;
 
         try (Reader reader = new InputStreamReader(file.getInputStream());
-             CSVReader csvReader = new CSVReader(reader)) {
+                CSVReader csvReader = new CSVReader(reader)) {
 
             // --- HEADER VALIDATION ---
             String[] header = csvReader.readNext();
@@ -214,19 +209,18 @@ public class BulkImportServiceImpl implements BulkImportService {
                 log.warn("CSV Header Validation FAILED. Expected: {}, Found: {}", expectedHeader, actualHeader);
                 // USE: InvalidCsvHeaderException (Fatal)
                 throw new InvalidCsvHeaderException(
-                        String.format("Invalid CSV header. Expected: %s, Found: %s", expectedHeader, actualHeader)
-                );
+                        String.format("Invalid CSV header. Expected: %s, Found: %s", expectedHeader, actualHeader));
             }
             log.info("CSV Header validation passed.");
             // --- End Header Validation ---
-
 
             String[] row;
             while ((row = csvReader.readNext()) != null) {
                 rowNumber++;
                 // Extract a human-readable identifier for SSE events (email is col 3)
                 String identifier = (row.length > 3 && row[3] != null && !row[3].isBlank())
-                        ? row[3] : "row-" + rowNumber;
+                        ? row[3]
+                        : "row-" + rowNumber;
                 try {
                     StudentRowProcessingResult studentResult = null;
                     if (USER_TYPE_STUDENTS.equalsIgnoreCase(userType)) {
@@ -245,7 +239,8 @@ public class BulkImportServiceImpl implements BulkImportService {
                             .studentEnrollmentNumber(studentResult != null ? studentResult.getEnrollmentNumber() : null)
                             .guardiansCreated(studentResult != null ? studentResult.getGuardiansCreatedCount() : 0)
                             .guardiansLinked(studentResult != null ? studentResult.getGuardiansLinkedCount() : 0)
-                            .guardianUsernames(studentResult != null ? studentResult.getGuardianUsernames() : Collections.emptyList())
+                            .guardianUsernames(studentResult != null ? studentResult.getGuardianUsernames()
+                                    : Collections.emptyList())
                             .successCount(successCount)
                             .failureCount(failureCount)
                             .build());
@@ -306,10 +301,11 @@ public class BulkImportServiceImpl implements BulkImportService {
      */
     @Transactional(rollbackFor = Exception.class)
     public StudentRowProcessingResult processStudentRow(String[] row,
-                                                        Map<String, Role> roleCache,
-                                                        Map<String, Section> sectionCache,
-                                                        List<BulkImportGuardianInputDTO> guardiansForStudent) {
-        log.info("[StudentRow] Processing started for candidate enrollmentNumber='{}'", row.length > 7 ? row[7] : "N/A");
+            Map<String, Role> roleCache,
+            Map<String, Section> sectionCache,
+            List<BulkImportGuardianInputDTO> guardiansForStudent) {
+        log.info("[StudentRow] Processing started for candidate enrollmentNumber='{}'",
+                row.length > 7 ? row[7] : "N/A");
         // 1. --- Parse & Validate Data (per students.csv spec) ---
         // This section will now throw DataParsingException if it fails
         String firstName = validationHelper.validateString(row[0], "firstName");
@@ -335,13 +331,15 @@ public class BulkImportServiceImpl implements BulkImportService {
         }
         if (studentRepository.existsByEnrollmentNumber(enrollmentNumber)) {
             // USE: ResourceDuplicateException
-            throw new ResourceDuplicateException("Student with enrollment number '" + enrollmentNumber + "' already exists.");
+            throw new ResourceDuplicateException(
+                    "Student with enrollment number '" + enrollmentNumber + "' already exists.");
         }
 
         Section section = sectionCache.get(className + ":" + sectionName);
         if (section == null) {
             // USE: RelatedResourceNotFoundException
-            throw new RelatedResourceNotFoundException("Section not found for class '" + className + "' and section '" + sectionName + "'.");
+            throw new RelatedResourceNotFoundException(
+                    "Section not found for class '" + className + "' and section '" + sectionName + "'.");
         }
 
         Role studentRole = roleCache.get(ROLE_STUDENT);
@@ -350,14 +348,14 @@ public class BulkImportServiceImpl implements BulkImportService {
             throw new RelatedResourceNotFoundException("CRITICAL: " + ROLE_STUDENT + " not found in database.");
         }
 
-        log.info("[StudentRow] Validation passed for enrollmentNumber='{}'; creating student user/profile/entity", enrollmentNumber);
+        log.info("[StudentRow] Validation passed for enrollmentNumber='{}'; creating student user/profile/entity",
+                enrollmentNumber);
 
         // 3. --- Delegate creation to the helper ---
         Student student = registerUserByRole.RegisterStudent(
                 email, enrollmentNumber, DEFAULT_PASSWORD, studentRole,
                 firstName, lastName, middleName, dob, gender,
-                enrollmentDate, section, rollNo
-        );
+                enrollmentDate, section, rollNo);
 
         StudentRowProcessingResult rowResult = new StudentRowProcessingResult(enrollmentNumber);
         if (guardiansForStudent == null || guardiansForStudent.isEmpty()) {
@@ -365,7 +363,8 @@ public class BulkImportServiceImpl implements BulkImportService {
             return rowResult;
         }
 
-        log.info("[StudentRow] Found {} guardian row(s) for enrollmentNumber='{}'", guardiansForStudent.size(), enrollmentNumber);
+        log.info("[StudentRow] Found {} guardian row(s) for enrollmentNumber='{}'", guardiansForStudent.size(),
+                enrollmentNumber);
 
         for (BulkImportGuardianInputDTO guardianInput : guardiansForStudent) {
             log.info("[StudentRow] Resolving guardian for student='{}' with guardianEmail='{}' guardianPhone='{}'",
@@ -389,8 +388,8 @@ public class BulkImportServiceImpl implements BulkImportService {
 
     @Override
     public BulkImportReportDTO importStudentsWithGuardians(MultipartFile studentsFile,
-                                                           MultipartFile guardiansFile,
-                                                           String sessionId) throws IOException {
+            MultipartFile guardiansFile,
+            String sessionId) throws IOException {
         log.info("[StudentsWithGuardians] Import started. studentsFile='{}', guardiansFile='{}', sessionId='{}'",
                 studentsFile.getOriginalFilename(), guardiansFile.getOriginalFilename(), sessionId);
         log.info("[StudentsWithGuardians] Building caches for roles and sections...");
@@ -399,12 +398,13 @@ public class BulkImportServiceImpl implements BulkImportService {
         final Map<String, Section> sectionCache = sectionRepository.findAllWithClass().stream()
                 .collect(Collectors.toMap(
                         s -> s.getAcademicClass().getName() + ":" + s.getSectionName(),
-                        s -> s
-                ));
-        log.info("[StudentsWithGuardians] Cache build complete: roles={}, sections={}", roleCache.size(), sectionCache.size());
+                        s -> s));
+        log.info("[StudentsWithGuardians] Cache build complete: roles={}, sections={}", roleCache.size(),
+                sectionCache.size());
 
         Map<String, List<BulkImportGuardianInputDTO>> guardiansByEnrollment = parseGuardiansFile(guardiansFile);
-        log.info("[StudentsWithGuardians] Guardians parsed successfully. Distinct student references={}", guardiansByEnrollment.size());
+        log.info("[StudentsWithGuardians] Guardians parsed successfully. Distinct student references={}",
+                guardiansByEnrollment.size());
         Set<String> matchedEnrollmentNumbers = new HashSet<>();
 
         BulkImportReportDTO report = new BulkImportReportDTO();
@@ -414,7 +414,7 @@ public class BulkImportServiceImpl implements BulkImportService {
         int failureCount = 0;
 
         try (Reader reader = new InputStreamReader(studentsFile.getInputStream());
-             CSVReader csvReader = new CSVReader(reader)) {
+                CSVReader csvReader = new CSVReader(reader)) {
 
             String[] header = csvReader.readNext();
             if (header == null) {
@@ -424,21 +424,21 @@ public class BulkImportServiceImpl implements BulkImportService {
             List<String> actualHeader = Arrays.asList(header);
             if (!actualHeader.equals(STUDENT_HEADER)) {
                 throw new InvalidCsvHeaderException(
-                        String.format("Invalid students.csv header. Expected: %s, Found: %s", STUDENT_HEADER, actualHeader)
-                );
+                        String.format("Invalid students.csv header. Expected: %s, Found: %s", STUDENT_HEADER,
+                                actualHeader));
             }
             log.info("[StudentsWithGuardians] students.csv header validation passed.");
 
             String[] row;
             while ((row = csvReader.readNext()) != null) {
                 rowNumber++;
-                String identifier = (row.length > 7 && row[7] != null && !row[7].isBlank()) ? row[7] : "row-" + rowNumber;
+                String identifier = (row.length > 7 && row[7] != null && !row[7].isBlank()) ? row[7]
+                        : "row-" + rowNumber;
                 try {
                     String enrollmentNumber = row.length > 7 ? row[7].trim() : "";
                     List<BulkImportGuardianInputDTO> guardians = guardiansByEnrollment.getOrDefault(
                             enrollmentNumber,
-                            Collections.emptyList()
-                    );
+                            Collections.emptyList());
                     log.info("[StudentsWithGuardians] Processing row={} enrollmentNumber='{}' guardiansAttached={}",
                             rowNumber - 1, enrollmentNumber, guardians.size());
 
@@ -458,7 +458,8 @@ public class BulkImportServiceImpl implements BulkImportService {
                             .successCount(successCount)
                             .failureCount(failureCount)
                             .build());
-                    log.info("[StudentsWithGuardians] Row={} succeeded for enrollmentNumber='{}' (successCount={}, failureCount={})",
+                    log.info(
+                            "[StudentsWithGuardians] Row={} succeeded for enrollmentNumber='{}' (successCount={}, failureCount={})",
                             rowNumber - 1, enrollmentNumber, successCount, failureCount);
                 } catch (Exception e) {
                     failureCount++;
@@ -484,14 +485,16 @@ public class BulkImportServiceImpl implements BulkImportService {
             for (String unmatched : unmatchedEnrollmentNumbers) {
                 rowNumber++;
                 String identifier = unmatched;
-                log.info("[StudentsWithGuardians] Processing unmatched guardian references for student='{}'", unmatched);
+                log.info("[StudentsWithGuardians] Processing unmatched guardian references for student='{}'",
+                        unmatched);
 
                 Optional<Student> existingStudentOpt = studentRepository.findByEnrollmentNumber(unmatched);
                 if (existingStudentOpt.isPresent()) {
                     Student existingStudent = existingStudentOpt.get();
                     List<BulkImportGuardianInputDTO> guardians = guardiansByEnrollment.get(unmatched);
                     try {
-                        StudentRowProcessingResult result = processGuardiansForExistingStudent(existingStudent, guardians, roleCache);
+                        StudentRowProcessingResult result = processGuardiansForExistingStudent(existingStudent,
+                                guardians, roleCache);
                         successCount++;
                         emitEvent(sessionId, BulkImportProgressEvent.builder()
                                 .rowNumber(rowNumber - 1)
@@ -505,12 +508,15 @@ public class BulkImportServiceImpl implements BulkImportService {
                                 .successCount(successCount)
                                 .failureCount(failureCount)
                                 .build());
-                        log.info("[StudentsWithGuardians] Row={} succeeded for existing student='{}'", rowNumber - 1, identifier);
+                        log.info("[StudentsWithGuardians] Row={} succeeded for existing student='{}'", rowNumber - 1,
+                                identifier);
                     } catch (Exception e) {
                         failureCount++;
                         String errorMessage = e.getMessage();
                         report.getErrorMessages().add(String.format("Student '%s': %s", identifier, errorMessage));
-                        log.warn("[StudentsWithGuardians] Failed to link guardians for existing student='{}'. Reason: {}", identifier, errorMessage);
+                        log.warn(
+                                "[StudentsWithGuardians] Failed to link guardians for existing student='{}'. Reason: {}",
+                                identifier, errorMessage);
                         emitEvent(sessionId, BulkImportProgressEvent.builder()
                                 .rowNumber(rowNumber - 1)
                                 .eventType("ROW_FAILURE")
@@ -523,7 +529,8 @@ public class BulkImportServiceImpl implements BulkImportService {
                     }
                 } else {
                     failureCount++;
-                    String errorMessage = "Guardians file references unknown studentEnrollmentNumber '" + unmatched + "'.";
+                    String errorMessage = "Guardians file references unknown studentEnrollmentNumber '" + unmatched
+                            + "'.";
                     report.getErrorMessages().add(errorMessage);
                     log.warn("[StudentsWithGuardians] {}", errorMessage);
                     emitEvent(sessionId, BulkImportProgressEvent.builder()
@@ -578,7 +585,7 @@ public class BulkImportServiceImpl implements BulkImportService {
         Set<String> errorMessages = new LinkedHashSet<>();
 
         try (Reader reader = new InputStreamReader(file.getInputStream());
-             CSVReader csvReader = new CSVReader(reader)) {
+                CSVReader csvReader = new CSVReader(reader)) {
 
             String[] header = csvReader.readNext();
             if (header == null) {
@@ -587,8 +594,7 @@ public class BulkImportServiceImpl implements BulkImportService {
             List<String> actualHeader = Arrays.asList(header);
             if (!actualHeader.equals(ROOM_HEADER)) {
                 throw new InvalidCsvHeaderException(
-                        String.format("Invalid CSV header. Expected: %s, Found: %s", ROOM_HEADER, actualHeader)
-                );
+                        String.format("Invalid CSV header. Expected: %s, Found: %s", ROOM_HEADER, actualHeader));
             }
 
             String[] row;
@@ -693,15 +699,16 @@ public class BulkImportServiceImpl implements BulkImportService {
                 totalRows,
                 successCount,
                 failureCount,
-                errorMessages.stream().toList()
-        );
+                errorMessages.stream().toList());
     }
 
     @Transactional(rollbackFor = Exception.class)
     public Integer processRoomRow(String[] row) {
         String name = validationHelper.validateString(getRequiredColumn(row, 0, "name"), "name");
-        String roomType = validationHelper.validateString(getRequiredColumn(row, 1, "roomType"), "roomType").toUpperCase(Locale.ROOT);
-        String seatingType = validationHelper.validateString(getRequiredColumn(row, 2, "seatingType"), "seatingType").toUpperCase(Locale.ROOT);
+        String roomType = validationHelper.validateString(getRequiredColumn(row, 1, "roomType"), "roomType")
+                .toUpperCase(Locale.ROOT);
+        String seatingType = validationHelper.validateString(getRequiredColumn(row, 2, "seatingType"), "seatingType")
+                .toUpperCase(Locale.ROOT);
 
         if (!VALID_ROOM_TYPES.contains(roomType)) {
             throw new BulkImportException("Invalid roomType '" + roomType + "'.", HttpStatus.BAD_REQUEST);
@@ -776,12 +783,13 @@ public class BulkImportServiceImpl implements BulkImportService {
         return value;
     }
 
-    private Map<String, List<BulkImportGuardianInputDTO>> parseGuardiansFile(MultipartFile guardiansFile) throws IOException {
+    private Map<String, List<BulkImportGuardianInputDTO>> parseGuardiansFile(MultipartFile guardiansFile)
+            throws IOException {
         log.info("[GuardiansCsv] Parsing started for file='{}'", guardiansFile.getOriginalFilename());
         Map<String, List<BulkImportGuardianInputDTO>> guardiansByEnrollment = new HashMap<>();
 
         try (Reader reader = new InputStreamReader(guardiansFile.getInputStream());
-             CSVReader csvReader = new CSVReader(reader)) {
+                CSVReader csvReader = new CSVReader(reader)) {
 
             String[] header = csvReader.readNext();
             if (header == null) {
@@ -791,8 +799,8 @@ public class BulkImportServiceImpl implements BulkImportService {
             List<String> actualHeader = Arrays.asList(header);
             if (!actualHeader.equals(GUARDIAN_HEADER)) {
                 throw new InvalidCsvHeaderException(
-                        String.format("Invalid guardians.csv header. Expected: %s, Found: %s", GUARDIAN_HEADER, actualHeader)
-                );
+                        String.format("Invalid guardians.csv header. Expected: %s, Found: %s", GUARDIAN_HEADER,
+                                actualHeader));
             }
             log.info("[GuardiansCsv] Header validation passed.");
 
@@ -819,11 +827,13 @@ public class BulkImportServiceImpl implements BulkImportService {
                     guardiansByEnrollment
                             .computeIfAbsent(dto.getStudentEnrollmentNumber(), key -> new java.util.ArrayList<>())
                             .add(dto);
-                    log.debug("[GuardiansCsv] Parsed row={} for studentEnrollmentNumber='{}' guardianEmail='{}' guardianPhone='{}'",
+                    log.debug(
+                            "[GuardiansCsv] Parsed row={} for studentEnrollmentNumber='{}' guardianEmail='{}' guardianPhone='{}'",
                             rowNumber - 1, dto.getStudentEnrollmentNumber(), dto.getEmail(), dto.getPhoneNumber());
                 } catch (Exception e) {
                     log.warn("[GuardiansCsv] Invalid row={} reason='{}'", rowNumber - 1, e.getMessage());
-                    throw new BulkImportException("guardians.csv row " + rowNumber + " invalid: " + e.getMessage(), HttpStatus.BAD_REQUEST);
+                    throw new BulkImportException("guardians.csv row " + rowNumber + " invalid: " + e.getMessage(),
+                            HttpStatus.BAD_REQUEST);
                 }
             }
         } catch (CsvValidationException e) {
@@ -843,7 +853,7 @@ public class BulkImportServiceImpl implements BulkImportService {
     }
 
     private GuardianResolutionResult resolveOrCreateGuardian(BulkImportGuardianInputDTO guardianInput,
-                                                             Map<String, Role> roleCache) {
+            Map<String, Role> roleCache) {
         String email = validationHelper.validateEmail(guardianInput.getEmail());
         String phoneUsername = normalizePhoneToUsername(guardianInput.getPhoneNumber());
         log.info("[GuardianResolve] Resolving guardian by phone='{}' or email='{}'", phoneUsername, email);
@@ -852,10 +862,11 @@ public class BulkImportServiceImpl implements BulkImportService {
         Optional<User> byEmail = userRepository.findByEmail(email);
 
         if (byPhone.isPresent() && byEmail.isPresent() && !byPhone.get().getId().equals(byEmail.get().getId())) {
-            log.warn("[GuardianResolve] Conflict: phone/email resolve to different users. phone='{}', email='{}'", phoneUsername, email);
+            log.warn("[GuardianResolve] Conflict: phone/email resolve to different users. phone='{}', email='{}'",
+                    phoneUsername, email);
             throw new ResourceDuplicateException(
-                    "Guardian phone and email are mapped to different users. phone='" + phoneUsername + "', email='" + email + "'."
-            );
+                    "Guardian phone and email are mapped to different users. phone='" + phoneUsername + "', email='"
+                            + email + "'.");
         }
 
         User existingUser = byPhone.orElseGet(() -> byEmail.orElse(null));
@@ -863,8 +874,7 @@ public class BulkImportServiceImpl implements BulkImportService {
             log.info("[GuardianResolve] Existing guardian user found (userId={}); reusing", existingUser.getId());
             UserProfile userProfile = userProfileRepository.findByUser(existingUser)
                     .orElseThrow(() -> new RelatedResourceNotFoundException(
-                            "Guardian profile missing for existing user '" + existingUser.getUsername() + "'."
-                    ));
+                            "Guardian profile missing for existing user '" + existingUser.getUsername() + "'."));
             Guardian guardian = guardianRepository.findByUserProfile(userProfile)
                     .orElseGet(() -> {
                         Guardian created = new Guardian();
@@ -896,15 +906,15 @@ public class BulkImportServiceImpl implements BulkImportService {
                 validationHelper.validateString(guardianInput.getLastName(), "guardian.lastName"),
                 trimOptional(guardianInput.getMiddleName()),
                 trimOptional(guardianInput.getOccupation()),
-                trimOptional(guardianInput.getEmployer())
-        );
-        log.info("[GuardianResolve] New guardian created with uuid='{}' and username='{}'", createdGuardian.getUuid(), phoneUsername);
+                trimOptional(guardianInput.getEmployer()));
+        log.info("[GuardianResolve] New guardian created with uuid='{}' and username='{}'", createdGuardian.getUuid(),
+                phoneUsername);
         return new GuardianResolutionResult(createdGuardian, true, phoneUsername);
     }
 
     private void upsertStudentGuardianRelationship(Student student,
-                                                   Guardian guardian,
-                                                   BulkImportGuardianInputDTO input) {
+            Guardian guardian,
+            BulkImportGuardianInputDTO input) {
         log.info("[GuardianLink] Upserting link studentId='{}' guardianId='{}' relationship='{}'",
                 student.getId(), guardian.getId(), input.getRelationshipType());
         StudentGuardianRelationship relation = studentGuardianRelationshipRepository
@@ -916,23 +926,27 @@ public class BulkImportServiceImpl implements BulkImportService {
                     return newRelation;
                 });
 
-        relation.setRelationshipType(validationHelper.validateString(input.getRelationshipType(), "guardian.relationshipType"));
+        relation.setRelationshipType(
+                validationHelper.validateString(input.getRelationshipType(), "guardian.relationshipType"));
         relation.setPrimaryContact(input.isPrimaryContact());
         relation.setCanPickup(input.isCanPickup());
         relation.setFinancialContact(input.isFinancialContact());
         relation.setCanViewGrades(input.isCanViewGrades());
         studentGuardianRelationshipRepository.save(relation);
-        log.info("[GuardianLink] Link upsert completed studentId='{}' guardianId='{}'", student.getId(), guardian.getId());
+        log.info("[GuardianLink] Link upsert completed studentId='{}' guardianId='{}'", student.getId(),
+                guardian.getId());
     }
 
     /**
-     * Processes guardian logic for an *existing* student (used when guardians-only import happens).
-     * Marked Transactional to ensure that if anything fails during the link, it rolls back.
+     * Processes guardian logic for an *existing* student (used when guardians-only
+     * import happens).
+     * Marked Transactional to ensure that if anything fails during the link, it
+     * rolls back.
      */
     @Transactional(rollbackFor = Exception.class)
     public StudentRowProcessingResult processGuardiansForExistingStudent(Student student,
-                                                                         List<BulkImportGuardianInputDTO> guardiansForStudent,
-                                                                         Map<String, Role> roleCache) {
+            List<BulkImportGuardianInputDTO> guardiansForStudent,
+            Map<String, Role> roleCache) {
         String enrollmentNumber = student.getEnrollmentNumber();
         log.info("[GuardianOnly] Processing started for existing student enrollmentNumber='{}'", enrollmentNumber);
 
@@ -1037,14 +1051,13 @@ public class BulkImportServiceImpl implements BulkImportService {
         }
     }
 
-
     /**
      * (NEW) Transactional router for staff processing.
      * This method is the single transactional entry point for a staff row.
      * It parses *only* the staffType to determine which specific
      * processing method to call.
      *
-     * @param row The raw String[] from the CSV.
+     * @param row       The raw String[] from the CSV.
      * @param roleCache The pre-fetched Role map.
      * @throws Exception if any validation or database constraint fails.
      */
@@ -1064,7 +1077,8 @@ public class BulkImportServiceImpl implements BulkImportService {
                 processLibrarianRow(row, roleCache);
                 break;
             default:
-                throw new BulkImportException("Unsupported staff type '" + staffType + "' for bulk import.", HttpStatus.BAD_REQUEST);
+                throw new BulkImportException("Unsupported staff type '" + staffType + "' for bulk import.",
+                        HttpStatus.BAD_REQUEST);
         }
     }
 
@@ -1091,8 +1105,7 @@ public class BulkImportServiceImpl implements BulkImportService {
         String specializations = row[12]; // Assuming JSON string or CSV
         Integer yearsOfExperience = validationHelper.parseInt(row[13], "yearsOfExperience");
         EducationLevel educationLevel = validationHelper.parseEnum(
-                EducationLevel.class, row[14], "educationLevel"
-        );
+                EducationLevel.class, row[14], "educationLevel");
         String stateLicenseNumber = row[15];
 
         // 3. --- Validate Business Logic ---
@@ -1133,8 +1146,7 @@ public class BulkImportServiceImpl implements BulkImportService {
         // 2. --- Parse Principal-Specific Fields (Indices 16-17) ---
         String adminCertifications = row[16]; // Assuming JSON string or CSV
         SchoolLevel schoolLevel = validationHelper.parseEnum(
-                SchoolLevel.class, row[17], "schoolLevelManaged"
-        );
+                SchoolLevel.class, row[17], "schoolLevelManaged");
 
         // 3. --- Validate Business Logic ---
         if (userRepository.existsByEmail(email)) {

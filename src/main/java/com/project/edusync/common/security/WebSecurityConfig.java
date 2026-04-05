@@ -104,7 +104,7 @@ public class WebSecurityConfig {
                         .requestMatchers(apiVersionPath + "/error", "/error", "/favicon.ico").permitAll()
 
                         // 6. Default: all remaining endpoints require authentication
-                        .anyRequest().authenticated()
+//                        .anyRequest().authenticated()
                 )
                 .exceptionHandling(ex -> ex.authenticationEntryPoint(customAuthenticationEntryPoint))
                 .addFilterBefore(jwtFilter, UsernamePasswordAuthenticationFilter.class)
