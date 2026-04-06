@@ -16,4 +16,6 @@ public class SectionRequestDto {
 
     private UUID defaultRoomId;
 
+    private UUID classTeacherUuid;
+
 }

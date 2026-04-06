@@ -2,6 +2,7 @@ package com.project.edusync.iam.model.dto;
 
 import com.project.edusync.uis.model.enums.Department;
 import com.project.edusync.uis.model.enums.Gender;
+import com.project.edusync.uis.model.enums.StaffCategory;
 import com.project.edusync.uis.model.enums.StaffType;
 import jakarta.validation.constraints.Email;
 import jakarta.validation.constraints.Past;
@@ -40,6 +41,8 @@ public class UpdateStaffRequestDTO {
     private String officeLocation;
     private Department department;
     private StaffType staffType;
+    private StaffCategory category;
+    private Long designationId;
     private List<UUID> teachableSubjectIds;
 }
 

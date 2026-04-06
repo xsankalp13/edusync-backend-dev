@@ -1,6 +1,7 @@
 package com.project.edusync.uis.model.dto.admin;
 
 import com.fasterxml.jackson.annotation.JsonInclude;
+import com.project.edusync.uis.model.enums.StaffCategory;
 import com.project.edusync.uis.model.enums.StaffType;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
@@ -42,6 +43,9 @@ public class StaffSummaryDTO {
     private String jobTitle;
     private String department;
     private StaffType staffType;
+    private StaffCategory category;
+    private String designationCode;
+    private String designationName;
     private LocalDate hireDate;
     private String officeLocation;
     private boolean active;

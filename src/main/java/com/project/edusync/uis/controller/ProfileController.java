@@ -11,6 +11,7 @@ import com.project.edusync.uis.model.dto.profile.StudentMedicalAllergyDTO;
 import com.project.edusync.uis.model.dto.profile.StudentMedicalRecordDTO;
 import com.project.edusync.uis.model.dto.profile.UserProfileDTO;
 import com.project.edusync.uis.model.dto.profile.UserProfileUpdateDTO;
+import com.project.edusync.uis.service.IdCardService;
 import com.project.edusync.uis.service.ProfileService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.responses.ApiResponse;
@@ -19,11 +20,14 @@ import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.http.HttpHeaders;
+import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
+import java.util.Map;
 
 /**
  * REST Controller for managing User Profiles.
@@ -41,6 +45,7 @@ import java.util.List;
 public class ProfileController {
 
     private final ProfileService profileService;
+    private final IdCardService idCardService;
     private final AuthUtil authUtil;
 
     // =================================================================================
@@ -199,7 +204,39 @@ public class ProfileController {
         return ResponseEntity.ok(profileService.getMyGuardians(currentUserId));
     }
 
-    // =================================================================================
+    @GetMapping("/me/id-card")
+    @PreAuthorize("hasAuthority('profile:read:own')")
+    @Operation(summary = "Download My ID Card",
+               description = "Generates and returns a PDF ID card for the currently authenticated user (student or staff).")
+    @ApiResponses(value = {
+            @ApiResponse(responseCode = "200", description = "ID card PDF generated successfully"),
+            @ApiResponse(responseCode = "404", description = "No student or staff profile found for the current user")
+    })
+    public ResponseEntity<byte[]> downloadMyIdCard() {
+        Long currentUserId = authUtil.getCurrentUserId();
+        log.info("Self-service ID card download requested for userId={}", currentUserId);
+        
+        // Pass empty string so 'IdCardServiceImpl' falls back to 'school.id_card_template'
+        byte[] pdf = idCardService.generateMyIdCard(currentUserId, "");
+        
+        return ResponseEntity.ok()
+                .header(HttpHeaders.CONTENT_TYPE, MediaType.APPLICATION_PDF_VALUE)
+                .header(HttpHeaders.CONTENT_DISPOSITION, "inline; filename=\"my-id-card.pdf\"")
+                .body(pdf);
+    }
+
+    @GetMapping("/me/id-card/preview-html")
+    @PreAuthorize("hasAuthority('profile:read:own')")
+    @Operation(summary = "Get My ID Card HTML Preview",
+            description = "Renders and returns ID card HTML for the current user (for iframe/interactive preview use-cases).")
+    public ResponseEntity<Map<String, String>> getMyIdCardPreviewHtml() {
+        Long currentUserId = authUtil.getCurrentUserId();
+        log.info("Self-service ID card HTML preview requested for userId={}", currentUserId);
+
+        String html = idCardService.generateMyIdCardHtml(currentUserId, "");
+        return ResponseEntity.ok(Map.of("html", html));
+    }
+
     // ADMINISTRATIVE ENDPOINTS (/{userId})
     // =================================================================================
 

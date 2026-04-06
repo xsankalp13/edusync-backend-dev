@@ -5,7 +5,6 @@ import lombok.Data;
 import lombok.NoArgsConstructor;
 
 import java.util.List;
-import java.util.UUID;
 
 @Data
 @AllArgsConstructor
@@ -16,5 +15,5 @@ public class TeacherDetailsDTO {
     private Integer yearsOfExperience;
     private String educationLevel;
     private String stateLicenseNumber;
-    private List<UUID> teachableSubjectIds;
+    private List<TeacherSubjectDTO> teachableSubjects;
 }

@@ -1,3 +1,5 @@
+version: "3.9"
+
 services:
 
   postgres18:
@@ -17,9 +19,26 @@ services:
     container_name: redis
     ports:
       - "6379:6379"
-    command: ["redis-server", "--appendonly", "yes"]
+    command: [ "redis-server", "--appendonly", "yes" ]
     volumes:
       - redis-data:/data
+
+  localstack:
+    image: localstack/localstack:3.5
+    container_name: localstack
+    ports:
+      - "4566:4566" # main edge port
+      - "4510-4559:4510-4559" # internal services
+    environment:
+      - SERVICES=sns,sqs
+      - DEBUG=1
+      - AWS_DEFAULT_REGION=us-east-1
+      - AWS_ACCESS_KEY_ID=test
+      - AWS_SECRET_ACCESS_KEY=test
+      - LOCALSTACK_ACKNOWLEDGE_ACCOUNT_REQUIREMENT=1
+    volumes:
+      - "./localstack:/var/lib/localstack"
+      - "/var/run/docker.sock:/var/run/docker.sock"
 
 volumes:
   postgres-data:

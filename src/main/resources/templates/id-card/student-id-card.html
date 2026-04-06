@@ -1,0 +1,280 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org">
+<head>
+    <meta charset="UTF-8" />
+    <title>Student ID Card</title>
+    <style>
+        /* ── Reset ─────────────────────────────────────────── */
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { font-family: Arial, Helvetica, sans-serif; font-size: 8pt; color: #222; }
+
+        /* ── Card Container (CR80: 3.375in × 2.125in, landscape) ── */
+        .card {
+            width: 3.375in;
+            height: 2.125in;
+            border: 1px solid #ccc;
+            border-radius: 6px;
+            overflow: hidden;
+            page-break-after: always;
+            position: relative;
+        }
+
+        /* ── Top Banner ──────────────────────────────────── */
+        .banner {
+            display: table;
+            width: 100%;
+            padding: 4px 8px;
+            color: #fff;
+        }
+        .banner-logo {
+            display: table-cell;
+            vertical-align: middle;
+            width: 40px;
+        }
+        .banner-logo img {
+            width: 36px;
+            height: 36px;
+            border-radius: 4px;
+        }
+        .banner-text {
+            display: table-cell;
+            vertical-align: middle;
+            padding-left: 6px;
+        }
+        .banner-text .school-name {
+            font-size: 9pt;
+            font-weight: bold;
+            letter-spacing: 0.5px;
+        }
+        .banner-text .card-type {
+            font-size: 6pt;
+            opacity: 0.85;
+            letter-spacing: 1px;
+            text-transform: uppercase;
+        }
+
+        /* ── Body ────────────────────────────────────────── */
+        .card-body {
+            display: table;
+            width: 100%;
+            padding: 6px 8px;
+        }
+        .photo-col {
+            display: table-cell;
+            vertical-align: top;
+            width: 75px;
+            padding-right: 8px;
+        }
+        .photo-col img {
+            width: 68px;
+            height: 80px;
+            border: 2px solid #ddd;
+            border-radius: 4px;
+            object-fit: cover;
+        }
+        .info-col {
+            display: table-cell;
+            vertical-align: top;
+        }
+
+        /* ── Info Rows ───────────────────────────────────── */
+        .info-row {
+            display: table;
+            width: 100%;
+            margin-bottom: 2px;
+        }
+        .info-label {
+            display: table-cell;
+            width: 50px;
+            font-size: 6.5pt;
+            color: #666;
+            font-weight: bold;
+            text-transform: uppercase;
+            vertical-align: top;
+            padding-top: 1px;
+        }
+        .info-value {
+            display: table-cell;
+            font-size: 7.5pt;
+            font-weight: 600;
+            color: #111;
+            vertical-align: top;
+        }
+
+        /* ── Footer ──────────────────────────────────────── */
+        .card-footer {
+            display: table;
+            width: 100%;
+            padding: 3px 8px;
+            position: absolute;
+            bottom: 0;
+            left: 0;
+        }
+        .footer-left {
+            display: table-cell;
+            vertical-align: middle;
+            font-size: 6pt;
+            color: #777;
+        }
+        .footer-right {
+            display: table-cell;
+            vertical-align: middle;
+            text-align: right;
+            width: 50px;
+        }
+        .footer-right img {
+            width: 42px;
+            height: 42px;
+        }
+
+        /* ── Accent Line ─────────────────────────────────── */
+        .accent-line {
+            height: 2px;
+            width: 100%;
+        }
+
+        /* ═══════════════════════════════════════════════════
+           BACK SIDE
+        ═══════════════════════════════════════════════════ */
+        .card-back {
+            width: 3.375in;
+            height: 2.125in;
+            border: 1px solid #ccc;
+            border-radius: 6px;
+            overflow: hidden;
+            page-break-after: always;
+            padding: 10px;
+        }
+        .back-header {
+            text-align: center;
+            font-size: 7pt;
+            font-weight: bold;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            color: #555;
+            margin-bottom: 6px;
+            padding-bottom: 4px;
+            border-bottom: 1px solid #ddd;
+        }
+        .back-body {
+            font-size: 6.5pt;
+            color: #444;
+            line-height: 1.5;
+        }
+        .back-body p {
+            margin-bottom: 3px;
+        }
+        .back-qr {
+            text-align: center;
+            margin-top: 6px;
+        }
+        .back-qr img {
+            width: 60px;
+            height: 60px;
+        }
+        .back-qr-caption {
+            font-size: 5.5pt;
+            color: #999;
+            margin-top: 2px;
+        }
+        .back-footer {
+            text-align: center;
+            font-size: 5.5pt;
+            color: #aaa;
+            margin-top: 4px;
+            border-top: 1px solid #eee;
+            padding-top: 3px;
+        }
+    </style>
+</head>
+<body>
+
+    <!-- ═══════════════════════ FRONT SIDE ═══════════════════════ -->
+    <div class="card">
+        <!-- Banner -->
+        <div class="banner" th:style="'background-color:' + ${primaryColor}">
+            <div class="banner-logo">
+                <img th:if="${schoolLogoBase64 != null and !schoolLogoBase64.isEmpty()}"
+                     th:src="${schoolLogoBase64}" alt="Logo" />
+            </div>
+            <div class="banner-text">
+                <div class="school-name" th:text="${schoolName}">School Name</div>
+                <div class="card-type">Student Identity Card</div>
+            </div>
+        </div>
+
+        <!-- Accent Line -->
+        <div class="accent-line" th:style="'background-color:' + ${accentColor}"></div>
+
+        <!-- Body -->
+        <div class="card-body">
+            <div class="photo-col">
+                <img th:src="${photoBase64}" alt="Photo" />
+            </div>
+            <div class="info-col">
+                <div class="info-row">
+                    <div class="info-label">Name</div>
+                    <div class="info-value" th:text="${studentName}">Student Name</div>
+                </div>
+                <div class="info-row">
+                    <div class="info-label">Class</div>
+                    <div class="info-value" th:text="${className} + ' - ' + ${sectionName}">10 - A</div>
+                </div>
+                <div class="info-row">
+                    <div class="info-label">Roll</div>
+                    <div class="info-value" th:text="${rollNo}">42</div>
+                </div>
+                <div class="info-row">
+                    <div class="info-label">DOB</div>
+                    <div class="info-value" th:text="${dateOfBirth}">15/06/2010</div>
+                </div>
+                <div class="info-row" th:if="${bloodGroup != null and !bloodGroup.isEmpty()}">
+                    <div class="info-label">Blood</div>
+                    <div class="info-value" th:text="${bloodGroup}">O+</div>
+                </div>
+                <div class="info-row">
+                    <div class="info-label">Enroll</div>
+                    <div class="info-value" th:text="${enrollmentNumber}">ENROLL001</div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Footer -->
+        <div class="card-footer">
+            <div class="footer-left">
+                <span th:text="'Valid: ' + ${academicYear}">Valid: 2025-2026</span>
+            </div>
+            <div class="footer-right">
+                <img th:src="${qrCodeBase64}" alt="QR" />
+            </div>
+        </div>
+    </div>
+
+    <!-- ═══════════════════════ BACK SIDE ═══════════════════════ -->
+    <div class="card-back">
+        <div class="back-header" th:text="${schoolName}">School Name</div>
+
+        <div class="back-body">
+            <p th:if="${schoolAddress != null and !schoolAddress.isEmpty()}">
+                <strong>Address:</strong> <span th:text="${schoolAddress}">123 Main St</span>
+            </p>
+            <p th:if="${schoolPhone != null and !schoolPhone.isEmpty()}">
+                <strong>Contact:</strong> <span th:text="${schoolPhone}">+91-XXXXXXXXXX</span>
+            </p>
+            <p style="margin-top: 6px; font-style: italic; color: #888;">
+                If found, please return this card to the school office.
+            </p>
+        </div>
+
+        <div class="back-qr">
+            <img th:src="${qrCodeBase64}" alt="QR Code" />
+            <div class="back-qr-caption">Scan to verify identity</div>
+        </div>
+
+        <div class="back-footer">
+            Powered by Shiksha Intelligence &bull; This card is the property of the institution
+        </div>
+    </div>
+
+</body>
+</html>

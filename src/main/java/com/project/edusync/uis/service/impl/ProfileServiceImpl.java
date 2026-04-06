@@ -81,12 +81,14 @@ public class ProfileServiceImpl implements ProfileService {
     // --- Detailed Information Repositories (Extension Tables) ---
     private final TeacherDetailsRepository teacherDetailsRepository;
     private final PrincipalDetailsRepository principalDetailsRepository;
+    private final StaffSensitiveInfoRepository staffSensitiveInfoRepository;
 
     // --- Mappers ---
     private final UserProfileMapper userProfileMapper;
     private final AddressMapper addressMapper;
     private final StudentMapper studentMapper;
     private final StaffMapper staffMapper;
+    private final StaffSensitiveInfoMapper staffSensitiveInfoMapper;
     private final GuardianMapper guardianMapper;
     private final MediaUploadProperties mediaUploadProperties;
 
@@ -186,6 +188,9 @@ public class ProfileServiceImpl implements ProfileService {
             }
 
             response.setStaffDetails(staffDto);
+
+            staffSensitiveInfoRepository.findByStaff_Id(staff.getId())
+                    .ifPresent(info -> response.setSensitiveInfo(staffSensitiveInfoMapper.toMaskedDto(info)));
         });
 
         // -- Check: Is this user a Guardian? --

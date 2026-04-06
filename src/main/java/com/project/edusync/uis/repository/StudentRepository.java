@@ -8,8 +8,9 @@ import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
-import java.util.Optional;
 import java.util.List;
+import java.util.Optional;
+import java.util.UUID;
 
 public interface StudentRepository extends JpaRepository<Student, Long> {
 
@@ -76,4 +77,60 @@ public interface StudentRepository extends JpaRepository<Student, Long> {
     long countBySectionId(Long sectionId);
 
     long countBySection_AcademicClass_Id(Long classId);
+
+    @Query("SELECT s FROM Student s WHERE s.section.academicClass.id = :classId")
+    List<Student> findByAcademicClassId(@Param("classId") Long classId);
+
+    @Query(value = """
+            SELECT s FROM Student s
+            JOIN FETCH s.userProfile up
+            JOIN s.section sec
+            JOIN sec.academicClass ac
+            WHERE s.isActive = true
+              AND sec.id IN :sectionIds
+              AND (:classUuid IS NULL OR ac.uuid = :classUuid)
+              AND (:sectionUuid IS NULL OR sec.uuid = :sectionUuid)
+              AND (:searchEnabled = false
+                   OR LOWER(CONCAT(COALESCE(up.firstName, ''), ' ', COALESCE(up.lastName, ''))) LIKE :searchPattern
+                   OR LOWER(COALESCE(s.enrollmentNumber, '')) LIKE :searchPattern
+                   OR STR(s.rollNo) LIKE :searchPattern)
+            """,
+            countQuery = """
+            SELECT COUNT(s) FROM Student s
+            JOIN s.userProfile up
+            JOIN s.section sec
+            JOIN sec.academicClass ac
+            WHERE s.isActive = true
+              AND sec.id IN :sectionIds
+              AND (:classUuid IS NULL OR ac.uuid = :classUuid)
+              AND (:sectionUuid IS NULL OR sec.uuid = :sectionUuid)
+              AND (:searchEnabled = false
+                   OR LOWER(CONCAT(COALESCE(up.firstName, ''), ' ', COALESCE(up.lastName, ''))) LIKE :searchPattern
+                   OR LOWER(COALESCE(s.enrollmentNumber, '')) LIKE :searchPattern
+                   OR STR(s.rollNo) LIKE :searchPattern)
+            """)
+    Page<Student> findTeacherStudents(@Param("sectionIds") List<Long> sectionIds,
+                                      @Param("classUuid") UUID classUuid,
+                                      @Param("sectionUuid") UUID sectionUuid,
+                                      @Param("searchEnabled") boolean searchEnabled,
+                                      @Param("searchPattern") String searchPattern,
+                                      Pageable pageable);
+
+    long countBySection_IdAndIsActiveTrue(Long sectionId);
+
+    @Query("SELECT s FROM Student s " +
+           "JOIN FETCH s.userProfile up " +
+           "JOIN FETCH up.user u " +
+           "JOIN FETCH s.section sec " +
+           "JOIN FETCH sec.academicClass ac " +
+           "WHERE s.section.id = :sectionId AND s.isActive = true")
+    java.util.List<Student> findAllBySectionIdWithDetails(@Param("sectionId") Long sectionId);
+
+    @Query("SELECT s FROM Student s " +
+           "JOIN FETCH s.userProfile up " +
+           "JOIN FETCH up.user u " +
+           "JOIN FETCH s.section sec " +
+           "JOIN FETCH sec.academicClass ac " +
+           "WHERE sec.uuid = :sectionUuid AND s.isActive = true")
+    java.util.List<Student> findAllBySectionUuidWithDetails(@Param("sectionUuid") java.util.UUID sectionUuid);
 }

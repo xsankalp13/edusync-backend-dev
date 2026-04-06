@@ -1,0 +1,5 @@
+management:
+  tracing:
+    sampling:
+      probability: 0.0
+

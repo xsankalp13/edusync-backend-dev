@@ -16,6 +16,7 @@ import jakarta.annotation.PostConstruct;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.security.authentication.AnonymousAuthenticationToken;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.GrantedAuthority;
 import org.springframework.security.core.authority.SimpleGrantedAuthority;
@@ -45,23 +46,24 @@ public class AuthUtil {
      * @throws InsufficientAuthenticationException if no user is authenticated or is anonymous.
      */
     public User getCurrentUser() {
-        log.debug("Attempting to retrieve current authenticated user.");
+        log.trace("Attempting to retrieve current authenticated user.");
         Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
 
-        if (authentication == null || !authentication.isAuthenticated()) {
+        if (authentication == null
+                || !authentication.isAuthenticated()
+                || authentication instanceof AnonymousAuthenticationToken) {
             log.warn("Authentication check failed: No authentication object found or user is not authenticated.");
             throw new InsufficientAuthenticationException("User is not authenticated.");
         }
 
         Object principal = authentication.getPrincipal();
 
-        if (principal instanceof User) {
-            User user = (User) principal;
-            log.debug("Successfully retrieved authenticated user: {}", user.getUsername());
+        if (principal instanceof User user) {
+            log.trace("Successfully retrieved authenticated user: {}", user.getUsername());
             return user;
         }
 
-        if (principal instanceof String && "anonymousUser".equals(principal)) {
+        if ("anonymousUser".equals(principal)) {
             log.warn("Authentication check failed: User is anonymous.");
             throw new InsufficientAuthenticationException("User is anonymous.");
         }
@@ -81,7 +83,7 @@ public class AuthUtil {
      * @throws InsufficientAuthenticationException if no user is authenticated.
      */
     public Long getCurrentUserId() {
-        log.debug("Retrieving user ID for current user.");
+        log.trace("Retrieving user ID for current user.");
         return getCurrentUser().getId();
     }
 
@@ -158,7 +160,7 @@ public class AuthUtil {
      * Generates a short-lived Access Token containing authorities and context claims.
      */
     public String generateAccessToken(String username, Set<Role> roles, Long userId, Long academicYearId) {
-        log.debug("Generating Access Token for user: {}", username);
+        log.trace("Generating access token for user: {}", username);
 
         // Include role + permission authorities so method-level checks can use either.
         Set<String> authoritySet = new LinkedHashSet<>();
@@ -175,7 +177,7 @@ public class AuthUtil {
                 .forEach(authoritySet::add);
 
         List<String> authorityStrings = authoritySet.stream().toList();
-        log.debug("Included {} authorities in access token for user: {}", authorityStrings.size(), username);
+        log.trace("Included {} authorities in access token for user: {}", authorityStrings.size(), username);
 
         // 2. Create a 'claims' map to store the authorities
         Map<String, Object> claims = new HashMap<>();
@@ -192,7 +194,7 @@ public class AuthUtil {
                 .signWith(getSigningKey())
                 .compact();
 
-        log.debug("Access Token generated successfully for user: {}.", username);
+        log.trace("Access token generated successfully for user: {}.", username);
         return token;
     }
 
@@ -212,9 +214,9 @@ public class AuthUtil {
      * Extracts the username (subject) from the token.
      */
     public String getUsernameFromToken(String token) {
-        log.debug("Extracting username from token.");
+        log.trace("Extracting username from token.");
         String username = getAllClaimsFromToken(token).getSubject();
-        log.debug("Extracted username '{}' from token.", username);
+        log.trace("Extracted username '{}' from token.", username);
         return username;
     }
 
@@ -222,18 +224,18 @@ public class AuthUtil {
      * Extracts authorities from the token's "authorities" claim.
      */
     public List<GrantedAuthority> getAuthoritiesFromToken(String token) {
-        log.debug("Extracting authorities from token.");
+        log.trace("Extracting authorities from token.");
         Claims claims = getAllClaimsFromToken(token);
 
         @SuppressWarnings("unchecked")
         List<String> authorities = (List<String>) claims.get("authorities");
 
         if (authorities == null || authorities.isEmpty()) {
-            log.debug("No 'authorities' claim found in token or claim is empty.");
+            log.trace("No 'authorities' claim found in token or claim is empty.");
             return Collections.emptyList();
         }
 
-        log.debug("Found {} authorities in token.", authorities.size());
+        log.trace("Found {} authorities in token.", authorities.size());
         return authorities.stream()
                 .map(SimpleGrantedAuthority::new)
                 .collect(Collectors.toList());
@@ -254,13 +256,13 @@ public class AuthUtil {
      * @return true if the token is valid, false otherwise.
      */
     public boolean validateToken(String token) {
-        log.debug("Validating token.");
+        log.trace("Validating token.");
         try {
             Jwts.parser()
                     .verifyWith(getSigningKey())
                     .build()
                     .parseSignedClaims(token);
-            log.debug("Token validated successfully.");
+            log.trace("Token validated successfully.");
             return true;
         } catch (SignatureException e) {
             log.warn("Invalid JWT signature: {}", e.getMessage());

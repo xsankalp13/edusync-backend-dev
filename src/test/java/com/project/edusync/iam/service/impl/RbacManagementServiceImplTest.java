@@ -3,6 +3,7 @@ package com.project.edusync.iam.service.impl;
 import com.project.edusync.common.exception.EdusyncException;
 import com.project.edusync.iam.model.dto.rbac.PermissionResponseDTO;
 import com.project.edusync.iam.model.dto.rbac.RolePermissionLinkResponseDTO;
+import com.project.edusync.iam.model.dto.rbac.RoleSummaryDTO;
 import com.project.edusync.iam.model.entity.Permission;
 import com.project.edusync.iam.model.entity.Role;
 import com.project.edusync.iam.repository.PermissionRepository;
@@ -82,6 +83,27 @@ class RbacManagementServiceImplTest {
 
         assertEquals(permission.getId(), dto.id());
         assertEquals(permission.getName(), dto.name());
+    }
+
+    @Test
+    void listRolesNormalizesRolePrefixAndOrdersById() {
+        Role superAdmin = new Role();
+        superAdmin.setId(1L);
+        superAdmin.setName("ROLE_SUPER_ADMIN");
+
+        Role teacher = new Role();
+        teacher.setId(3L);
+        teacher.setName("ROLE_TEACHER");
+
+        when(roleRepository.findAll()).thenReturn(java.util.List.of(teacher, superAdmin));
+
+        java.util.List<RoleSummaryDTO> roles = rbacManagementService.listRoles();
+
+        assertEquals(2, roles.size());
+        assertEquals(1, roles.get(0).id());
+        assertEquals("SUPER_ADMIN", roles.get(0).name());
+        assertEquals(3, roles.get(1).id());
+        assertEquals("TEACHER", roles.get(1).name());
     }
 }
 

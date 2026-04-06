@@ -5,6 +5,7 @@ import com.project.edusync.uis.model.dto.admin.StudentSummaryDTO;
 import com.project.edusync.uis.model.entity.Staff;
 import com.project.edusync.uis.model.entity.Student;
 import com.project.edusync.uis.model.entity.UserProfile;
+import com.project.edusync.uis.model.enums.StaffCategory;
 import com.project.edusync.uis.model.enums.StaffType;
 import com.project.edusync.uis.repository.StaffRepository;
 import com.project.edusync.uis.repository.StudentRepository;
@@ -97,17 +98,19 @@ public class AdminUserQueryServiceImpl implements AdminUserQueryService {
 
     @Override
     @Transactional(readOnly = true)
-    public Page<StaffSummaryDTO> getAllStaff(String search, StaffType staffType, Boolean active, Pageable pageable) {
+    public Page<StaffSummaryDTO> getAllStaff(String search, StaffType staffType, StaffCategory category, Boolean active, Pageable pageable) {
         Pageable resolved = resolveSortFields(pageable, STAFF_SORT_FIELDS, STAFF_DEFAULT_SORT);
 
-        log.info("Admin query: getAllStaff | search='{}' | staffType='{}' | active='{}' | page={} | size={}",
-                search, staffType, active, resolved.getPageNumber(), resolved.getPageSize());
+        log.info("Admin query: getAllStaff | search='{}' | staffType='{}' | category='{}' | active='{}' | page={} | size={}",
+                search, staffType, category, active, resolved.getPageNumber(), resolved.getPageSize());
 
         Page<Staff> staffPage;
         if (StringUtils.hasText(search)) {
             staffPage = staffRepository.searchStaff(search.trim(), active, resolved);
         } else if (staffType != null) {
             staffPage = staffRepository.findAllByStaffTypeWithDetails(staffType, active, resolved);
+        } else if (category != null) {
+            staffPage = staffRepository.findAllByCategoryWithDetails(category, active, resolved);
         } else {
             staffPage = staffRepository.findAllWithDetails(active, resolved);
         }
@@ -217,6 +220,9 @@ public class AdminUserQueryServiceImpl implements AdminUserQueryService {
                 .jobTitle(staff.getJobTitle())
                 .department(staff.getDepartment() != null ? staff.getDepartment().name() : null)
                 .staffType(staff.getStaffType())
+                .category(staff.getCategory())
+                .designationCode(staff.getDesignation() != null ? staff.getDesignation().getDesignationCode() : null)
+                .designationName(staff.getDesignation() != null ? staff.getDesignation().getDesignationName() : null)
                 .hireDate(staff.getHireDate())
                 .officeLocation(staff.getOfficeLocation())
                 .active(userActive)

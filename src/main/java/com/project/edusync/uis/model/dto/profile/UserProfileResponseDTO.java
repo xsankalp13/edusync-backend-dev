@@ -2,7 +2,6 @@ package com.project.edusync.uis.model.dto.profile;
 
 import lombok.AllArgsConstructor;
 import lombok.Data;
-import lombok.NoArgsConstructor;
 
 import java.time.LocalDate;
 import java.time.LocalDateTime;
@@ -22,6 +21,7 @@ public class UserProfileResponseDTO {
     private String bio;
     private String primaryLanguage;
     private String bloodGroup;
+    private String gender;
 
     // --- Aggregated from User entity ---
     private String username;

@@ -25,6 +25,9 @@ public class ComprehensiveUserProfileResponseDTO {
     // This will be non-null if the user is a staff member
     private StaffProfileDTO staffDetails;
 
+    // This will be non-null if the user is a staff member with sensitive info captured
+    private StaffSensitiveInfoDTO sensitiveInfo;
+
     // This will be non-null if the user is a guardian
     private GuardianProfileDTO guardianDetails;
 }

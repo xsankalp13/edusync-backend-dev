@@ -78,6 +78,51 @@ public interface ScheduleRepository extends JpaRepository<Schedule, Long> {
     @Query("SELECT s FROM Schedule s WHERE s.section.uuid = :sectionId AND s.isActive = true")
     List<Schedule> findAllActiveBySectionUuid(UUID sectionId);
 
+    @Query("SELECT s FROM Schedule s JOIN FETCH s.teacher td JOIN FETCH td.staff st WHERE st.id = :staffId AND s.isActive = true")
+    List<Schedule> findAllActiveByTeacherStaffId(@Param("staffId") Long staffId);
+
+    @Query("""
+            SELECT s FROM Schedule s
+            JOIN FETCH s.subject sub
+            JOIN FETCH s.teacher td
+            JOIN FETCH td.staff st
+            WHERE st.id = :staffId
+              AND s.section.id = :sectionId
+              AND s.isActive = true
+            """)
+    List<Schedule> findAllActiveByTeacherStaffIdAndSectionId(
+            @Param("staffId") Long staffId,
+            @Param("sectionId") Long sectionId
+    );
+
+    @Query("""
+            SELECT s FROM Schedule s
+            JOIN FETCH s.section sec
+            JOIN FETCH sec.academicClass ac
+            LEFT JOIN FETCH sec.defaultRoom dr
+            LEFT JOIN FETCH sec.classTeacher ct
+            LEFT JOIN FETCH ct.userProfile cup
+            JOIN FETCH s.subject sub
+            JOIN FETCH s.room room
+            JOIN FETCH s.timeslot ts
+            JOIN FETCH s.teacher td
+            JOIN FETCH td.staff st
+            JOIN FETCH st.userProfile up
+            WHERE st.id = :staffId
+              AND s.isActive = true
+            """)
+    List<Schedule> findAllActiveByTeacherStaffIdWithReferences(@Param("staffId") Long staffId);
+
+    @Query("""
+            SELECT DISTINCT s.section.id
+            FROM Schedule s
+            JOIN s.teacher td
+            JOIN td.staff st
+            WHERE st.id = :staffId
+              AND s.isActive = true
+            """)
+    List<Long> findDistinctActiveSectionIdsByTeacherStaffId(@Param("staffId") Long staffId);
+
     @Query("""
             SELECT s.subject.uuid as subjectId,
                    COUNT(s.id) as scheduledPeriods

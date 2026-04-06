@@ -51,12 +51,13 @@ public class InvoiceServiceImpl implements InvoiceService {
     @Transactional
     public InvoiceResponseDTO generateSingleInvoice(Long studentId) {
         // 1. Find the Student
+        System.out.println("Request Came for ID: " + studentId);
         Student student = studentRepository.findById(studentId)
                 .orElseThrow(() -> new StudentNotFoundException("Student not found with Student ID: " + studentId));
 
         // 2. Find the Student's Fee Map
         StudentFeeMap feeMap = studentFeeMapRepository.findByStudent_Id(studentId)
-                .orElseThrow(() -> new StudentFeeMapNotFoundException("Student not Found with Student ID: " + studentId));
+                .orElseThrow(() -> new StudentFeeMapNotFoundException("Student Fee map not Found with Student ID: " + studentId));
 
         // 3. Get the assigned Fee Structure
         FeeStructure feeStructure = feeMap.getFeeStructure();

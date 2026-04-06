@@ -1,0 +1,104 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org">
+<head>
+    <meta charset="UTF-8" />
+    <title>Payslip</title>
+    <style>
+        @page { size: A4; margin: 18mm; }
+        body { font-family: Arial, sans-serif; font-size: 12px; color: #1f2937; }
+        .header { text-align: center; margin-bottom: 12px; }
+        .title { font-size: 20px; font-weight: 700; margin: 0; }
+        .sub { color: #4b5563; margin-top: 4px; }
+        .card { border: 1px solid #d1d5db; border-radius: 4px; padding: 10px; margin-bottom: 10px; }
+        .row { width: 100%; border-collapse: collapse; }
+        .row td { padding: 3px 0; vertical-align: top; }
+        .label { color: #6b7280; width: 32%; }
+        .value { font-weight: 600; }
+        .grid { width: 100%; border-collapse: collapse; margin-top: 8px; }
+        .grid th, .grid td { border: 1px solid #d1d5db; padding: 6px; text-align: left; }
+        .grid th { background: #f3f4f6; }
+        .right { text-align: right; }
+        .summary { margin-top: 10px; width: 100%; border-collapse: collapse; }
+        .summary td { padding: 6px; border: 1px solid #d1d5db; }
+        .summary .k { background: #f9fafb; font-weight: 600; }
+        .footer { margin-top: 16px; font-size: 10px; color: #6b7280; text-align: center; }
+    </style>
+</head>
+<body>
+<div class="header">
+    <h1 class="title">Salary Slip</h1>
+    <div class="sub" th:text="'Generated on: ' + ${#temporals.format(generatedOn, 'dd-MMM-yyyy HH:mm')}">Generated on</div>
+</div>
+
+<div class="card">
+    <table class="row">
+        <tr>
+            <td class="label">Employee Name</td>
+            <td class="value" th:text="${payslip.staffName}">Name</td>
+            <td class="label">Employee ID</td>
+            <td class="value" th:text="${payslip.employeeId}">EMP001</td>
+        </tr>
+        <tr>
+            <td class="label">Payroll Run ID</td>
+            <td class="value" th:text="${payslip.payrollRunId}">1</td>
+            <td class="label">Period</td>
+            <td class="value" th:text="${payslip.payMonth} + '/' + ${payslip.payYear}">4/2026</td>
+        </tr>
+    </table>
+</div>
+
+<div class="card">
+    <table class="row">
+        <tr>
+            <td class="label">Working Days</td>
+            <td class="value" th:text="${payslip.totalWorkingDays}">0</td>
+            <td class="label">Present Days</td>
+            <td class="value" th:text="${payslip.daysPresent}">0</td>
+        </tr>
+        <tr>
+            <td class="label">Absent Days</td>
+            <td class="value" th:text="${payslip.daysAbsent}">0</td>
+            <td class="label">LOP Days</td>
+            <td class="value" th:text="${payslip.lopDays}">0.00</td>
+        </tr>
+    </table>
+</div>
+
+<table class="grid">
+    <thead>
+    <tr>
+        <th>Component Code</th>
+        <th>Component Name</th>
+        <th>Type</th>
+        <th class="right">Amount</th>
+    </tr>
+    </thead>
+    <tbody>
+    <tr th:each="line : ${payslip.lineItems}">
+        <td th:text="${line.componentCode}">BASIC</td>
+        <td th:text="${line.componentName}">Basic Pay</td>
+        <td th:text="${line.type}">EARNING</td>
+        <td class="right" th:text="${line.amount}">0.00</td>
+    </tr>
+    </tbody>
+</table>
+
+<table class="summary">
+    <tr>
+        <td class="k">Gross Pay</td>
+        <td class="right" th:text="${payslip.grossPay}">0.00</td>
+    </tr>
+    <tr>
+        <td class="k">Total Deductions</td>
+        <td class="right" th:text="${payslip.totalDeductions}">0.00</td>
+    </tr>
+    <tr>
+        <td class="k">Net Pay</td>
+        <td class="right" th:text="${payslip.netPay}">0.00</td>
+    </tr>
+</table>
+
+<div class="footer">This is a system-generated payslip.</div>
+</body>
+</html>
+

@@ -20,6 +20,8 @@ import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule;
 
 import java.time.Duration;
 
+import org.springframework.boot.autoconfigure.cache.RedisCacheManagerBuilderCustomizer;
+
 @Configuration
 @EnableCaching
 @Slf4j
@@ -74,6 +76,14 @@ public class CacheConfig {
                         cache.getName(), key, exception.getMessage());
             }
         };
+    }
+
+    @Bean
+    public RedisCacheManagerBuilderCustomizer teacherDashboardSummaryCacheTtlCustomizer() {
+        return builder -> builder.withCacheConfiguration(
+                "teacherDashboardSummaryV2",
+                redisCacheConfiguration().entryTtl(Duration.ofMinutes(5))
+        );
     }
 }
 

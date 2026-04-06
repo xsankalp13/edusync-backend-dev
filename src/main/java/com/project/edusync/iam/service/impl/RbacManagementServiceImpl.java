@@ -4,6 +4,7 @@ import com.project.edusync.common.exception.EdusyncException;
 import com.project.edusync.common.exception.ResourceNotFoundException;
 import com.project.edusync.iam.model.dto.rbac.PermissionResponseDTO;
 import com.project.edusync.iam.model.dto.rbac.RolePermissionLinkResponseDTO;
+import com.project.edusync.iam.model.dto.rbac.RoleSummaryDTO;
 import com.project.edusync.iam.model.entity.Permission;
 import com.project.edusync.iam.model.entity.Role;
 import com.project.edusync.iam.repository.PermissionRepository;
@@ -108,6 +109,15 @@ public class RbacManagementServiceImpl implements RbacManagementService {
                 .toList();
     }
 
+    @Override
+    @Transactional(readOnly = true)
+    public List<RoleSummaryDTO> listRoles() {
+        return roleRepository.findAll().stream()
+                .sorted((left, right) -> left.getId().compareTo(right.getId()))
+                .map(role -> new RoleSummaryDTO(role.getId().intValue(), normalizeRoleName(role.getName())))
+                .toList();
+    }
+
     private Role findRoleById(Integer roleId) {
         return roleRepository.findById(roleId)
                 .orElseThrow(() -> new ResourceNotFoundException("Role", "id", roleId));
@@ -127,6 +137,13 @@ public class RbacManagementServiceImpl implements RbacManagementService {
 
     private PermissionResponseDTO toPermissionResponse(Permission permission) {
         return new PermissionResponseDTO(permission.getId(), permission.getName(), permission.isActive());
+    }
+
+    private String normalizeRoleName(String roleName) {
+        if (roleName == null) {
+            return null;
+        }
+        return roleName.startsWith("ROLE_") ? roleName.substring(5) : roleName;
     }
 }
 

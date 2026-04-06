@@ -2,6 +2,7 @@ package com.project.edusync.uis.service;
 
 import com.project.edusync.uis.model.dto.admin.StaffSummaryDTO;
 import com.project.edusync.uis.model.dto.admin.StudentSummaryDTO;
+import com.project.edusync.uis.model.enums.StaffCategory;
 import com.project.edusync.uis.model.enums.StaffType;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
@@ -34,6 +35,6 @@ public interface AdminUserQueryService {
      * @param pageable  Pagination and sorting parameters.
      * @return A page of {@link StaffSummaryDTO}.
      */
-    Page<StaffSummaryDTO> getAllStaff(String search, StaffType staffType, Boolean active, Pageable pageable);
+    Page<StaffSummaryDTO> getAllStaff(String search, StaffType staffType, StaffCategory category, Boolean active, Pageable pageable);
 }
 

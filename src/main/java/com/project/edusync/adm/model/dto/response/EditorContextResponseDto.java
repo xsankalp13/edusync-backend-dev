@@ -9,6 +9,8 @@ import java.util.UUID;
 
 @Data
 @Builder
+@lombok.NoArgsConstructor
+@lombok.AllArgsConstructor
 public class EditorContextResponseDto {
     private SectionSummaryDto section;
     private List<TimeslotItemDto> timeslots;
@@ -18,6 +20,8 @@ public class EditorContextResponseDto {
 
     @Data
     @Builder
+    @lombok.NoArgsConstructor
+    @lombok.AllArgsConstructor
     public static class SectionSummaryDto {
         private UUID uuid;
         private String sectionName;
@@ -26,6 +30,8 @@ public class EditorContextResponseDto {
 
     @Data
     @Builder
+    @lombok.NoArgsConstructor
+    @lombok.AllArgsConstructor
     public static class TimeslotItemDto {
         private UUID uuid;
         private Short dayOfWeek;
@@ -37,6 +43,8 @@ public class EditorContextResponseDto {
 
     @Data
     @Builder
+    @lombok.NoArgsConstructor
+    @lombok.AllArgsConstructor
     public static class TeacherItemDto {
         private String id;
         private String name;
@@ -45,6 +53,8 @@ public class EditorContextResponseDto {
 
     @Data
     @Builder
+    @lombok.NoArgsConstructor
+    @lombok.AllArgsConstructor
     public static class ExistingScheduleItemDto {
         private UUID uuid;
         private UUID subjectId;

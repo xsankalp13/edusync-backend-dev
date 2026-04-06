@@ -5,8 +5,11 @@ import com.project.edusync.ams.model.enums.ApprovalStatus;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Query;
+import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
 
+import java.time.LocalDate;
 import java.util.Optional;
 
 /**
@@ -64,4 +67,15 @@ public interface AbsenceDocumentationRepository extends JpaRepository<AbsenceDoc
      * Useful if you preserve history and want the latest state.
      */
     Optional<AbsenceDocumentation> findFirstByAttendanceIdOrderByCreatedAtDesc(Long attendanceId);
+
+    @Query("SELECT CASE WHEN COUNT(a) > 0 THEN true ELSE false END " +
+            "FROM AbsenceDocumentation a " +
+            "WHERE a.attendance.studentId = :studentId " +
+            "AND a.attendance.attendanceDate = :date " + // <--- Updated to match your entity
+            "AND a.approvalStatus = :status")
+    boolean existsByStudentIdAndDateAndApprovalStatus(
+            @Param("studentId") Long studentId,
+            @Param("date") LocalDate date,
+            @Param("status") ApprovalStatus status
+    );
 }

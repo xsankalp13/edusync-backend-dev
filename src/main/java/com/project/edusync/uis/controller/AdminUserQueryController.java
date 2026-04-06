@@ -2,6 +2,7 @@ package com.project.edusync.uis.controller;
 
 import com.project.edusync.uis.model.dto.admin.StaffSummaryDTO;
 import com.project.edusync.uis.model.dto.admin.StudentSummaryDTO;
+import com.project.edusync.uis.model.enums.StaffCategory;
 import com.project.edusync.uis.model.enums.StaffType;
 import com.project.edusync.uis.service.AdminUserQueryService;
 import io.swagger.v3.oas.annotations.Operation;
@@ -143,6 +144,9 @@ public class AdminUserQueryController {
             @Parameter(description = "Filter by staff type: TEACHER, PRINCIPAL, LIBRARIAN, etc.")
             @RequestParam(required = false) StaffType staffType,
 
+            @Parameter(description = "Filter by staff category: TEACHING, NON_TEACHING_ADMIN, NON_TEACHING_SUPPORT")
+            @RequestParam(required = false) StaffCategory category,
+
             @Parameter(description = "Filter by linked user status: true (active), false (inactive)")
             @RequestParam(required = false) Boolean active,
 
@@ -164,10 +168,10 @@ public class AdminUserQueryController {
                 : Sort.by(sortBy).ascending();
         Pageable pageable = PageRequest.of(page, size, sort);
 
-        log.info("Admin API: GET /staff | search='{}' | staffType='{}' | active='{}' | page={} | size={} | sort={}",
-                search, staffType, active, page, size, sortBy + " " + sortDir);
+        log.info("Admin API: GET /staff | search='{}' | staffType='{}' | category='{}' | active='{}' | page={} | size={} | sort={}",
+                search, staffType, category, active, page, size, sortBy + " " + sortDir);
 
-        Page<StaffSummaryDTO> result = adminUserQueryService.getAllStaff(search, staffType, active, pageable);
+        Page<StaffSummaryDTO> result = adminUserQueryService.getAllStaff(search, staffType, category, active, pageable);
         return ResponseEntity.ok(result);
     }
 }

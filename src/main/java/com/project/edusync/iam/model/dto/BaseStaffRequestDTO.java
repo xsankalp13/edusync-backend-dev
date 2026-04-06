@@ -1,6 +1,7 @@
 package com.project.edusync.iam.model.dto;
 
 import com.project.edusync.uis.model.enums.StaffType;
+import com.project.edusync.uis.model.enums.StaffCategory;
 import jakarta.validation.constraints.NotNull;
 import lombok.Data;
 import lombok.EqualsAndHashCode;
@@ -16,6 +17,12 @@ public abstract class BaseStaffRequestDTO extends CreateUserRequestDTO {
 
     @NotNull(message = "Hire Date is required")
     private LocalDate hireDate;
+
+    @NotNull(message = "Staff category is required")
+    private StaffCategory category;
+
+    @NotNull(message = "Designation is required")
+    private Long designationId;
 
     private String officeLocation;
 

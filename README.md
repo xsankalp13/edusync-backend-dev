@@ -118,3 +118,22 @@ We use JUnit 5 for unit and integration testing.
 To run all tests:
 ```bash
 mvn test
+```
+
+## 6. HRMS Migration Rollout
+
+Operational documents for HRMS migration rollout:
+
+- `docs/hrms/HRMS_MIGRATION_RUNBOOK.md`
+- `docs/hrms/FLYWAY_ROLLOUT_CHECKLIST.md`
+
+Operational scripts:
+
+- `scripts/hrms_migration_preflight.sh`
+- `scripts/hrms_regression_suite.sh`
+
+Baseline regression artifact:
+
+- `docs/hrms/artifacts/2026-04-04_hrms_regression_baseline.md`
+
+Use these documents to apply profile-safe Flyway rollout and payroll attendance policy controls during deployment.

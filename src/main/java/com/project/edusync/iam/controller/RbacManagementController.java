@@ -3,6 +3,7 @@ package com.project.edusync.iam.controller;
 import com.project.edusync.iam.model.dto.rbac.CreatePermissionRequestDTO;
 import com.project.edusync.iam.model.dto.rbac.PermissionResponseDTO;
 import com.project.edusync.iam.model.dto.rbac.RolePermissionLinkResponseDTO;
+import com.project.edusync.iam.model.dto.rbac.RoleSummaryDTO;
 import com.project.edusync.iam.service.RbacManagementService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.responses.ApiResponse;
@@ -127,6 +128,21 @@ public class RbacManagementController {
     public ResponseEntity<List<PermissionResponseDTO>> listPermissionsByRole(@PathVariable Integer roleId) {
         log.info("RBAC API: list role permissions requested roleId={}", roleId);
         return ResponseEntity.ok(rbacManagementService.listPermissionsByRole(roleId));
+    }
+
+    @GetMapping("/roles")
+    @PreAuthorize("hasRole('SUPER_ADMIN')")
+    @Operation(
+            summary = "List roles",
+            description = "Returns all roles with numeric IDs for RBAC management UI.",
+            security = @SecurityRequirement(name = "bearerAuth")
+    )
+    @ApiResponses(value = {
+            @ApiResponse(responseCode = "200", description = "Roles fetched"),
+            @ApiResponse(responseCode = "403", description = "Only SUPER_ADMIN can access")
+    })
+    public ResponseEntity<List<RoleSummaryDTO>> listRoles() {
+        return ResponseEntity.ok(rbacManagementService.listRoles());
     }
 }
 

@@ -42,13 +42,16 @@ spring:
     properties:
       hibernate:
         dialect: org.hibernate.dialect.PostgreSQLDialect
+  flyway:
+    enabled: true
+    locations: classpath:db/migration
+    # Keep baseline opt-in by default for safety in existing environments.
+    baseline-on-migrate: ${FLYWAY_BASELINE_ON_MIGRATE:false}
 
 # ===================================================================
 # APPLICATION-SPECIFIC PROPERTIES
 # ===================================================================
 app:
-  cache:
-    version: ${APP_CACHE_VERSION:v1}
   razorpay:
     key-id: ${RAZORPAY_KEY_ID}
     key-secret: ${RAZORPAY_KEY_SECRET}
@@ -66,6 +69,12 @@ app:
   security:
     max-devices: 2
 
+  hrms:
+    payroll:
+      attendance:
+        # Finalized policy options: TREAT_UNMARKED_AS_ABSENT, MARKED_ONLY, FAIL_ON_PARTIAL
+        partial-mark-policy: ${HRMS_PAYROLL_ATTENDANCE_POLICY:TREAT_UNMARKED_AS_ABSENT}
+
   media:
     provider: ${MEDIA_PROVIDER:cloudinary}
     max-file-size-bytes: ${MEDIA_MAX_FILE_SIZE_BYTES:5242880}
@@ -80,10 +89,49 @@ app:
     s3:
       upload-url-template: ${S3_UPLOAD_URL_TEMPLATE:}
 
+  notifications:
+    sns:
+      enabled: ${SNS_ENABLED:false}
+
+  bootstrap:
+    super-admin:
+      fail-on-missing-credentials: ${SUPER_ADMIN_BOOTSTRAP_REQUIRED:false}
+
 # NOTE: 'api.url' is kept at the root namespace as it is referenced
 # directly via @RequestMapping("${api.url}/...") across all controllers.
 api:
   url: ${BASE_URL}${API_VERSION}
+
+jasypt:
+  encryptor:
+    password: ${JASYPT_ENCRYPTOR_PASSWORD:Htrihaonlnlsafnirn1239u129#2381$}
+
+
+logging:
+  # Log file path — read by logback-spring.xml via <springProperty source="logging.file.name"/>
+  # Also used by the SuperAdmin /api/v1/super/logs tail endpoint .
+  file:
+    name: ${LOG_FILE_NAME:logs/edusync-dev.log}
+
+management:
+  endpoints:
+    web:
+      base-path: /actuator
+      exposure:
+        include: health, info, metrics, loggers, httpexchanges, scheduledtasks
+  endpoint:
+    health:
+      show-details: always
+    httpexchanges:
+      enabled: true
+  httpexchanges:
+    recording:
+      enabled: true
+  info:
+    git:
+      mode: full
+    build:
+      enabled: true
 
 resilience4j:
   circuitbreaker:
@@ -123,11 +171,27 @@ spring:
       auto-commit: false
 
   jpa:
-    # Allowed only in dev: auto-syncs entity changes to the DB schema.
+    # Migration-first mode: validate schema against entities.
     hibernate:
       ddl-auto: update
     # Enabled only in dev for debugging SQL queries.
     show-sql: true
+  flyway:
+    # Dev can bootstrap on existing local schemas without manual baseline steps.
+    baseline-on-migrate: ${FLYWAY_BASELINE_ON_MIGRATE:true}
+
+---
+# ===================================================================
+# STAGING PROFILE (Active when spring.profiles.active=staging)
+# ===================================================================
+spring:
+  config:
+    activate:
+      on-profile: staging
+
+  flyway:
+    # Staging requires an explicit opt-in when baselining existing DBs.
+    baseline-on-migrate: ${FLYWAY_BASELINE_ON_MIGRATE:false}
 
 ---
 # ===================================================================
@@ -158,6 +222,14 @@ spring:
     hibernate:
       ddl-auto: validate
     show-sql: false
+  flyway:
+    # Production baseline remains explicit and controlled via env var.
+    baseline-on-migrate: ${FLYWAY_BASELINE_ON_MIGRATE:false}
+
+app:
+  bootstrap:
+    super-admin:
+      fail-on-missing-credentials: ${SUPER_ADMIN_BOOTSTRAP_REQUIRED:true}
 
 # SECURITY: Enforce HTTPS in production.
 server:

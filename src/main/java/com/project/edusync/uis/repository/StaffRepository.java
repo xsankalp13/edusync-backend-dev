@@ -2,6 +2,7 @@ package com.project.edusync.uis.repository;
 
 import com.project.edusync.uis.model.entity.Staff;
 import com.project.edusync.uis.model.entity.UserProfile;
+import com.project.edusync.uis.model.enums.StaffCategory;
 import com.project.edusync.uis.model.enums.StaffType;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
@@ -14,6 +15,8 @@ import java.util.Optional;
 public interface StaffRepository extends JpaRepository<Staff, Long> {
 
     boolean existsByEmployeeId(String employeeId);
+
+    Optional<Staff> findByEmployeeId(String employeeId);
 
     Optional<Staff> findByUserProfile(UserProfile userProfile);
 
@@ -44,6 +47,16 @@ public interface StaffRepository extends JpaRepository<Staff, Long> {
                         "WHERE st.staffType = :staffType AND (:active IS NULL OR u.isActive = :active)")
     Page<Staff> findAllByStaffTypeWithDetails(@Param("staffType") StaffType staffType, @Param("active") Boolean active, Pageable pageable);
 
+    @Query(value = "SELECT st FROM Staff st " +
+            "JOIN FETCH st.userProfile up " +
+            "JOIN FETCH up.user u " +
+            "WHERE st.category = :category AND (:active IS NULL OR u.isActive = :active)",
+            countQuery = "SELECT COUNT(st) FROM Staff st " +
+                    "JOIN st.userProfile up " +
+                    "JOIN up.user u " +
+                    "WHERE st.category = :category AND (:active IS NULL OR u.isActive = :active)")
+    Page<Staff> findAllByCategoryWithDetails(@Param("category") StaffCategory category, @Param("active") Boolean active, Pageable pageable);
+
     /**
      * Search staff by name, email, employeeId, or jobTitle (case-insensitive).
      */
@@ -68,4 +81,12 @@ public interface StaffRepository extends JpaRepository<Staff, Long> {
     Page<Staff> searchStaff(@Param("query") String query, @Param("active") Boolean active, Pageable pageable);
 
     Optional<Staff> findByUuid(java.util.UUID uuid);
+
+    Optional<Staff> findByUserProfile_User_Id(Long userId);
+
+    long countByIsActiveTrue();
+
+    long countByIsActiveTrueAndCategory(StaffCategory category);
+
+    long countByDesignation_IdAndIsActiveTrue(Long designationId);
 }

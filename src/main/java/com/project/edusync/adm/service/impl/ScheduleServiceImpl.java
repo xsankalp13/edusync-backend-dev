@@ -59,6 +59,16 @@ public class ScheduleServiceImpl implements ScheduleService {
 
     @Override
     @Transactional(readOnly = true)
+    public List<ScheduleResponseDto> getScheduleForTeacher(Long staffId) {
+        log.info("Fetching schedule for staff id: {}", staffId);
+        List<Schedule> schedules = scheduleRepository.findAllActiveByTeacherStaffId(staffId);
+        return schedules.stream()
+                .map(this::toScheduleResponseDto)
+                .collect(Collectors.toList());
+    }
+
+    @Override
+    @Transactional(readOnly = true)
     public List<TimetableOverviewResponseDto> getScheduleOverview() {
         return scheduleRepository.findTimetableOverview().stream()
                 .map(row -> TimetableOverviewResponseDto.builder()
@@ -481,6 +491,10 @@ public class ScheduleServiceImpl implements ScheduleService {
                                         entity.getSection().getDefaultRoom().getUuid(),
                                         entity.getSection().getDefaultRoom().getName()
                                 ))
+                        .classTeacherUuid(entity.getSection().getClassTeacher() == null ? null : entity.getSection().getClassTeacher().getUuid())
+                        .classTeacherName(entity.getSection().getClassTeacher() == null
+                                ? null
+                                : (entity.getSection().getClassTeacher().getUserProfile().getFirstName() + " " + entity.getSection().getClassTeacher().getUserProfile().getLastName()).trim())
                         .build())
                 .subject(ScheduleResponseDto.NestedSubjectResponseDto.builder()
                         .uuid(entity.getSubject().getUuid())

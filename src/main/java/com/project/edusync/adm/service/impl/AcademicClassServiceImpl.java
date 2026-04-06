@@ -13,6 +13,8 @@ import com.project.edusync.adm.repository.AcademicClassRepository;
 import com.project.edusync.adm.repository.RoomRepository;
 import com.project.edusync.adm.repository.SectionRepository;
 import com.project.edusync.adm.service.AcademicClassService;
+import com.project.edusync.uis.model.entity.Staff;
+import com.project.edusync.uis.repository.StaffRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
@@ -30,6 +32,7 @@ public class AcademicClassServiceImpl implements AcademicClassService {
     private final AcademicClassRepository academicClassRepository;
     private final SectionRepository sectionRepository;
     private final RoomRepository roomRepository;
+    private final StaffRepository staffRepository;
 
 
     @Override
@@ -103,6 +106,7 @@ public class AcademicClassServiceImpl implements AcademicClassService {
         newSection.setSectionName(sectionRequestDto.getSectionName());
         newSection.setAcademicClass(parentClass); // Link to parent
         newSection.setDefaultRoom(resolveDefaultRoom(sectionRequestDto.getDefaultRoomId()));
+        newSection.setClassTeacher(resolveClassTeacher(sectionRequestDto.getClassTeacherUuid()));
 
         Section savedSection = sectionRepository.save(newSection);
         log.info("Section '{}' created successfully with id {} for class id {}", savedSection.getSectionName(), savedSection.getId(), classId);
@@ -145,6 +149,7 @@ public class AcademicClassServiceImpl implements AcademicClassService {
                 });
         existingSection.setSectionName(sectionRequestDto.getSectionName());
         existingSection.setDefaultRoom(resolveDefaultRoom(sectionRequestDto.getDefaultRoomId()));
+        existingSection.setClassTeacher(resolveClassTeacher(sectionRequestDto.getClassTeacherUuid()));
 
         Section updatedSection = sectionRepository.save(existingSection);
         log.info("Section with id {} updated successfully", updatedSection.getId());
@@ -155,11 +160,11 @@ public class AcademicClassServiceImpl implements AcademicClassService {
     @Override
     public void deleteSection(UUID sectionId) {
         log.info("Attempting to delete section with id: {}", sectionId);
-        if (!sectionRepository.existsById(sectionId)) {
+        if (!sectionRepository.existsByUuid(sectionId)) {
             log.warn("Failed to delete. Section not found with id: {}", sectionId);
             throw new ResourceNotFoundException("cannot delete as section with id: " + sectionId + " not found");
         }
-        sectionRepository.softDeleteById(sectionId);;
+        sectionRepository.softDeleteById(sectionId);
         log.info("Section with id {} deleted successfully", sectionId);
     }
 
@@ -185,6 +190,10 @@ public class AcademicClassServiceImpl implements AcademicClassService {
                 .defaultRoom(entity.getDefaultRoom() == null
                         ? null
                         : new RoomBasicResponseDto(entity.getDefaultRoom().getUuid(), entity.getDefaultRoom().getName()))
+                .classTeacherUuid(entity.getClassTeacher() == null ? null : entity.getClassTeacher().getUuid())
+                .classTeacherName(entity.getClassTeacher() == null
+                        ? null
+                        : (entity.getClassTeacher().getUserProfile().getFirstName() + " " + entity.getClassTeacher().getUserProfile().getLastName()).trim())
                 .build();
     }
 
@@ -194,6 +203,14 @@ public class AcademicClassServiceImpl implements AcademicClassService {
         }
         return roomRepository.findActiveById(defaultRoomId)
                 .orElseThrow(() -> new ResourceNotFoundException("Default room not found with id: " + defaultRoomId));
+    }
+
+    private Staff resolveClassTeacher(UUID classTeacherUuid) {
+        if (classTeacherUuid == null) {
+            return null;
+        }
+        return staffRepository.findByUuid(classTeacherUuid)
+                .orElseThrow(() -> new ResourceNotFoundException("Class teacher not found with id: " + classTeacherUuid));
     }
 
 }

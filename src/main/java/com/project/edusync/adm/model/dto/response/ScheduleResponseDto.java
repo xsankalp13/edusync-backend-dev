@@ -14,6 +14,8 @@ import java.util.UUID;
  */
 @Data
 @Builder
+@lombok.NoArgsConstructor
+@lombok.AllArgsConstructor
 public class ScheduleResponseDto {
 
     private UUID uuid;
@@ -27,15 +29,21 @@ public class ScheduleResponseDto {
 
     @Data
     @Builder
+    @lombok.NoArgsConstructor
+    @lombok.AllArgsConstructor
     public static class NestedSectionResponseDto {
         private UUID uuid;
         private String sectionName;
         private String className;
         private RoomBasicResponseDto defaultRoom;
+        private UUID classTeacherUuid;
+        private String classTeacherName;
     }
 
     @Data
     @Builder
+    @lombok.NoArgsConstructor
+    @lombok.AllArgsConstructor
     public static class NestedSubjectResponseDto {
         private UUID uuid;
         private String name;
@@ -44,6 +52,8 @@ public class ScheduleResponseDto {
 
     @Data
     @Builder
+    @lombok.NoArgsConstructor
+    @lombok.AllArgsConstructor
     public static class NestedTeacherResponseDto {
         @JsonSerialize(using = ToStringSerializer.class)
         private Long id;
@@ -52,6 +62,8 @@ public class ScheduleResponseDto {
 
     @Data
     @Builder
+    @lombok.NoArgsConstructor
+    @lombok.AllArgsConstructor
     public static class NestedRoomResponseDto {
         private UUID uuid;
         private String name;
@@ -61,6 +73,8 @@ public class ScheduleResponseDto {
 
     @Data
     @Builder
+    @lombok.NoArgsConstructor
+    @lombok.AllArgsConstructor
     public static class NestedTimeslotResponseDto {
         private UUID uuid;
         private Short dayOfWeek;

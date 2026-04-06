@@ -1,0 +1,328 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org">
+<head>
+    <meta charset="UTF-8" />
+    <title>ID Card Batch Print</title>
+    <style>
+        /* ── Reset ─────────────────────────────────────────── */
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { font-family: Arial, Helvetica, sans-serif; font-size: 8pt; color: #222; }
+
+        /* ── A4 Page ─────────────────────────────────────── */
+        @page {
+            size: A4;
+            margin: 10mm;
+        }
+        .page {
+            width: 190mm;
+            page-break-after: always;
+        }
+        .page:last-child {
+            page-break-after: avoid;
+        }
+
+        /* ── Grid: 2×2 cards per page ────────────────────── */
+        .card-grid {
+            display: table;
+            width: 100%;
+            border-collapse: separate;
+            border-spacing: 4mm;
+        }
+        .card-row {
+            display: table-row;
+        }
+        .card-cell {
+            display: table-cell;
+            width: 50%;
+            vertical-align: top;
+            padding: 2mm;
+        }
+
+        /* ── Cut marks ───────────────────────────────────── */
+        .card-wrapper {
+            border: 1px dashed #ccc;
+            padding: 1mm;
+        }
+
+        /* ═══════════════════════════════════════════════════
+           STUDENT CARD (Landscape: 3.375in × 2.125in)
+        ═══════════════════════════════════════════════════ */
+        .student-card {
+            width: 85.725mm;  /* 3.375in */
+            height: 53.975mm; /* 2.125in */
+            border: 1px solid #ccc;
+            border-radius: 4px;
+            overflow: hidden;
+            position: relative;
+        }
+
+        /* ═══════════════════════════════════════════════════
+           STAFF CARD (Portrait: 2.125in × 3.375in)
+        ═══════════════════════════════════════════════════ */
+        .staff-card {
+            width: 53.975mm;  /* 2.125in */
+            height: 85.725mm; /* 3.375in */
+            border: 1px solid #ccc;
+            border-radius: 4px;
+            overflow: hidden;
+            position: relative;
+        }
+
+        /* ── Common Card Elements ────────────────────────── */
+        .banner {
+            display: table;
+            width: 100%;
+            padding: 3px 6px;
+            color: #fff;
+        }
+        .banner-logo {
+            display: table-cell;
+            vertical-align: middle;
+            width: 22px;
+        }
+        .banner-logo img {
+            width: 20px;
+            height: 20px;
+            border-radius: 2px;
+        }
+        .banner-text {
+            display: table-cell;
+            vertical-align: middle;
+            padding-left: 4px;
+        }
+        .banner-center {
+            text-align: center;
+            padding: 4px 6px 3px;
+            color: #fff;
+        }
+        .banner-center img {
+            width: 22px;
+            height: 22px;
+            border-radius: 2px;
+            margin-bottom: 1px;
+        }
+        .school-name { font-size: 7pt; font-weight: bold; letter-spacing: 0.3px; }
+        .card-type { font-size: 5pt; opacity: 0.85; letter-spacing: 0.8px; text-transform: uppercase; }
+
+        .accent-line { height: 1.5px; width: 100%; }
+
+        /* Body (student - horizontal) */
+        .card-body-h {
+            display: table;
+            width: 100%;
+            padding: 4px 6px;
+        }
+        .photo-col-h {
+            display: table-cell;
+            vertical-align: top;
+            width: 58px;
+            padding-right: 6px;
+        }
+        .photo-col-h img {
+            width: 52px;
+            height: 62px;
+            border: 1.5px solid #ddd;
+            border-radius: 3px;
+        }
+
+        /* Body (staff - vertical) */
+        .photo-section-v {
+            text-align: center;
+            padding: 5px 0 3px;
+        }
+        .photo-section-v img {
+            width: 52px;
+            height: 64px;
+            border: 1.5px solid #ddd;
+            border-radius: 3px;
+        }
+        .info-section-v {
+            padding: 2px 8px;
+        }
+
+        .info-col {
+            display: table-cell;
+            vertical-align: top;
+        }
+        .info-row {
+            display: table;
+            width: 100%;
+            margin-bottom: 1px;
+        }
+        .info-label {
+            display: table-cell;
+            width: 40px;
+            font-size: 5.5pt;
+            color: #666;
+            font-weight: bold;
+            text-transform: uppercase;
+            vertical-align: top;
+        }
+        .info-value {
+            display: table-cell;
+            font-size: 6.5pt;
+            font-weight: 600;
+            color: #111;
+            vertical-align: top;
+        }
+
+        .card-footer-mini {
+            display: table;
+            width: 100%;
+            padding: 2px 6px;
+            position: absolute;
+            bottom: 0;
+            left: 0;
+        }
+        .footer-left-mini {
+            display: table-cell;
+            vertical-align: middle;
+            font-size: 5pt;
+            color: #777;
+        }
+        .footer-right-mini {
+            display: table-cell;
+            vertical-align: middle;
+            text-align: right;
+            width: 32px;
+        }
+        .footer-right-mini img {
+            width: 28px;
+            height: 28px;
+        }
+    </style>
+</head>
+<body>
+
+    <!--
+        Thymeleaf iterates over `pages`, each containing up to 4 `cards`.
+        Each card has: type (STUDENT|STAFF), name, photoBase64, qrCodeBase64, and role-specific fields.
+    -->
+    <div class="page" th:each="page : ${pages}">
+        <div class="card-grid">
+            <!-- Row 1 -->
+            <div class="card-row">
+                <div class="card-cell" th:each="card, iterStat : ${page.cards}" th:if="${iterStat.index < 2}">
+                    <div class="card-wrapper">
+                        <!-- STUDENT CARD (Landscape) -->
+                        <div th:if="${card.type == 'STUDENT'}" class="student-card">
+                            <div class="banner" th:style="'background-color:' + ${primaryColor}">
+                                <div class="banner-logo">
+                                    <img th:if="${schoolLogoBase64 != null and !schoolLogoBase64.isEmpty()}"
+                                         th:src="${schoolLogoBase64}" alt="Logo" />
+                                </div>
+                                <div class="banner-text">
+                                    <div class="school-name" th:text="${schoolName}">School</div>
+                                    <div class="card-type">Student ID</div>
+                                </div>
+                            </div>
+                            <div class="accent-line" th:style="'background:' + ${primaryColor}"></div>
+                            <div class="card-body-h">
+                                <div class="photo-col-h">
+                                    <img th:src="${card.photoBase64}" alt="Photo" />
+                                </div>
+                                <div class="info-col">
+                                    <div class="info-row"><div class="info-label">Name</div><div class="info-value" th:text="${card.name}">Name</div></div>
+                                    <div class="info-row"><div class="info-label">Class</div><div class="info-value" th:text="${card.className} + ' - ' + ${card.sectionName}">10-A</div></div>
+                                    <div class="info-row"><div class="info-label">Roll</div><div class="info-value" th:text="${card.rollNo}">1</div></div>
+                                    <div class="info-row"><div class="info-label">Enroll</div><div class="info-value" th:text="${card.enrollmentNumber}">E001</div></div>
+                                </div>
+                            </div>
+                            <div class="card-footer-mini">
+                                <div class="footer-left-mini" th:text="'Valid: ' + ${academicYear}">Valid: 25-26</div>
+                                <div class="footer-right-mini"><img th:src="${card.qrCodeBase64}" alt="QR" /></div>
+                            </div>
+                        </div>
+
+                        <!-- STAFF CARD (Portrait) -->
+                        <div th:if="${card.type == 'STAFF'}" class="staff-card">
+                            <div class="banner-center" th:style="'background-color:' + ${primaryColor}">
+                                <img th:if="${schoolLogoBase64 != null and !schoolLogoBase64.isEmpty()}"
+                                     th:src="${schoolLogoBase64}" alt="Logo" /><br/>
+                                <div class="school-name" th:text="${schoolName}">School</div>
+                                <div class="card-type">Staff ID</div>
+                            </div>
+                            <div class="accent-line" th:style="'background:' + ${primaryColor}"></div>
+                            <div class="photo-section-v">
+                                <img th:src="${card.photoBase64}" alt="Photo" />
+                            </div>
+                            <div class="info-section-v">
+                                <div class="info-row"><div class="info-label">Name</div><div class="info-value" th:text="${card.name}">Name</div></div>
+                                <div class="info-row"><div class="info-label">Desig</div><div class="info-value" th:text="${card.jobTitle}">Teacher</div></div>
+                                <div class="info-row"><div class="info-label">Dept</div><div class="info-value" th:text="${card.department}">Acad</div></div>
+                                <div class="info-row"><div class="info-label">EMP ID</div><div class="info-value" th:text="${card.employeeId}">E001</div></div>
+                            </div>
+                            <div class="card-footer-mini">
+                                <div class="footer-left-mini" th:text="'Valid: ' + ${academicYear}">Valid: 25-26</div>
+                                <div class="footer-right-mini"><img th:src="${card.qrCodeBase64}" alt="QR" /></div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Row 2 -->
+            <div class="card-row">
+                <div class="card-cell" th:each="card, iterStat : ${page.cards}" th:if="${iterStat.index >= 2}">
+                    <div class="card-wrapper">
+                        <!-- STUDENT CARD (Landscape) - Row 2 -->
+                        <div th:if="${card.type == 'STUDENT'}" class="student-card">
+                            <div class="banner" th:style="'background-color:' + ${primaryColor}">
+                                <div class="banner-logo">
+                                    <img th:if="${schoolLogoBase64 != null and !schoolLogoBase64.isEmpty()}"
+                                         th:src="${schoolLogoBase64}" alt="Logo" />
+                                </div>
+                                <div class="banner-text">
+                                    <div class="school-name" th:text="${schoolName}">School</div>
+                                    <div class="card-type">Student ID</div>
+                                </div>
+                            </div>
+                            <div class="accent-line" th:style="'background:' + ${primaryColor}"></div>
+                            <div class="card-body-h">
+                                <div class="photo-col-h">
+                                    <img th:src="${card.photoBase64}" alt="Photo" />
+                                </div>
+                                <div class="info-col">
+                                    <div class="info-row"><div class="info-label">Name</div><div class="info-value" th:text="${card.name}">Name</div></div>
+                                    <div class="info-row"><div class="info-label">Class</div><div class="info-value" th:text="${card.className} + ' - ' + ${card.sectionName}">10-A</div></div>
+                                    <div class="info-row"><div class="info-label">Roll</div><div class="info-value" th:text="${card.rollNo}">1</div></div>
+                                    <div class="info-row"><div class="info-label">Enroll</div><div class="info-value" th:text="${card.enrollmentNumber}">E001</div></div>
+                                </div>
+                            </div>
+                            <div class="card-footer-mini">
+                                <div class="footer-left-mini" th:text="'Valid: ' + ${academicYear}">Valid: 25-26</div>
+                                <div class="footer-right-mini"><img th:src="${card.qrCodeBase64}" alt="QR" /></div>
+                            </div>
+                        </div>
+
+                        <!-- STAFF CARD (Portrait) - Row 2 -->
+                        <div th:if="${card.type == 'STAFF'}" class="staff-card">
+                            <div class="banner-center" th:style="'background-color:' + ${primaryColor}">
+                                <img th:if="${schoolLogoBase64 != null and !schoolLogoBase64.isEmpty()}"
+                                     th:src="${schoolLogoBase64}" alt="Logo" /><br/>
+                                <div class="school-name" th:text="${schoolName}">School</div>
+                                <div class="card-type">Staff ID</div>
+                            </div>
+                            <div class="accent-line" th:style="'background:' + ${primaryColor}"></div>
+                            <div class="photo-section-v">
+                                <img th:src="${card.photoBase64}" alt="Photo" />
+                            </div>
+                            <div class="info-section-v">
+                                <div class="info-row"><div class="info-label">Name</div><div class="info-value" th:text="${card.name}">Name</div></div>
+                                <div class="info-row"><div class="info-label">Desig</div><div class="info-value" th:text="${card.jobTitle}">Teacher</div></div>
+                                <div class="info-row"><div class="info-label">Dept</div><div class="info-value" th:text="${card.department}">Acad</div></div>
+                                <div class="info-row"><div class="info-label">EMP ID</div><div class="info-value" th:text="${card.employeeId}">E001</div></div>
+                            </div>
+                            <div class="card-footer-mini">
+                                <div class="footer-left-mini" th:text="'Valid: ' + ${academicYear}">Valid: 25-26</div>
+                                <div class="footer-right-mini"><img th:src="${card.qrCodeBase64}" alt="QR" /></div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+</body>
+</html>

@@ -1,6 +1,7 @@
 package com.project.edusync.adm.model.entity;
 
 import com.project.edusync.common.model.AuditableEntity;
+import com.project.edusync.uis.model.entity.Staff;
 import com.project.edusync.uis.model.entity.Student;
 import jakarta.persistence.*;
 import lombok.*;
@@ -20,8 +21,8 @@ import java.util.Set;
 @Setter
 @NoArgsConstructor
 @AllArgsConstructor
-@EqualsAndHashCode(callSuper = true, exclude = {"academicClass", "defaultRoom", "schedules", "academicConstraints", "students"})
-@ToString(callSuper = true, exclude = {"academicClass", "defaultRoom", "schedules", "academicConstraints", "students"})
+@EqualsAndHashCode(callSuper = true, exclude = {"academicClass", "defaultRoom", "classTeacher", "schedules", "academicConstraints", "students"})
+@ToString(callSuper = true, exclude = {"academicClass", "defaultRoom", "classTeacher", "schedules", "academicConstraints", "students"})
 @Entity
 @Table(name = "sections")
 public class Section extends AuditableEntity {
@@ -46,6 +47,10 @@ public class Section extends AuditableEntity {
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "default_room_id")
     private Room defaultRoom;
+
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "class_teacher_id")
+    private Staff classTeacher;
 
     /**
      * All schedule entries for this specific section.

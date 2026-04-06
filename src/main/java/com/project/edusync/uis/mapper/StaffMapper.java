@@ -4,6 +4,7 @@ import com.project.edusync.iam.model.dto.BaseStaffRequestDTO;
 import com.project.edusync.uis.model.dto.profile.PrincipalDetailsDTO;
 import com.project.edusync.uis.model.dto.profile.StaffProfileDTO;
 import com.project.edusync.uis.model.dto.profile.TeacherDetailsDTO;
+import com.project.edusync.uis.model.dto.profile.TeacherSubjectDTO;
 import com.project.edusync.uis.model.entity.Staff;
 import com.project.edusync.uis.model.entity.details.PrincipalDetails;
 import com.project.edusync.uis.model.entity.details.TeacherDetails;
@@ -12,7 +13,6 @@ import org.mapstruct.Mapping;
 
 import java.util.List;
 import java.util.Objects;
-import java.util.UUID;
 
 /**
  * Comprehensive Mapper for Staff members.
@@ -41,13 +41,14 @@ public interface StaffMapper {
     // We assume the UUID (external ID) acts as the system ID.
     @Mapping(source = "uuid", target = "staffSystemId")
     @Mapping(source = "userProfile.profileUrl", target = "profileUrl")
+    @Mapping(source = "designation.designationName", target = "designationName")
     // 'jobTitle' and 'staffType' map automatically by name
     StaffProfileDTO toDto(Staff staff);
 
     /**
      * Maps specific details for Teaching staff.
      */
-    @Mapping(target = "teachableSubjectIds", expression = "java(mapTeachableSubjectIds(details))")
+    @Mapping(target = "teachableSubjects", expression = "java(mapTeachableSubjects(details))")
     TeacherDetailsDTO toTeacherDto(TeacherDetails details);
 
     /**
@@ -55,14 +56,14 @@ public interface StaffMapper {
      */
     PrincipalDetailsDTO toPrincipalDto(PrincipalDetails details);
 
-    default List<UUID> mapTeachableSubjectIds(TeacherDetails details) {
+    default List<TeacherSubjectDTO> mapTeachableSubjects(TeacherDetails details) {
         if (details == null || details.getTeachableSubjects() == null) {
             return List.of();
         }
         return details.getTeachableSubjects().stream()
                 .filter(Objects::nonNull)
-                .map(subject -> subject.getUuid())
-                .filter(Objects::nonNull)
+                .map(subject -> new TeacherSubjectDTO(subject.getUuid(), subject.getName(), subject.getSubjectCode()))
+                .filter(subject -> subject.getUuid() != null)
                 .toList();
     }
 }

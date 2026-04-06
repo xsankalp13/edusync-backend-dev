@@ -1,6 +1,7 @@
 package com.project.edusync.uis.model.dto.profile;
 
 import com.fasterxml.jackson.annotation.JsonInclude;
+import com.project.edusync.uis.model.enums.StaffCategory;
 import com.project.edusync.uis.model.enums.StaffType;
 import lombok.AllArgsConstructor;
 import lombok.Data;
@@ -20,9 +21,12 @@ public class StaffProfileDTO {
     private String profileUrl;
 
     // --- Professional Info ---
+    private String employeeId;
     private String jobTitle;
     private String department; // Included from your snippet (Note: ensure this maps to a real column or relationship)
     private StaffType staffType; // TEACHER, PRINCIPAL, LIBRARIAN, etc.
+    private StaffCategory category;
+    private String designationName;
 
     // --- Employment Details ---
     private LocalDate hireDate;

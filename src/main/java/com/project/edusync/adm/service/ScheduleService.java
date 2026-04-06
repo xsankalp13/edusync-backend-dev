@@ -11,6 +11,8 @@ public interface ScheduleService {
 
     List<ScheduleResponseDto> getScheduleForSection(UUID sectionId);
 
+    List<ScheduleResponseDto> getScheduleForTeacher(Long staffId);
+
     List<TimetableOverviewResponseDto> getScheduleOverview();
 
     ScheduleResponseDto addSchedule(ScheduleRequestDto scheduleRequestDto);
