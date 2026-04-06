@@ -20,7 +20,7 @@ public interface QuestionBankRepository extends JpaRepository<QuestionBank, Long
     @Query("SELECT q FROM QuestionBank q WHERE " +
             "(:subjectUuid IS NULL OR q.subject.uuid = :subjectUuid) AND " +
             "(:classUuid IS NULL OR q.academicClass.uuid = :classUuid) AND " +
-            "(:topic IS NULL OR LOWER(q.topic) LIKE LOWER(CONCAT('%', :topic, '%'))) AND " +
+            "(CAST(:topic AS string) IS NULL OR LOWER(q.topic) LIKE LOWER(CONCAT('%', CAST(:topic AS string), '%'))) AND " +
             "(:qType IS NULL OR q.questionType = :qType) AND " +
             "(:diffLevel IS NULL OR q.difficultyLevel = :diffLevel)")
     List<QuestionBank> findAllByFilters(

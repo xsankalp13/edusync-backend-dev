@@ -16,6 +16,7 @@ public interface ExamMapper {
     Exam toEntity(ExamRequestDTO requestDTO);
 
     // Converts Entity -> DTO for responses
+    @Mapping(target = "isPublished", source = "published") // Resolves boolean isPublished vs Boolean published mismatch
     ExamResponseDTO toResponseDTO(Exam exam);
 
     // Updates an existing entity from a DTO, ignoring nulls

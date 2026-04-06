@@ -22,6 +22,7 @@ import com.project.edusync.enrollment.service.BulkImportService;
 import com.project.edusync.enrollment.service.SseEmitterRegistry;
 import com.project.edusync.enrollment.util.CsvValidationHelper;
 import com.project.edusync.enrollment.util.RegisterUserByRole;
+import com.project.edusync.em.model.service.SeatAllocationService;
 import com.project.edusync.iam.model.entity.Role;
 import com.project.edusync.iam.model.entity.User;
 import com.project.edusync.iam.repository.RoleRepository;
@@ -148,6 +149,7 @@ public class BulkImportServiceImpl implements BulkImportService {
     private final RegisterUserByRole registerUserByRole;
     private final SseEmitterRegistry sseEmitterRegistry;
     private final ObjectMapper objectMapper;
+    private final SeatAllocationService seatAllocationService;
 
     /**
      * Emits a progress event to the SSE emitter for the given session.
@@ -740,6 +742,7 @@ public class BulkImportServiceImpl implements BulkImportService {
         room.setIsActive(true);
 
         Room saved = roomRepository.save(room);
+        seatAllocationService.generateSeatsForRoom(saved);
         return saved.getTotalCapacity();
     }
 

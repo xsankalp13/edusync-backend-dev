@@ -10,6 +10,7 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
+import java.util.Map;
 import java.util.UUID;
 
 @RestController
@@ -35,14 +36,20 @@ public class ExamController {
         return ResponseEntity.ok(examService.getAllExams());
     }
 
+    @GetMapping("/upcoming")
+    public ResponseEntity<List<ExamResponseDTO>> getUpcomingExams() {
+        return ResponseEntity.ok(examService.getUpcomingExams());
+    }
+
     @PutMapping("/{uuid}")
     public ResponseEntity<ExamResponseDTO> updateExam(@PathVariable UUID uuid, @Valid @RequestBody ExamRequestDTO requestDTO) {
         return ResponseEntity.ok(examService.updateExam(uuid, requestDTO));
     }
 
     @PatchMapping("/{uuid}/publish")
-    public ResponseEntity<ExamResponseDTO> publishExam(@PathVariable UUID uuid) {
-        return ResponseEntity.ok(examService.publishExam(uuid));
+    public ResponseEntity<ExamResponseDTO> publishExam(@PathVariable UUID uuid, @RequestBody Map<String, Boolean> body) {
+        Boolean published = body.get("published");
+        return ResponseEntity.ok(examService.publishExam(uuid, published));
     }
 
     @DeleteMapping("/{uuid}")

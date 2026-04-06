@@ -11,10 +11,13 @@ import com.project.edusync.em.model.repository.ExamScheduleRepository;
 import com.project.edusync.em.model.repository.InvigilationRepository;
 import com.project.edusync.uis.model.entity.Staff;
 import com.project.edusync.uis.repository.StaffRepository;
+import com.project.edusync.adm.model.entity.Room;
+import com.project.edusync.adm.repository.RoomRepository;
 import jakarta.transaction.Transactional;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import java.util.List;
+import java.util.UUID;
 import java.util.stream.Collectors;
 
 @Service
@@ -23,6 +26,7 @@ public class InvigilationService {
     private final InvigilationRepository invigilationRepository;
     private final ExamScheduleRepository examScheduleRepository;
     private final StaffRepository staffRepository;
+    private final RoomRepository roomRepository;
 
     @Transactional
     public InvigilationResponseDTO assignInvigilator(InvigilationRequestDTO dto) {
@@ -31,22 +35,26 @@ public class InvigilationService {
         }
         ExamSchedule examSchedule = examScheduleRepository.findById(dto.getExamScheduleId())
                 .orElseThrow(() -> new ResourceNotFoundException("ExamSchedule", "id", dto.getExamScheduleId()));
-        Staff staff = staffRepository.findById(dto.getStaffId())
-                .orElseThrow(() -> new ResourceNotFoundException("Staff", "id", dto.getStaffId()));
-        if (invigilationRepository.existsByExamScheduleIdAndStaffId(dto.getExamScheduleId(), dto.getStaffId())) {
+        Staff staff = staffRepository.findByUuid(dto.getStaffId())
+                .orElseThrow(() -> new ResourceNotFoundException("Staff", "uuid", dto.getStaffId().toString()));
+        Room room = roomRepository.findByUuid(dto.getRoomId())
+                .orElseThrow(() -> new ResourceNotFoundException("Room", "uuid", dto.getRoomId().toString()));
+
+        if (invigilationRepository.existsByExamScheduleIdAndStaffId(dto.getExamScheduleId(), staff.getId())) {
             throw new BadRequestException("Staff already assigned to this exam");
         }
         if (dto.getRole() == InvigilationRole.PRIMARY && invigilationRepository.existsByExamScheduleIdAndRole(dto.getExamScheduleId(), InvigilationRole.PRIMARY)) {
             throw new BadRequestException("Only one PRIMARY invigilator allowed per exam");
         }
         Long timeslotId = examSchedule.getTimeslot().getId();
-        boolean timeslotConflict = !invigilationRepository.findByStaffIdAndExamSchedule_TimeslotId(dto.getStaffId(), timeslotId).isEmpty();
+        boolean timeslotConflict = !invigilationRepository.findByStaffIdAndExamSchedule_TimeslotId(staff.getId(), timeslotId).isEmpty();
         if (timeslotConflict) {
             throw new BadRequestException("Staff is already assigned to another exam in the same timeslot");
         }
         Invigilation invigilation = Invigilation.builder()
                 .examSchedule(examSchedule)
                 .staff(staff)
+                .room(room)
                 .role(dto.getRole())
                 .build();
         Invigilation saved = invigilationRepository.save(invigilation);
@@ -86,6 +94,10 @@ public class InvigilationService {
         dto.setStaffName(fullName.toString().trim());
         dto.setRole(inv.getRole());
         dto.setExamScheduleId(inv.getExamSchedule().getId());
+        if (inv.getRoom() != null) {
+            dto.setRoomUuid(inv.getRoom().getUuid().toString());
+            dto.setRoomName(inv.getRoom().getName());
+        }
         return dto;
     }
 }

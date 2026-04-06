@@ -1,5 +1,6 @@
 package com.project.edusync.em.model.dto.RequestDTO;
 
+import com.project.edusync.em.model.enums.SeatSide;
 import jakarta.validation.constraints.DecimalMin;
 import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Size;
@@ -53,5 +54,10 @@ public class ExamScheduleRequestDTO {
     @Size(max = 50, message = "Room number must be under 50 characters")
     private String roomNumber;
 
+    private Integer maxStudentsPerSeat;
+    private SeatSide seatSide;
+
     public Integer getDuration() { return duration; }
+    public Integer getMaxStudentsPerSeat() { return maxStudentsPerSeat; }
+    public void setMaxStudentsPerSeat(Integer maxStudentsPerSeat) { this.maxStudentsPerSeat = maxStudentsPerSeat; }
 }

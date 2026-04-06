@@ -27,6 +27,10 @@ public class Invigilation {
     @JoinColumn(name = "staff_id", nullable = false)
     private Staff staff;
 
+    @ManyToOne(fetch = FetchType.LAZY, optional = false)
+    @JoinColumn(name = "room_id", nullable = false)
+    private com.project.edusync.adm.model.entity.Room room;
+
     @Enumerated(EnumType.STRING)
     @Column(nullable = false)
     private InvigilationRole role;

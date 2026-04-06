@@ -79,4 +79,7 @@ public interface RoomRepository extends JpaRepository<Room, Long> {
             "  WHERE s.timeslot.uuid = :timeslotId AND s.isActive = true" +
             ")")
     List<Room> findAvailableRooms(UUID timeslotId);
+
+    @Query("SELECT r FROM Room r WHERE r.uuid = :uuid")
+    Optional<Room> findByUuid(UUID uuid);
 }

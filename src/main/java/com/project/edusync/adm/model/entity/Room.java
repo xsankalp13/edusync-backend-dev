@@ -1,5 +1,6 @@
 package com.project.edusync.adm.model.entity;
 
+
 import com.project.edusync.common.model.AuditableEntity;
 import jakarta.persistence.*;
 import lombok.*;
@@ -24,6 +25,11 @@ import java.util.Set;
 @Entity
 @Table(name = "rooms")
 public class Room extends AuditableEntity {
+    /**
+     * Number of benches (exam seat units): rowCount × columnsPerRow
+     */
+    @Column(name = "exam_seat_units")
+    private Integer examSeatUnits;
 
     // The @Id (Long id) and 'uuid' are inherited from AuditableEntity.
 
@@ -80,10 +86,14 @@ public class Room extends AuditableEntity {
     // Only @PreUpdate here. Do NOT add @PrePersist to avoid duplicate entity listener error.
     @PreUpdate
     public void calculateCapacity() {
-        if (rowCount != null && columnsPerRow != null && seatsPerUnit != null) {
-            int calculated = rowCount * columnsPerRow * seatsPerUnit;
-            this.totalCapacity = calculated;
-            this.capacity = calculated;
+        if (rowCount != null && columnsPerRow != null) {
+            int seatUnits = rowCount * columnsPerRow;
+            this.examSeatUnits = seatUnits;
+            if (seatsPerUnit != null) {
+                int calculated = seatUnits * seatsPerUnit;
+                this.totalCapacity = calculated;
+                this.capacity = calculated;
+            }
         }
     }
     // If you want to ensure capacity is set on insert, call calculateCapacity() from the superclass's @PrePersist method.

@@ -10,7 +10,7 @@ import org.springframework.web.bind.annotation.*;
 import java.util.List;
 
 @RestController
-@RequestMapping("/invigilations")
+@RequestMapping("${api.url}/auth/examination/invigilations")
 @RequiredArgsConstructor
 public class InvigilationController {
     private final InvigilationService invigilationService;

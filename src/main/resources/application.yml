@@ -52,8 +52,6 @@ spring:
 # APPLICATION-SPECIFIC PROPERTIES
 # ===================================================================
 app:
-  cache:
-    version: ${APP_CACHE_VERSION:v1}
   razorpay:
     key-id: ${RAZORPAY_KEY_ID}
     key-secret: ${RAZORPAY_KEY_SECRET}
@@ -90,6 +88,14 @@ app:
       folder: ${CLOUDINARY_UPLOAD_FOLDER:profiles}
     s3:
       upload-url-template: ${S3_UPLOAD_URL_TEMPLATE:}
+
+  notifications:
+    sns:
+      enabled: ${SNS_ENABLED:false}
+
+  bootstrap:
+    super-admin:
+      fail-on-missing-credentials: ${SUPER_ADMIN_BOOTSTRAP_REQUIRED:false}
 
 # NOTE: 'api.url' is kept at the root namespace as it is referenced
 # directly via @RequestMapping("${api.url}/...") across all controllers.
@@ -219,6 +225,11 @@ spring:
   flyway:
     # Production baseline remains explicit and controlled via env var.
     baseline-on-migrate: ${FLYWAY_BASELINE_ON_MIGRATE:false}
+
+app:
+  bootstrap:
+    super-admin:
+      fail-on-missing-credentials: ${SUPER_ADMIN_BOOTSTRAP_REQUIRED:true}
 
 # SECURITY: Enforce HTTPS in production.
 server:

@@ -447,11 +447,20 @@ public class DataSeeder implements ApplicationRunner {
 
         String username = environment.getProperty("SUPER_ADMIN_USERNAME");
         String rawPassword = environment.getProperty("SUPER_ADMIN_PASSWORD");
+        boolean failOnMissingCredentials = environment.getProperty(
+                "app.bootstrap.super-admin.fail-on-missing-credentials",
+                Boolean.class,
+                false
+        );
 
         if (username == null || username.isBlank() || rawPassword == null || rawPassword.isBlank()) {
-            throw new IllegalStateException(
-                    "SUPER_ADMIN bootstrap requires SUPER_ADMIN_USERNAME and SUPER_ADMIN_PASSWORD on first deployment."
-            );
+            if (failOnMissingCredentials) {
+                throw new IllegalStateException(
+                        "SUPER_ADMIN bootstrap requires SUPER_ADMIN_USERNAME and SUPER_ADMIN_PASSWORD on first deployment."
+                );
+            }
+            log.warn("SUPER_ADMIN bootstrap skipped: SUPER_ADMIN_USERNAME/SUPER_ADMIN_PASSWORD not provided and strict mode is disabled.");
+            return;
         }
 
         Role superAdminRole = rolesByName.get("ROLE_SUPER_ADMIN");

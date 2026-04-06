@@ -1,10 +1,12 @@
 package com.project.edusync.notifications;
 
 import org.springframework.stereotype.Service;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import software.amazon.awssdk.services.sns.SnsClient;
 import software.amazon.awssdk.services.sns.model.PublishRequest;
 
 @Service
+@ConditionalOnProperty(prefix = "app.notifications.sns", name = "enabled", havingValue = "true")
 public class NotificationPublisher {
 
     private final SnsClient snsClient;

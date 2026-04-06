@@ -1,5 +1,7 @@
 package com.project.edusync.em.model.service.serviceImpl;
 
+import com.cloudinary.Cloudinary;
+import com.cloudinary.utils.ObjectUtils;
 import com.project.edusync.adm.model.entity.AcademicClass;
 import com.project.edusync.adm.model.entity.Subject;
 import com.project.edusync.adm.repository.AcademicClassRepository;
@@ -10,6 +12,7 @@ import com.project.edusync.em.model.dto.ResponseDTO.PastPaperResponseDTO;
 import com.project.edusync.em.model.entity.PastPaper;
 import com.project.edusync.em.model.repository.PastPaperRepository;
 import com.project.edusync.em.model.service.PastPaperService;
+import com.project.edusync.uis.config.MediaUploadProperties;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.HttpStatus;
@@ -17,11 +20,6 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.multipart.MultipartFile;
 
-import java.io.IOException;
-import java.nio.file.Files;
-import java.nio.file.Path;
-import java.nio.file.Paths;
-import java.nio.file.StandardCopyOption;
 import java.util.List;
 import java.util.UUID;
 import java.util.stream.Collectors;
@@ -35,9 +33,18 @@ public class PastPaperServiceImpl implements PastPaperService {
     private final PastPaperRepository pastPaperRepository;
     private final AcademicClassRepository academicClassRepository;
     private final SubjectRepository subjectRepository;
+    private final MediaUploadProperties mediaUploadProperties;
+    private Cloudinary cloudinary;
 
-    // Configuration for local file storage (replace with cloud storage in prod)
-    private final Path fileStorageLocation = Paths.get("uploads/past-papers").toAbsolutePath().normalize();
+    @jakarta.annotation.PostConstruct
+    private void initCloudinary() {
+        MediaUploadProperties.Cloudinary cfg = mediaUploadProperties.getCloudinary();
+        this.cloudinary = new Cloudinary(ObjectUtils.asMap(
+                "cloud_name", cfg.getCloudName(),
+                "api_key", cfg.getApiKey(),
+                "api_secret", cfg.getApiSecret()
+        ));
+    }
 
     @Override
     public PastPaperResponseDTO uploadPastPaper(PastPaperRequestDTO requestDTO, MultipartFile file) {
@@ -53,9 +60,34 @@ public class PastPaperServiceImpl implements PastPaperService {
         Subject subject = subjectRepository.findActiveById(requestDTO.getSubjectId())
                 .orElseThrow(() -> new EdusyncException("ADM-404", "Subject not found", HttpStatus.NOT_FOUND));
 
-        // 2. Store the file physically
-        String fileName = storeFile(file);
-        String fileUrl = "/api/v1/public/files/" + fileName; // Example public URL pattern
+        // 2. Upload file to Cloudinary
+        String fileUrl;
+        String mimeType = file.getContentType();
+        int fileSizeKb = (int) (file.getSize() / 1024);
+        try {
+            MediaUploadProperties.Cloudinary cfg = mediaUploadProperties.getCloudinary();
+            String folder = cfg.getFolder() != null ? cfg.getFolder() : "past-papers";
+            
+            // Clean filename by stripping extension to prevent double extensions in Cloudinary
+            String originalName = file.getOriginalFilename();
+            String nameWithoutExtension = originalName != null && originalName.contains(".") 
+                ? originalName.substring(0, originalName.lastIndexOf('.')) 
+                : (originalName != null ? originalName : "file");
+
+            String publicId = folder + "/" + UUID.randomUUID() + "_" + nameWithoutExtension;
+            
+            var uploadResult = cloudinary.uploader().upload(file.getBytes(), ObjectUtils.asMap(
+                    "public_id", publicId,
+                    "resource_type", "auto",
+                    "flags", "attachment" // Suggest download instead of browser preview if supported
+            ));
+            fileUrl = (String) uploadResult.get("secure_url");
+            mimeType = (String) uploadResult.getOrDefault("resource_type", mimeType);
+            fileSizeKb = (int) (((Number) uploadResult.getOrDefault("bytes", file.getSize())).longValue() / 1024);
+        } catch (Exception e) {
+            log.error("Cloudinary upload failed", e);
+            throw new EdusyncException("EM-500", "Failed to upload file to Cloudinary", HttpStatus.INTERNAL_SERVER_ERROR);
+        }
 
         // 3. Save metadata to DB
         PastPaper pastPaper = new PastPaper();
@@ -65,8 +97,8 @@ public class PastPaperServiceImpl implements PastPaperService {
         pastPaper.setExamYear(requestDTO.getExamYear());
         pastPaper.setExamType(requestDTO.getExamType());
         pastPaper.setFileUrl(fileUrl);
-        pastPaper.setFileMimeType(file.getContentType());
-        pastPaper.setFileSizeKb((int) (file.getSize() / 1024));
+        pastPaper.setFileMimeType(mimeType);
+        pastPaper.setFileSizeKb(fileSizeKb);
 
         PastPaper savedPaper = pastPaperRepository.save(pastPaper);
         log.info("Past paper uploaded successfully with UUID: {}", savedPaper.getUuid());
@@ -98,28 +130,21 @@ public class PastPaperServiceImpl implements PastPaperService {
         log.info("Deleting past paper UUID: {}", uuid);
         PastPaper paper = pastPaperRepository.findByUuid(uuid)
                 .orElseThrow(() -> new EdusyncException("EM-404", "Past paper not found", HttpStatus.NOT_FOUND));
-
-        // TODO: Delete the actual file from storage here using paper.getFileUrl()
-        // deleteFile(paper.getFileUrl());
-
+        try {
+            String fileUrl = paper.getFileUrl();
+            if (fileUrl != null && fileUrl.contains("cloudinary.com")) {
+                String[] parts = fileUrl.split("/");
+                String publicId = parts[parts.length - 2] + "/" + parts[parts.length - 1].split("\\.")[0];
+                cloudinary.uploader().destroy(publicId, ObjectUtils.emptyMap());
+            }
+        } catch (Exception e) {
+            log.warn("Failed to delete file from Cloudinary: {}", e.getMessage());
+        }
         pastPaperRepository.delete(paper);
     }
 
     // --- Helper Methods ---
 
-    private String storeFile(MultipartFile file) {
-        try {
-            Files.createDirectories(fileStorageLocation);
-            // Generate a unique filename to prevent overwrites
-            String fileName = UUID.randomUUID() + "_" + file.getOriginalFilename();
-            Path targetLocation = fileStorageLocation.resolve(fileName);
-            Files.copy(file.getInputStream(), targetLocation, StandardCopyOption.REPLACE_EXISTING);
-            return fileName;
-        } catch (IOException ex) {
-            log.error("Could not store file " + file.getOriginalFilename(), ex);
-            throw new EdusyncException("EM-500", "Could not store file. Please try again.", HttpStatus.INTERNAL_SERVER_ERROR);
-        }
-    }
 
     private PastPaperResponseDTO toResponseDTO(PastPaper entity) {
         return PastPaperResponseDTO.builder()

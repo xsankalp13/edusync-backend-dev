@@ -13,6 +13,7 @@ import com.project.edusync.em.model.entity.ExamSchedule;
 import com.project.edusync.em.model.repository.ExamRepository;
 import com.project.edusync.em.model.repository.ExamScheduleRepository;
 import com.project.edusync.em.model.service.ExamScheduleService;
+import com.project.edusync.uis.repository.StudentRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
@@ -33,6 +34,11 @@ public class ExamScheduleServiceImpl implements ExamScheduleService {
     private final AcademicClassRepository academicClassRepository;
     private final SubjectRepository subjectRepository;
     private final com.project.edusync.adm.repository.TimeslotRepository timeslotRepository;
+    private final StudentRepository studentRepository;
+
+    private final com.project.edusync.em.model.repository.SittingPlanRepository sittingPlanRepository;
+    private final com.project.edusync.em.model.repository.SeatAllocationRepository seatAllocationRepository;
+    private final com.project.edusync.em.model.repository.InvigilationRepository invigilationRepository;
 
     @Override
     public ExamScheduleResponseDTO createSchedule(UUID examUuid, ExamScheduleRequestDTO requestDTO) {
@@ -83,7 +89,12 @@ public class ExamScheduleServiceImpl implements ExamScheduleService {
         if (!examScheduleRepository.existsById(scheduleId)) {
             throw new EdusyncException("EM-404", "Exam Schedule not found", HttpStatus.NOT_FOUND);
         }
-        // TODO: Add check here to prevent deletion if marks have already been entered for this schedule.
+        
+        // Cascade delete explicit relationships
+        sittingPlanRepository.deleteAllInBatch(sittingPlanRepository.findByExamScheduleId(scheduleId));
+        invigilationRepository.deleteAllInBatch(invigilationRepository.findByExamScheduleId(scheduleId));
+        seatAllocationRepository.deleteAllInBatch(seatAllocationRepository.findByExamScheduleId(scheduleId));
+
         examScheduleRepository.deleteById(scheduleId);
     }
 
@@ -93,8 +104,21 @@ public class ExamScheduleServiceImpl implements ExamScheduleService {
         if (!dto.getEndTime().isAfter(dto.getStartTime())) {
             throw new EdusyncException("EM-400", "End time must be after start time", HttpStatus.BAD_REQUEST);
         }
-        if (dto.getPassingMarks().compareTo(dto.getMaxMarks()) > 0) {
+        if (dto.getPassingMarks() != null && dto.getPassingMarks().compareTo(dto.getMaxMarks()) > 0) {
             throw new EdusyncException("EM-400", "Passing marks cannot be greater than max marks", HttpStatus.BAD_REQUEST);
+        }
+
+        int maxStudentsPerSeat = dto.getMaxStudentsPerSeat() != null ? dto.getMaxStudentsPerSeat() : 1;
+        if (maxStudentsPerSeat != 1 && maxStudentsPerSeat != 2) {
+            throw new EdusyncException("EM-400", "maxStudentsPerSeat must be 1 or 2", HttpStatus.BAD_REQUEST);
+        }
+
+        if (maxStudentsPerSeat == 2 && dto.getSeatSide() == null) {
+            throw new EdusyncException("EM-400", "seatSide is required for DOUBLE seating", HttpStatus.BAD_REQUEST);
+        }
+
+        if (maxStudentsPerSeat == 1 && dto.getSeatSide() != null) {
+            throw new EdusyncException("EM-400", "seatSide must be null for SINGLE seating", HttpStatus.BAD_REQUEST);
         }
     }
 
@@ -126,15 +150,25 @@ public class ExamScheduleServiceImpl implements ExamScheduleService {
 
         entity.setExamDate(dto.getExamDate());
         entity.setDuration(dto.getDuration());
-        entity.setMaxMarks(dto.getMaxMarks().intValue());
+        entity.setMaxMarks(dto.getMaxMarks().intValue()); // Fix: convert BigDecimal to int
+
+        int maxStudentsPerSeat = dto.getMaxStudentsPerSeat() != null ? dto.getMaxStudentsPerSeat() : 1;
+        entity.setMaxStudentsPerSeat(maxStudentsPerSeat);
+        entity.setSeatSide(maxStudentsPerSeat == 2 ? dto.getSeatSide() : null);
     }
 
     private ExamScheduleResponseDTO mapEntityToResponse(ExamSchedule entity) {
+        long totalStudents = entity.getSection() != null
+                ? studentRepository.countBySectionId(entity.getSection().getId())
+                : studentRepository.countBySection_AcademicClass_Id(entity.getAcademicClass().getId());
+
         return ExamScheduleResponseDTO.builder()
                 .scheduleId(entity.getId())
                 .examUuid(entity.getExam().getUuid())
                 .classId(entity.getAcademicClass().getUuid())
                 .className(entity.getAcademicClass().getName())
+                .sectionId(entity.getSection() != null ? entity.getSection().getUuid() : null)
+                .sectionName(entity.getSection() != null ? entity.getSection().getSectionName() : null)
                 .subjectId(entity.getSubject().getUuid())
                 .subjectName(entity.getSubject().getName())
                 .examDate(entity.getExamDate())
@@ -142,7 +176,9 @@ public class ExamScheduleServiceImpl implements ExamScheduleService {
                 .endTime(entity.getTimeslot() != null ? entity.getTimeslot().getEndTime() : null)
                 .maxMarks(java.math.BigDecimal.valueOf(entity.getMaxMarks()))
                 .passingMarks(java.math.BigDecimal.valueOf(entity.getMaxMarks())) // TODO: replace with actual field if available
-                .roomNumber(null) // TODO: replace with actual field if available
+                .totalStudents(totalStudents)
+                .maxStudentsPerSeat(entity.getMaxStudentsPerSeat())
+                .seatSide(entity.getSeatSide())
                 .build();
     }
 }

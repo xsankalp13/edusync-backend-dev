@@ -2,6 +2,7 @@ package com.project.edusync.common.config;
 
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import software.amazon.awssdk.services.sns.SnsClient;
 import software.amazon.awssdk.regions.Region;
 import software.amazon.awssdk.auth.credentials.AwsBasicCredentials;
@@ -10,6 +11,7 @@ import java.net.URI;
 
 
 @Configuration
+@ConditionalOnProperty(prefix = "app.notifications.sns", name = "enabled", havingValue = "true")
 public class SnsConfig {
 
     @Bean

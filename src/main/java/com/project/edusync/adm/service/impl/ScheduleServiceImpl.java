@@ -168,18 +168,18 @@ public class ScheduleServiceImpl implements ScheduleService {
     @Override
     @Transactional
     public void deleteSchedule(UUID scheduleId) {
-        log.info("Attempting to soft delete schedule entry {}", scheduleId);
+        log.info("Attempting to soft delete schedule entry {} (force)", scheduleId);
         Schedule schedule = scheduleRepository.findActiveById(scheduleId)
                 .orElseThrow(() -> {
                     log.warn("Failed to delete. Schedule not found with id: {}", scheduleId);
                     return new ResourceNotFoundException("Schedule id: " + scheduleId + " not found.");
                 });
-
+        // Always perform soft delete, regardless of references
         scheduleRepository.softDeleteById(scheduleId);
         evictSectionScheduleCache(schedule.getSection().getUuid());
         evictEditorContextCache(schedule.getSection().getUuid());
         evictAvailableTeachersCache();
-        log.info("Schedule entry {} marked as inactive successfully", scheduleId);
+        log.info("Schedule entry {} marked as inactive successfully (forced)", scheduleId);
     }
 
     @Override
@@ -559,3 +559,4 @@ public class ScheduleServiceImpl implements ScheduleService {
                 .build();
     }
 }
+

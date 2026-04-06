@@ -59,5 +59,9 @@ public abstract class AuditableEntity {
         if (this.uuid == null) {
             this.uuid = UUID.randomUUID();
         }
+        // Ensure Room capacity is set before insert
+        if (this instanceof com.project.edusync.adm.model.entity.Room room) {
+            room.calculateCapacity();
+        }
     }
 }

@@ -46,7 +46,10 @@ public class Exam extends AuditableEntity {
     private LocalDate endDate;
 
     @Column(name = "is_published", nullable = false)
-    private boolean isPublished = false;
+    private Boolean published = false;
+
+    public Boolean getPublished() { return published; }
+    public void setPublished(Boolean published) { this.published = published; }
 
     // --- Relationships ---
 
@@ -62,4 +65,3 @@ public class Exam extends AuditableEntity {
     private Set<ExamSchedule> schedules = new HashSet<>();
 
 }
-

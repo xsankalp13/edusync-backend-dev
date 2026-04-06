@@ -12,6 +12,7 @@ import com.project.edusync.adm.repository.BuildingRepository;
 import com.project.edusync.adm.repository.RoomRepository;
 import com.project.edusync.adm.repository.ScheduleRepository;
 import com.project.edusync.adm.service.RoomService;
+import com.project.edusync.em.model.service.SeatAllocationService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
@@ -29,6 +30,7 @@ public class RoomServiceImpl implements RoomService {
     private final RoomRepository roomRepository;
     private final BuildingRepository buildingRepository;
     private final ScheduleRepository scheduleRepository;
+    private final SeatAllocationService seatAllocationService;
 
     @Override
     public RoomResponseDto addRoom(RoomRequestDto roomRequestDto) {
@@ -60,6 +62,9 @@ public class RoomServiceImpl implements RoomService {
 
         Room savedRoom = roomRepository.save(newRoom);
         log.info("Room '{}' created successfully with id {}", savedRoom.getName(), savedRoom.getUuid());
+
+        // Auto-generate physical seats for the room
+        seatAllocationService.generateSeatsForRoom(savedRoom);
 
         return toRoomResponseDto(savedRoom);
     }
@@ -120,6 +125,9 @@ public class RoomServiceImpl implements RoomService {
 
         Room updatedRoom = roomRepository.save(existingRoom);
         log.info("Room with id {} updated successfully", updatedRoom.getUuid());
+
+        // Regenerate physical seats if room capacity/layout changed
+        seatAllocationService.generateSeatsForRoom(updatedRoom);
 
         return toRoomResponseDto(updatedRoom);
     }

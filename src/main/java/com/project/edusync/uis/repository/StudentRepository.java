@@ -64,6 +64,20 @@ public interface StudentRepository extends JpaRepository<Student, Long> {
 
     Optional<Student> findByUserProfile_User_Id(Long userId);
 
+    Optional<Student> findByRollNo(Integer rollNo);
+
+    List<Student> findBySectionId(Long sectionId);
+
+    List<Student> findBySectionIdOrderByRollNoAsc(Long sectionId);
+
+    List<Student> findBySection_AcademicClass_Id(Long classId);
+
+    List<Student> findBySection_AcademicClass_IdOrderByRollNoAsc(Long classId);
+
+    long countBySectionId(Long sectionId);
+
+    long countBySection_AcademicClass_Id(Long classId);
+
     @Query("SELECT s FROM Student s WHERE s.section.academicClass.id = :classId")
     List<Student> findByAcademicClassId(@Param("classId") Long classId);
 
