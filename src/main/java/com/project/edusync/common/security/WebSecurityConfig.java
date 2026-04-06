@@ -103,8 +103,11 @@ public class WebSecurityConfig {
                         // 5. Framework/error paths that should stay public
                         .requestMatchers(apiVersionPath + "/error", "/error", "/favicon.ico").permitAll()
 
-                        // 6. Default: all remaining endpoints require authentication
-                       // .anyRequest().authenticated()
+                        // 6. Teacher dashboard APIs
+                        .requestMatchers(apiVersionPath + "/teacher/**").hasAnyRole("TEACHER", "ADMIN", "SUPER_ADMIN")
+
+                        // 7. Default: all remaining endpoints require authentication
+                        .anyRequest().authenticated()
                 )
                 .exceptionHandling(ex -> ex.authenticationEntryPoint(customAuthenticationEntryPoint))
                 .addFilterBefore(jwtFilter, UsernamePasswordAuthenticationFilter.class)
