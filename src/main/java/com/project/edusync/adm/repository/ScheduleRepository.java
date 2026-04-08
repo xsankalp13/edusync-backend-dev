@@ -103,7 +103,7 @@ public interface ScheduleRepository extends JpaRepository<Schedule, Long> {
             LEFT JOIN FETCH sec.classTeacher ct
             LEFT JOIN FETCH ct.userProfile cup
             JOIN FETCH s.subject sub
-            JOIN FETCH s.room room
+            LEFT JOIN FETCH s.room room
             JOIN FETCH s.timeslot ts
             JOIN FETCH s.teacher td
             JOIN FETCH td.staff st
@@ -138,7 +138,7 @@ public interface ScheduleRepository extends JpaRepository<Schedule, Long> {
             SELECT s FROM Schedule s
             JOIN FETCH s.subject sub
             JOIN FETCH s.teacher td
-            JOIN FETCH s.room room
+            LEFT JOIN FETCH s.room room
             JOIN FETCH s.timeslot ts
             WHERE s.section.uuid = :sectionId
               AND s.isActive = true
@@ -226,7 +226,7 @@ public interface ScheduleRepository extends JpaRepository<Schedule, Long> {
     @Query("""
             SELECT s FROM Schedule s
             JOIN FETCH s.subject sub
-            JOIN FETCH s.room room
+            LEFT JOIN FETCH s.room room
             JOIN FETCH s.timeslot ts
             WHERE s.section.id = :sectionId
               AND s.isActive = true
@@ -239,7 +239,7 @@ public interface ScheduleRepository extends JpaRepository<Schedule, Long> {
     @Query("""
             SELECT s FROM Schedule s
             JOIN FETCH s.subject sub
-            JOIN FETCH s.room room
+            LEFT JOIN FETCH s.room room
             JOIN FETCH s.timeslot ts
             WHERE s.section.id = :sectionId
               AND s.isActive = true
@@ -256,7 +256,7 @@ public interface ScheduleRepository extends JpaRepository<Schedule, Long> {
     @Query("""
             SELECT s FROM Schedule s
             JOIN FETCH s.subject sub
-            JOIN FETCH s.room room
+            LEFT JOIN FETCH s.room room
             JOIN FETCH s.timeslot ts
             JOIN FETCH s.teacher td
             JOIN FETCH td.staff st

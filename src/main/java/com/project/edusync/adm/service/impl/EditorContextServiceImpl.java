@@ -38,18 +38,39 @@ public class EditorContextServiceImpl implements EditorContextService {
     @Transactional(readOnly = true)
     @Cacheable(value = "editorContext", key = "#sectionId")
     public EditorContextResponseDto getEditorContext(UUID sectionId) {
-        Section section = sectionRepository.findById(sectionId)
+        Section section = sectionRepository.findByIdWithClassTeacher(sectionId)
                 .orElseThrow(() -> new ResourceNotFoundException("No section resource found with id: " + sectionId));
 
         List<Timeslot> timeslots = timeslotRepository.findAllActive();
         List<Schedule> existingSchedule = scheduleRepository.findAllActiveWithReferencesBySectionUuid(sectionId);
         List<TeacherDetails> teachers = teacherDetailsRepository.findAllActiveWithSubjects();
 
+        // Resolve class teacher name and timetable teacher ID (if assigned)
+        String classTeacherName = null;
+        String classTeacherId = null;
+        UUID classTeacherStaffUuid = null;
+        if (section.getClassTeacher() != null) {
+            var ct = section.getClassTeacher();
+            classTeacherStaffUuid = ct.getUuid();
+            if (ct.getUserProfile() != null) {
+                classTeacherName = buildName(
+                        ct.getUserProfile().getFirstName(),
+                        ct.getUserProfile().getLastName());
+            }
+            // Map Staff → TeacherDetails to get the ID used in schedule entries
+            classTeacherId = teacherDetailsRepository.findByStaff_Id(ct.getId())
+                    .map(td -> String.valueOf(td.getId()))
+                    .orElse(null);
+        }
+
         return EditorContextResponseDto.builder()
                 .section(EditorContextResponseDto.SectionSummaryDto.builder()
                         .uuid(section.getUuid())
                         .sectionName(section.getSectionName())
                         .className(section.getAcademicClass().getName())
+                        .classTeacherName(classTeacherName)
+                        .classTeacherId(classTeacherId)
+                        .classTeacherStaffUuid(classTeacherStaffUuid)
                         .build())
                 .timeslots(timeslots.stream().map(this::toTimeslotItem).toList())
                 .availableSubjects(extractSubjects(section))

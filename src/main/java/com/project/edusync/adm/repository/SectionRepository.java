@@ -43,6 +43,16 @@ public interface SectionRepository extends JpaRepository<Section, Long> {
     @Query("SELECT s FROM Section s where s.uuid = :sectionId")
     Optional<Section> findById(UUID sectionId);
 
+    @Query("""
+            SELECT s FROM Section s
+            JOIN FETCH s.academicClass ac
+            LEFT JOIN FETCH s.classTeacher ct
+            LEFT JOIN FETCH ct.userProfile up
+            WHERE s.uuid = :sectionId
+            """)
+    Optional<Section> findByIdWithClassTeacher(UUID sectionId);
+
+
     boolean existsByUuid(UUID sectionId);
 
     @Transactional
