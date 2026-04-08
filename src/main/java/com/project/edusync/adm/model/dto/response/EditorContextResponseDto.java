@@ -26,6 +26,12 @@ public class EditorContextResponseDto {
         private UUID uuid;
         private String sectionName;
         private String className;
+        /** Full name of the class teacher, or null if not assigned. */
+        private String classTeacherName;
+        /** TeacherDetails ID of the class teacher, used to match against teacher list. */
+        private String classTeacherId;
+        /** Staff UUID of the class teacher, used to pre-populate the section settings picker. */
+        private UUID classTeacherStaffUuid;
     }
 
     @Data
