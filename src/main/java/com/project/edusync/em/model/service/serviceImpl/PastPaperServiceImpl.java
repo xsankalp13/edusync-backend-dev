@@ -24,6 +24,11 @@ import java.util.List;
 import java.util.UUID;
 import java.util.stream.Collectors;
 
+import com.project.edusync.common.security.AuthUtil;
+import com.project.edusync.iam.model.entity.User;
+import com.project.edusync.uis.model.entity.Student;
+import com.project.edusync.uis.repository.StudentRepository;
+
 @Slf4j
 @Service
 @RequiredArgsConstructor
@@ -34,6 +39,8 @@ public class PastPaperServiceImpl implements PastPaperService {
     private final AcademicClassRepository academicClassRepository;
     private final SubjectRepository subjectRepository;
     private final MediaUploadProperties mediaUploadProperties;
+    private final AuthUtil authUtil;
+    private final StudentRepository studentRepository;
     private Cloudinary cloudinary;
 
     @jakarta.annotation.PostConstruct
@@ -110,8 +117,18 @@ public class PastPaperServiceImpl implements PastPaperService {
     @Transactional(readOnly = true)
     public PastPaperResponseDTO getPastPaperByUuid(UUID uuid) {
         log.info("Fetching past paper UUID: {}", uuid);
-        PastPaper paper = pastPaperRepository.findByUuid(uuid)
-                .orElseThrow(() -> new EdusyncException("EM-404", "Past paper not found", HttpStatus.NOT_FOUND));
+        User currentUser = authUtil.getCurrentUser();
+        PastPaper paper;
+
+        if (isStudent(currentUser)) {
+            UUID studentClassUuid = resolveStudentClassUuid(currentUser);
+            paper = pastPaperRepository.findByUuidAndAcademicClass_Uuid(uuid, studentClassUuid)
+                    .orElseThrow(() -> new EdusyncException("EM-404", "Past paper not found", HttpStatus.NOT_FOUND));
+        } else {
+            paper = pastPaperRepository.findByUuid(uuid)
+                    .orElseThrow(() -> new EdusyncException("EM-404", "Past paper not found", HttpStatus.NOT_FOUND));
+        }
+
         return toResponseDTO(paper);
     }
 
@@ -119,10 +136,40 @@ public class PastPaperServiceImpl implements PastPaperService {
     @Transactional(readOnly = true)
     public List<PastPaperResponseDTO> getAllPastPapers(UUID classId, UUID subjectId, Integer year) {
         log.info("Fetching past papers with filters - Class: {}, Subject: {}, Year: {}", classId, subjectId, year);
+        User currentUser = authUtil.getCurrentUser();
+        if (isStudent(currentUser)) {
+            UUID studentClassUuid = resolveStudentClassUuid(currentUser);
+            if (classId != null && !classId.equals(studentClassUuid)) {
+                log.info("Ignoring requested classId={} for student userId={} and enforcing classId={}",
+                        classId, currentUser.getId(), studentClassUuid);
+            }
+            classId = studentClassUuid;
+        }
+
         return pastPaperRepository.findAllByFilters(classId, subjectId, year)
                 .stream()
                 .map(this::toResponseDTO)
                 .collect(Collectors.toList());
+    }
+
+    private boolean isStudent(User currentUser) {
+        if (currentUser.getRoles() == null) {
+            return false;
+        }
+        return currentUser.getRoles().stream()
+                .map(role -> role.getName())
+                .filter(name -> name != null)
+                .anyMatch("ROLE_STUDENT"::equals);
+    }
+
+    private UUID resolveStudentClassUuid(User currentUser) {
+        Student student = studentRepository.findByUserProfile_User_Id(currentUser.getId())
+                .orElseThrow(() -> new EdusyncException("EM-403", "Student record not found", HttpStatus.FORBIDDEN));
+
+        if (student.getSection() == null || student.getSection().getAcademicClass() == null) {
+            throw new EdusyncException("EM-403", "Student class mapping not found", HttpStatus.FORBIDDEN);
+        }
+        return student.getSection().getAcademicClass().getUuid();
     }
 
     @Override

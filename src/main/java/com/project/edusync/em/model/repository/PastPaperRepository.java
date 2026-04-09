@@ -15,6 +15,8 @@ public interface PastPaperRepository extends JpaRepository<PastPaper, Long> {
 
     Optional<PastPaper> findByUuid(UUID uuid);
 
+    Optional<PastPaper> findByUuidAndAcademicClass_Uuid(UUID uuid, UUID classUuid);
+
     @Query("SELECT p FROM PastPaper p WHERE " +
             "(:classUuid IS NULL OR p.academicClass.uuid = :classUuid) AND " +
             "(:subjectUuid IS NULL OR p.subject.uuid = :subjectUuid) AND " +
