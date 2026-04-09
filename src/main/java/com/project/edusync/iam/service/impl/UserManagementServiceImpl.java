@@ -426,6 +426,8 @@ public class UserManagementServiceImpl implements UserManagementService {
         User user = userMapper.toEntity(request);
 
         // Secure Password Generation
+        log.info("Generating password for new user. Username: {}, Role: {}", request.getUsername(), roleName);
+        log.info("Password : " + request.getInitialPassword());
         String rawPassword = request.getInitialPassword() != null ?
                 request.getInitialPassword() :
                 request.getUsername();
