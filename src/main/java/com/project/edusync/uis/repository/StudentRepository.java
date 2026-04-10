@@ -64,6 +64,8 @@ public interface StudentRepository extends JpaRepository<Student, Long> {
 
     Optional<Student> findByUserProfile_User_Id(Long userId);
 
+    long countByIsActiveTrue();
+
     Optional<Student> findByRollNo(Integer rollNo);
 
     List<Student> findBySectionId(Long sectionId);
@@ -81,6 +83,14 @@ public interface StudentRepository extends JpaRepository<Student, Long> {
     long countBySectionId(Long sectionId);
 
     long countBySection_AcademicClass_Id(Long classId);
+
+    @Query("""
+            SELECT s.section.academicClass.name, COUNT(s)
+            FROM Student s
+            WHERE s.isActive = true
+            GROUP BY s.section.academicClass.name
+            """)
+    List<Object[]> countActiveStudentsGroupedByClassName();
 
     @Query("SELECT s FROM Student s WHERE s.section.academicClass.id = :classId")
     List<Student> findByAcademicClassId(@Param("classId") Long classId);

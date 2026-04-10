@@ -331,9 +331,16 @@ public class TeacherDashboardServiceImpl implements TeacherDashboardService {
         Staff staff = resolveStaffFromCurrentUser(currentUserId);
         LocalDate targetDate = date == null ? LocalDate.now() : date;
 
+        boolean isOnLeaveToday = leaveApplicationRepository.existsOverlapping(
+                staff.getId(),
+                targetDate,
+                targetDate,
+                List.of(LeaveApplicationStatus.APPROVED)
+        );
+
         List<Long> sectionIds = scheduleRepository.findDistinctActiveSectionIdsByTeacherStaffId(staff.getId());
         if (sectionIds.isEmpty()) {
-            return emptySummary(targetDate);
+            return emptySummary(targetDate, isOnLeaveToday);
         }
 
         List<Student> students = studentRepository.findTeacherStudents(sectionIds, null, null, false, "%", Pageable.unpaged()).getContent();
@@ -378,6 +385,7 @@ public class TeacherDashboardServiceImpl implements TeacherDashboardService {
                         .belowThresholdCount(belowThreshold)
                         .build())
                 .nextClass(nextClass)
+                .isOnLeaveToday(isOnLeaveToday)
                 .build();
     }
 
@@ -581,7 +589,7 @@ public class TeacherDashboardServiceImpl implements TeacherDashboardService {
         return consecutive;
     }
 
-    private TeacherDashboardSummaryResponseDto emptySummary(LocalDate date) {
+    private TeacherDashboardSummaryResponseDto emptySummary(LocalDate date, boolean isOnLeave) {
         return TeacherDashboardSummaryResponseDto.builder()
                 .date(date)
                 .totalStudents(0)
@@ -600,6 +608,7 @@ public class TeacherDashboardServiceImpl implements TeacherDashboardService {
                         .belowThresholdCount(0)
                         .build())
                 .nextClass(null)
+                .isOnLeaveToday(isOnLeave)
                 .build();
     }
 

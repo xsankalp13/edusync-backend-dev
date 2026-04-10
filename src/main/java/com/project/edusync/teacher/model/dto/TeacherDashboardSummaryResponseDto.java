@@ -19,6 +19,7 @@ public class TeacherDashboardSummaryResponseDto {
     private TeacherHomeroomResponseDto.TodayAttendance attendance;
     private Alerts alerts;
     private NextClass nextClass;
+    private boolean isOnLeaveToday;
 
     @Data
     @Builder

@@ -200,6 +200,7 @@ spring:
     # Enabled only in dev for debugging SQL queries.
     show-sql: true
   flyway:
+    enabled: false
     # Dev can bootstrap on existing local schemas without manual baseline steps.
     baseline-on-migrate: ${FLYWAY_BASELINE_ON_MIGRATE:true}
     # Allow newly added older-version migrations in local dev after branch merges/renames.

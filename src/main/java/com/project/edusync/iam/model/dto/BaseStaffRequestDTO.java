@@ -8,6 +8,8 @@ import lombok.EqualsAndHashCode;
 
 import java.time.LocalDate;
 
+import com.project.edusync.uis.model.enums.Department;
+
 @Data
 @EqualsAndHashCode(callSuper = true)
 public abstract class BaseStaffRequestDTO extends CreateUserRequestDTO {
@@ -21,7 +23,9 @@ public abstract class BaseStaffRequestDTO extends CreateUserRequestDTO {
     @NotNull(message = "Staff category is required")
     private StaffCategory category;
 
-    @NotNull(message = "Designation is required")
+    @NotNull(message = "Department is required")
+    private Department department;
+
     private Long designationId;
 
     private String officeLocation;

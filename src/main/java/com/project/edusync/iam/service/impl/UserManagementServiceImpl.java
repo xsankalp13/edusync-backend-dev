@@ -91,6 +91,7 @@ public class UserManagementServiceImpl implements UserManagementService {
     private final StudentRepository studentRepository;
     private final GuardianRepository guardianRepository;
     private final StudentGuardianRelationshipRepository studentGuardianRelationshipRepository;
+    private final com.project.edusync.hrms.repository.StaffDesignationRepository staffDesignationRepository;
 
     // --- Extension Repositories ---
     private final TeacherDetailsRepository teacherDetailsRepository;
@@ -393,6 +394,23 @@ public class UserManagementServiceImpl implements UserManagementService {
         if (!StringUtils.hasText(staff.getEmployeeId())) {
             staff.setEmployeeId(request.getUsername());
         }
+
+        com.project.edusync.hrms.model.entity.StaffDesignation designation = staffDesignationRepository.findByDesignationNameIgnoreCase(request.getJobTitle())
+                .orElseGet(() -> {
+                    com.project.edusync.hrms.model.entity.StaffDesignation newDesig = new com.project.edusync.hrms.model.entity.StaffDesignation();
+                    newDesig.setDesignationName(request.getJobTitle());
+                    String safeCode = request.getJobTitle().toUpperCase().replaceAll("[^A-Z0-9]", "_");
+                    if (safeCode.length() > 15) {
+                         safeCode = safeCode.substring(0, 15);
+                    }
+                    safeCode = safeCode + "_" + java.util.UUID.randomUUID().toString().substring(0, 4).toUpperCase();
+                    newDesig.setDesignationCode(safeCode);
+                    newDesig.setCategory(request.getCategory());
+                    newDesig.setActive(true);
+                    newDesig.setSortOrder(99);
+                    return staffDesignationRepository.save(newDesig);
+                });
+        staff.setDesignation(designation);
 
         // Note: Staff ID is generated here
         return staffRepository.save(staff);

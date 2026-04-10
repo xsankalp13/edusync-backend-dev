@@ -424,7 +424,17 @@ public class DataSeeder implements ApplicationRunner {
                 seed("feature.timetable_ai", "true", SettingType.BOOLEAN, SettingGroup.FEATURES, "Enable AI timetable module", false, false),
                 seed("feature.bulk_import", "true", SettingType.BOOLEAN, SettingGroup.FEATURES, "Enable bulk import module", false, false),
                 seed("feature.parent_portal", "false", SettingType.BOOLEAN, SettingGroup.FEATURES, "Enable parent portal", false, false),
-                seed("feature.sms_notifications", "false", SettingType.BOOLEAN, SettingGroup.FEATURES, "Enable SMS notifications", false, false)
+                seed("feature.sms_notifications", "false", SettingType.BOOLEAN, SettingGroup.FEATURES, "Enable SMS notifications", false, false),
+                // Attendance controls
+                // Stored under FEATURES to remain compatible with existing DB check constraint.
+                // AppSettingService remaps attendance.* keys to ATTENDANCE group in responses.
+                seed("attendance.edit.window.enabled", "true", SettingType.BOOLEAN, SettingGroup.FEATURES, "Enable/disable edit window enforcement", false, false),
+                seed("attendance.edit.window.teacher.hours", "48", SettingType.INTEGER, SettingGroup.FEATURES, "Hours within which teachers can edit attendance", false, false),
+                seed("attendance.edit.window.school_admin.hours", "0", SettingType.INTEGER, SettingGroup.FEATURES, "Hours within which school admins can edit attendance. 0 = unlimited", false, false),
+                seed("attendance.geofence.enabled", "true", SettingType.BOOLEAN, SettingGroup.FEATURES, "Enable geo-fence validation for staff self check-in", false, false),
+                seed("attendance.geofence.latitude", "", SettingType.STRING, SettingGroup.FEATURES, "School latitude coordinate (decimal degrees)", false, false),
+                seed("attendance.geofence.longitude", "", SettingType.STRING, SettingGroup.FEATURES, "School longitude coordinate (decimal degrees)", false, false),
+                seed("attendance.geofence.radius.meters", "200", SettingType.INTEGER, SettingGroup.FEATURES, "Maximum distance in meters from school for valid check-in", false, false)
         );
 
         int inserted = 0;

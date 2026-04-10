@@ -11,6 +11,7 @@ import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
 import java.util.Optional;
+import java.util.List;
 
 public interface StaffRepository extends JpaRepository<Staff, Long> {
 
@@ -83,6 +84,16 @@ public interface StaffRepository extends JpaRepository<Staff, Long> {
     Optional<Staff> findByUuid(java.util.UUID uuid);
 
     Optional<Staff> findByUserProfile_User_Id(Long userId);
+
+    @Query("""
+            SELECT st.id
+            FROM Staff st
+            JOIN st.userProfile up
+            WHERE LOWER(COALESCE(up.firstName, '')) LIKE LOWER(CONCAT('%', :query, '%'))
+               OR LOWER(COALESCE(up.lastName, '')) LIKE LOWER(CONCAT('%', :query, '%'))
+               OR LOWER(COALESCE(st.jobTitle, '')) LIKE LOWER(CONCAT('%', :query, '%'))
+            """)
+    List<Long> findStaffIdsBySearch(@Param("query") String query);
 
     long countByIsActiveTrue();
 

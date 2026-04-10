@@ -1,6 +1,8 @@
 package com.project.edusync.enrollment.util;
 
 import com.project.edusync.adm.model.entity.Section;
+import com.project.edusync.hrms.model.entity.StaffDesignation;
+import com.project.edusync.hrms.repository.StaffDesignationRepository;
 import com.project.edusync.iam.model.entity.Role;
 import com.project.edusync.iam.model.entity.User;
 import com.project.edusync.iam.repository.UserRepository;
@@ -14,6 +16,7 @@ import com.project.edusync.uis.model.entity.details.TeacherDetails;
 import com.project.edusync.uis.model.enums.Department;
 import com.project.edusync.uis.model.enums.EducationLevel;
 import com.project.edusync.uis.model.enums.Gender;
+import com.project.edusync.uis.model.enums.StaffCategory;
 import com.project.edusync.uis.model.enums.StaffType;
 import com.project.edusync.uis.repository.StaffRepository;
 import com.project.edusync.uis.repository.StudentRepository;
@@ -53,6 +56,7 @@ public class RegisterUserByRole {
     private final TeacherDetailsRepository teacherDetailsRepository;
     private final LibrarianDetailsRepository librarianDetailsRepository;
     private final PrincipalDetailsRepository principalDetailsRepository;
+    private final StaffDesignationRepository staffDesignationRepository;
     // (Add other details repositories here)
 
     // --- Utilities ---
@@ -223,6 +227,7 @@ public class RegisterUserByRole {
             String jobTitle,
             Department department,
             StaffType staffType,
+            StaffCategory staffCategory,
             String[] row
     ) { // <-- No 'throws Exception' needed, RuntimeExceptions will bubble up
 
@@ -239,6 +244,25 @@ public class RegisterUserByRole {
         staff.setJobTitle(jobTitle);
         staff.setDepartment(department);
         staff.setStaffType(staffType);
+        staff.setCategory(staffCategory);
+
+        StaffDesignation designation = staffDesignationRepository.findByDesignationNameIgnoreCase(jobTitle)
+                .orElseGet(() -> {
+                    StaffDesignation newDesig = new StaffDesignation();
+                    newDesig.setDesignationName(jobTitle);
+                    String safeCode = jobTitle.toUpperCase().replaceAll("[^A-Z0-9]", "_");
+                    if (safeCode.length() > 15) {
+                         safeCode = safeCode.substring(0, 15);
+                    }
+                    safeCode = safeCode + "_" + java.util.UUID.randomUUID().toString().substring(0, 4).toUpperCase();
+                    newDesig.setDesignationCode(safeCode);
+                    newDesig.setCategory(staffCategory);
+                    newDesig.setActive(true);
+                    newDesig.setSortOrder(99);
+                    return staffDesignationRepository.save(newDesig);
+                });
+        staff.setDesignation(designation);
+
         staff.setActive(true);
         staff.setUserProfile(userProfile);
 
@@ -277,10 +301,10 @@ public class RegisterUserByRole {
         details.setStaff(staff);
 
         // This will now use the List<String> fields from the corrected entity
-        details.setCertifications(List.of(validationHelper.validateString(row[11], "certifications").split(",")));
-        details.setSpecializations(List.of(validationHelper.validateString(row[12], "specializations").split(",")));
-        details.setYearsOfExperience(Integer.parseInt(validationHelper.validateString(row[13], "yearsOfExperience")));
-        details.setEducationLevel(validationHelper.parseEnum(EducationLevel.class, row[14], "educationLevel"));
+        details.setCertifications(List.of(validationHelper.validateString(row[12], "certifications").split(",")));
+        details.setSpecializations(List.of(validationHelper.validateString(row[13], "specializations").split(",")));
+        details.setYearsOfExperience(Integer.parseInt(validationHelper.validateString(row[14], "yearsOfExperience")));
+        details.setEducationLevel(validationHelper.parseEnum(EducationLevel.class, row[15], "educationLevel"));
 
         teacherDetailsRepository.save(details);
     }
@@ -293,7 +317,7 @@ public class RegisterUserByRole {
         log.info("Registering LibrarianDetails for staff ID: {}", staff.getId());
         LibrarianDetails details = new LibrarianDetails();
         details.setStaff(staff);
-        String mlisValue = row[19];
+        String mlisValue = row[20];
 
         if (mlisValue == null || mlisValue.isBlank()) {
             details.setMlisDegree(false); // Default to false if blank
@@ -301,7 +325,7 @@ public class RegisterUserByRole {
             // Only parse if not blank. Boolean.parseBoolean is safe.
             details.setMlisDegree(Boolean.parseBoolean(mlisValue));
         }
-        String permissionsValue = row[18];
+        String permissionsValue = row[19];
         if (permissionsValue != null && !permissionsValue.isBlank()) {
             details.setLibrarySystemPermissions(List.of(permissionsValue.split(",")));
         } else {
