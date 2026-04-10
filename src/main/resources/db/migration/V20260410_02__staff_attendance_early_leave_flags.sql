@@ -1,0 +1,4 @@
+ALTER TABLE IF EXISTS staff_daily_attendance
+    ADD COLUMN IF NOT EXISTS early_leave BOOLEAN DEFAULT FALSE,
+    ADD COLUMN IF NOT EXISTS early_out_minutes INTEGER;
+
