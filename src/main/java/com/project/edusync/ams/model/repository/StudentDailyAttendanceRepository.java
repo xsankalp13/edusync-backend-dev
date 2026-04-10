@@ -62,6 +62,18 @@ public interface StudentDailyAttendanceRepository extends JpaRepository<StudentD
             @Param("studentIds") List<Long> studentIds,
             @Param("attendanceDate") LocalDate attendanceDate);
 
+    @Query("""
+            SELECT DISTINCT sda.attendanceDate FROM StudentDailyAttendance sda
+            WHERE sda.studentId IN :studentIds
+              AND sda.attendanceDate BETWEEN :fromDate AND :toDate
+            ORDER BY sda.attendanceDate ASC
+            """)
+    List<LocalDate> findDistinctDatesWithRecords(
+            @Param("studentIds") List<Long> studentIds,
+            @Param("fromDate") LocalDate fromDate,
+            @Param("toDate") LocalDate toDate
+    );
+
     /**
      * Counts the number of attendance records for a student.
      * @param studentId The logical ID of the student (UIS FK).
@@ -106,4 +118,12 @@ public interface StudentDailyAttendanceRepository extends JpaRepository<StudentD
             @Param("startDate") LocalDate startDate,
             @Param("endDate") LocalDate endDate
     );
+
+    @Query("""
+            SELECT COUNT(DISTINCT sda.studentId)
+            FROM StudentDailyAttendance sda
+            WHERE sda.attendanceDate = :date
+              AND sda.attendanceType.isPresentMark = true
+            """)
+    long countDistinctPresentStudentsByDate(@Param("date") LocalDate date);
 }

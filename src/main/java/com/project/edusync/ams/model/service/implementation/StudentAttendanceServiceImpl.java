@@ -3,7 +3,12 @@ package com.project.edusync.ams.model.service.implementation;
 import com.project.edusync.ams.model.dto.request.StudentAttendanceRequestDTO;
 import com.project.edusync.ams.model.dto.response.AttendanceTypeResponseDTO;
 import com.project.edusync.ams.model.dto.response.AbsenceDocumentationSummaryResponseDTO;
+import com.project.edusync.ams.model.dto.response.StudentAttendanceCompletionDTO;
 import com.project.edusync.ams.model.dto.response.StudentAttendanceResponseDTO;
+import com.project.edusync.adm.model.entity.AcademicClass;
+import com.project.edusync.adm.model.entity.Section;
+import com.project.edusync.adm.repository.AcademicClassRepository;
+import com.project.edusync.adm.repository.SectionRepository;
 import com.project.edusync.ams.model.entity.AttendanceType;
 import com.project.edusync.ams.model.entity.AbsenceDocumentation;
 import com.project.edusync.ams.model.entity.StudentDailyAttendance;
@@ -14,6 +19,9 @@ import com.project.edusync.ams.model.repository.AttendanceTypeRepository;
 import com.project.edusync.ams.model.repository.StudentDailyAttendanceRepository;
 import com.project.edusync.ams.model.repository.AbsenceDocumentationRepository;
 import com.project.edusync.ams.model.service.StudentAttendanceService;
+import com.project.edusync.ams.model.service.AttendanceEditWindowService;
+import com.project.edusync.hrms.model.enums.DayType;
+import com.project.edusync.hrms.repository.AcademicCalendarEventRepository;
 import com.project.edusync.uis.repository.StaffRepository;
 import com.project.edusync.uis.repository.StudentRepository;
 import jakarta.transaction.Transactional;
@@ -42,11 +50,17 @@ import java.util.stream.Collectors;
 @Slf4j
 public class StudentAttendanceServiceImpl implements StudentAttendanceService {
 
+    private static final Set<DayType> NON_WORKING_DAY_TYPES = EnumSet.of(DayType.HOLIDAY, DayType.VACATION);
+
     private final StudentDailyAttendanceRepository studentRepo;
     private final AttendanceTypeRepository attendanceTypeRepository;
     private final AbsenceDocumentationRepository absenceDocumentationRepository;
     private final StudentRepository studentRepository;
     private final StaffRepository staffRepository;
+    private final AttendanceEditWindowService attendanceEditWindowService;
+    private final AcademicClassRepository academicClassRepository;
+    private final SectionRepository sectionRepository;
+    private final AcademicCalendarEventRepository academicCalendarEventRepository;
 
     @Override
     @Transactional
@@ -54,6 +68,16 @@ public class StudentAttendanceServiceImpl implements StudentAttendanceService {
     public List<StudentAttendanceResponseDTO> markAttendanceBatch(List<StudentAttendanceRequestDTO> requests, Long performedByStaffId) {
         if (requests == null || requests.isEmpty()) {
             return Collections.emptyList();
+        }
+
+        Optional<LocalDate> blockedDate = requests.stream()
+                .map(StudentAttendanceRequestDTO::getAttendanceDate)
+                .filter(Objects::nonNull)
+                .filter(this::isNonWorkingStudentDay)
+                .findFirst();
+
+        if (blockedDate.isPresent()) {
+            throw new IllegalArgumentException("Cannot mark student attendance on a non-working day.");
         }
 
         // Collect unique uppercased short codes
@@ -205,7 +229,7 @@ public class StudentAttendanceServiceImpl implements StudentAttendanceService {
             throw new AttendanceProcessingException("attendanceDate cannot be changed for existing record");
         }
 
-        validateAttendanceDateWindow(existing.getAttendanceDate());
+        attendanceEditWindowService.enforceForAttendanceDate(existing.getAttendanceDate());
 
         if (req.getAttendanceShortCode() != null) {
             String sc = req.getAttendanceShortCode().trim().toUpperCase();
@@ -228,6 +252,8 @@ public class StudentAttendanceServiceImpl implements StudentAttendanceService {
         StudentDailyAttendance existing = studentRepo.findByUuid(recordUuid)
                 .orElseThrow(() -> new AttendanceRecordNotFoundException("Attendance record not found with uuid: " + recordUuid));
 
+        attendanceEditWindowService.enforceForAttendanceDate(existing.getAttendanceDate());
+
         // Soft-delete if entity has 'setDeleted' method (some entities in codebase use AuditableEntity)
         try {
             existing.getClass().getDeclaredMethod("setDeleted", Boolean.class);
@@ -242,6 +268,55 @@ public class StudentAttendanceServiceImpl implements StudentAttendanceService {
         } catch (Exception ex) {
             throw new AttendanceProcessingException("Failed to delete attendance record: " + ex.getMessage());
         }
+    }
+
+    @Override
+    @Transactional
+    public StudentAttendanceCompletionDTO getAttendanceCompletion(UUID classUuid, UUID sectionUuid, LocalDate fromDate, LocalDate toDate) {
+        if (fromDate == null || toDate == null) {
+            throw new AttendanceProcessingException("fromDate and toDate are required");
+        }
+        if (fromDate.isAfter(toDate)) {
+            throw new AttendanceProcessingException("fromDate cannot be after toDate");
+        }
+
+        AcademicClass academicClass = academicClassRepository.findById(classUuid)
+                .orElseThrow(() -> new AttendanceProcessingException("Class not found for uuid: " + classUuid));
+
+        List<Long> studentIds;
+        if (sectionUuid != null) {
+            Section section = sectionRepository.findByUuid(sectionUuid)
+                    .orElseThrow(() -> new AttendanceProcessingException("Section not found for uuid: " + sectionUuid));
+            studentIds = studentRepository.findBySectionId(section.getId()).stream().map(s -> s.getId()).toList();
+        } else {
+            studentIds = studentRepository.findBySection_AcademicClass_Id(academicClass.getId()).stream().map(s -> s.getId()).toList();
+        }
+
+        if (studentIds.isEmpty()) {
+            return StudentAttendanceCompletionDTO.builder()
+                    .classUuid(classUuid.toString())
+                    .sectionUuid(sectionUuid == null ? null : sectionUuid.toString())
+                    .fromDate(fromDate)
+                    .toDate(toDate)
+                    .totalStudents(0)
+                    .datesWithRecords(List.of())
+                    .datesWithoutRecords(fromDate.datesUntil(toDate.plusDays(1)).toList())
+                    .build();
+        }
+
+        List<LocalDate> withRecords = studentRepo.findDistinctDatesWithRecords(studentIds, fromDate, toDate);
+        Set<LocalDate> withSet = new HashSet<>(withRecords);
+        List<LocalDate> withoutRecords = fromDate.datesUntil(toDate.plusDays(1)).filter(d -> !withSet.contains(d)).toList();
+
+        return StudentAttendanceCompletionDTO.builder()
+                .classUuid(classUuid.toString())
+                .sectionUuid(sectionUuid == null ? null : sectionUuid.toString())
+                .fromDate(fromDate)
+                .toDate(toDate)
+                .totalStudents(studentIds.size())
+                .datesWithRecords(withRecords)
+                .datesWithoutRecords(withoutRecords)
+                .build();
     }
 
     /* ------------------ Helper: map entity -> DTO ------------------ */
@@ -369,5 +444,9 @@ public class StudentAttendanceServiceImpl implements StudentAttendanceService {
         } catch (DateTimeParseException ex) {
             throw new AttendanceProcessingException("Invalid date format: " + isoDate + ". Expected ISO format yyyy-MM-dd", ex);
         }
+    }
+
+    private boolean isNonWorkingStudentDay(LocalDate date) {
+        return academicCalendarEventRepository.existsByDateAndDayTypeInAndAppliesToStudentsTrueAndIsActiveTrue(date, NON_WORKING_DAY_TYPES);
     }
 }
