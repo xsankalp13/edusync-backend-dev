@@ -21,6 +21,16 @@ import java.util.Set;
 @Repository
 public interface SeatAllocationRepository extends JpaRepository<SeatAllocation, Long> {
 
+    interface AdmitCardSeatAllocationProjection {
+        Long getScheduleId();
+        Long getStudentId();
+        Long getSeatId();
+        String getSeatLabel();
+        Long getRoomId();
+        String getRoomName();
+        String getSubjectName();
+    }
+
     // ── 1. Overlap detection: occupied seat IDs in a room (SINGLE query) ─────
     //    KEPT for backward compat
     @Query("""
@@ -234,6 +244,66 @@ public interface SeatAllocationRepository extends JpaRepository<SeatAllocation, 
     List<SeatAllocation> findByExamScheduleIdsAndStudentIdsWithSeat(
         @Param("scheduleIds") Collection<Long> scheduleIds,
         @Param("studentIds") Collection<Long> studentIds);
+
+    @Query("""
+        SELECT sa.examSchedule.id AS scheduleId,
+               sa.student.id AS studentId,
+               sa.seat.id AS seatId,
+               sa.seat.label AS seatLabel,
+               sa.seat.room.id AS roomId,
+               sa.seat.room.name AS roomName,
+               sa.examSchedule.subject.name AS subjectName
+        FROM SeatAllocation sa
+        WHERE sa.examSchedule.id = :scheduleId
+        """)
+    List<AdmitCardSeatAllocationProjection> findAdmitCardAllocationsByScheduleId(
+        @Param("scheduleId") Long scheduleId);
+
+    @Query("""
+        SELECT sa.examSchedule.id AS scheduleId,
+               sa.student.id AS studentId,
+               sa.seat.id AS seatId,
+               sa.seat.label AS seatLabel,
+               sa.seat.room.id AS roomId,
+               sa.seat.room.name AS roomName,
+               sa.examSchedule.subject.name AS subjectName
+        FROM SeatAllocation sa
+        WHERE sa.examSchedule.id = :scheduleId
+          AND sa.student.id IN :studentIds
+        """)
+    List<AdmitCardSeatAllocationProjection> findAdmitCardAllocationsByScheduleIdAndStudentIds(
+        @Param("scheduleId") Long scheduleId,
+        @Param("studentIds") Collection<Long> studentIds);
+
+    @Query("""
+        SELECT sa.examSchedule.id AS scheduleId,
+               sa.student.id AS studentId,
+               sa.seat.id AS seatId,
+               sa.seat.label AS seatLabel,
+               sa.seat.room.id AS roomId,
+               sa.seat.room.name AS roomName,
+               sa.examSchedule.subject.name AS subjectName
+        FROM SeatAllocation sa
+        WHERE sa.examSchedule.id IN :scheduleIds
+          AND sa.student.id IN :studentIds
+        """)
+    List<AdmitCardSeatAllocationProjection> findAdmitCardAllocationsByScheduleIdsAndStudentIds(
+        @Param("scheduleIds") Collection<Long> scheduleIds,
+        @Param("studentIds") Collection<Long> studentIds);
+
+    @Query("""
+        SELECT sa.examSchedule.id AS scheduleId,
+               sa.student.id AS studentId,
+               sa.seat.id AS seatId,
+               sa.seat.label AS seatLabel,
+               sa.seat.room.id AS roomId,
+               sa.seat.room.name AS roomName,
+               sa.examSchedule.subject.name AS subjectName
+        FROM SeatAllocation sa
+        WHERE sa.examSchedule.id IN :scheduleIds
+        """)
+    List<AdmitCardSeatAllocationProjection> findAdmitCardAllocationsByScheduleIds(
+        @Param("scheduleIds") Collection<Long> scheduleIds);
 
     // ── 14. Find allocations by room to build Room mode and OccpuiedBy ──
     @Query("""

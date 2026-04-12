@@ -5,11 +5,19 @@ import jakarta.transaction.Transactional;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;
+import org.springframework.data.repository.query.Param;
 
+import java.util.Collection;
+import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
 
 public interface SubjectRepository extends JpaRepository<Subject, Long> {
+
+    interface SubjectNameProjection {
+        Long getId();
+        String getName();
+    }
 
     @Query("SELECT s FROM Subject s WHERE s.uuid = :subjectId AND s.isActive = true")
     Optional<Subject> findActiveById(UUID subjectId);
@@ -35,4 +43,12 @@ public interface SubjectRepository extends JpaRepository<Subject, Long> {
             "FROM Subject s " +
             "WHERE s.subjectCode = :subjectCode AND s.isActive = true")
     boolean existsBySubjectCode(String subjectCode);
+
+    @Query("""
+            SELECT s.id AS id, s.name AS name
+            FROM Subject s
+            WHERE s.id IN :ids
+              AND s.isActive = true
+            """)
+    List<SubjectNameProjection> findActiveNamesByIds(@Param("ids") Collection<Long> ids);
 }

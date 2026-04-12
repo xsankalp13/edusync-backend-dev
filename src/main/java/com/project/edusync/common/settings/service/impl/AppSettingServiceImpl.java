@@ -34,12 +34,16 @@ public class AppSettingServiceImpl implements AppSettingService {
 
     private static final String MASKED_SECRET = "********";
     private static final String PUBLIC_CACHE_KEY = "public-whitelabel";
+    private static final String VALUE_CACHE_PREFIX = "value:";
 
     private final AppSettingRepository appSettingRepository;
     private final AppSettingCryptoService appSettingCryptoService;
 
     private final Cache<String, PublicWhitelabelSettingsResponseDto> publicWhitelabelCache =
             Caffeine.newBuilder().expireAfterWrite(Duration.ofSeconds(30)).build();
+
+    private final Cache<String, String> valueCache =
+            Caffeine.newBuilder().expireAfterWrite(Duration.ofMinutes(2)).maximumSize(1000).build();
 
     @Override
     @Transactional(readOnly = true)
@@ -144,11 +148,19 @@ public class AppSettingServiceImpl implements AppSettingService {
     @Override
     @Transactional(readOnly = true)
     public String getValue(String key, String defaultValue) {
-        return appSettingRepository.findById(key)
+        String cacheKey = VALUE_CACHE_PREFIX + key + "::" + defaultValue;
+        String cached = valueCache.getIfPresent(cacheKey);
+        if (cached != null) {
+            return cached;
+        }
+
+        String value = appSettingRepository.findById(key)
                 .map(setting -> setting.getType() == SettingType.ENCRYPTED
                         ? appSettingCryptoService.decryptFromStorage(setting.getValue())
                         : setting.getValue())
                 .orElse(defaultValue);
+        valueCache.put(cacheKey, value);
+        return value;
     }
 
     @Override
@@ -226,6 +238,7 @@ public class AppSettingServiceImpl implements AppSettingService {
     }
 
     private void invalidatePublicCachesIfNeeded(List<AppSettingRequestDto> requestDtos) {
+        valueCache.invalidateAll();
         boolean touchedPublic = requestDtos.stream().anyMatch(request ->
                 request.key().startsWith("feature.") || request.key().startsWith("school."));
         if (touchedPublic) {

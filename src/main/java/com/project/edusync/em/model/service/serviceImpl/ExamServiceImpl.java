@@ -100,6 +100,19 @@ public class ExamServiceImpl implements ExamService {
     }
 
     /**
+     * Publishes the timetable to students' dashboards.
+     */
+    @Override
+    public ExamResponseDTO publishTimetable(UUID uuid) {
+        Exam exam = findExamByUuid(uuid);
+        exam.setTimetablePublished(true);
+        // Also ensure the exam itself is published
+        exam.setPublished(true);
+        Exam saved = examRepository.save(exam);
+        return examMapper.toResponseDTO(saved);
+    }
+
+    /**
      * Deletes an exam if it has no schedules.
      */
     @Override

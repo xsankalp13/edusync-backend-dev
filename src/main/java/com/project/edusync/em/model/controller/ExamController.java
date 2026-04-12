@@ -52,6 +52,11 @@ public class ExamController {
         return ResponseEntity.ok(examService.publishExam(uuid, published));
     }
 
+    @PatchMapping("/{uuid}/publish-timetable")
+    public ResponseEntity<ExamResponseDTO> publishTimetable(@PathVariable UUID uuid) {
+        return ResponseEntity.ok(examService.publishTimetable(uuid));
+    }
+
     @DeleteMapping("/{uuid}")
     public ResponseEntity<Void> deleteExam(@PathVariable UUID uuid) {
         examService.deleteExam(uuid);

@@ -48,12 +48,18 @@ public class Exam extends AuditableEntity {
     @Column(name = "is_published", nullable = false)
     private Boolean published = false;
 
+    @Column(name = "timetable_published", nullable = false)
+    private Boolean timetablePublished = false;
+
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "template_id")
     private ExamTemplate template;
 
     public Boolean getPublished() { return published; }
     public void setPublished(Boolean published) { this.published = published; }
+
+    public Boolean getTimetablePublished() { return timetablePublished; }
+    public void setTimetablePublished(Boolean timetablePublished) { this.timetablePublished = timetablePublished; }
 
     // --- Relationships ---
 

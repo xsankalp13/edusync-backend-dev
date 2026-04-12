@@ -258,12 +258,17 @@ public class ExamScheduleServiceImpl implements ExamScheduleService {
         int maxStudentsPerSeat = dto.getMaxStudentsPerSeat() != null ? dto.getMaxStudentsPerSeat() : 1;
         entity.setMaxStudentsPerSeat(maxStudentsPerSeat);
         entity.setSeatSide(maxStudentsPerSeat == 2 ? dto.getSeatSide() : null);
+
+        long activeStudents = entity.getSection() != null
+                ? studentRepository.countBySection_IdAndIsActiveTrue(entity.getSection().getId())
+                : studentRepository.countBySection_AcademicClass_IdAndIsActiveTrue(entity.getAcademicClass().getId());
+        entity.setActiveStudentCount(Math.toIntExact(activeStudents));
     }
 
     private ExamScheduleResponseDTO mapEntityToResponse(ExamSchedule entity) {
-        long totalStudents = entity.getSection() != null
-                ? studentRepository.countBySectionId(entity.getSection().getId())
-                : studentRepository.countBySection_AcademicClass_Id(entity.getAcademicClass().getId());
+        long totalStudents = entity.getActiveStudentCount() != null
+                ? entity.getActiveStudentCount()
+                : 0;
 
         return ExamScheduleResponseDTO.builder()
                 .scheduleId(entity.getId())

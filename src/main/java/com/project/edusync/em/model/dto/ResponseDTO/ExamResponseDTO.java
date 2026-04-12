@@ -30,6 +30,7 @@ public class ExamResponseDTO {
     private UUID templateId;
     private String templateName;
     private boolean isPublished;
+    private boolean timetablePublished;
     private LocalDateTime createdAt;
     private LocalDateTime updatedAt;
     private String createdBy;

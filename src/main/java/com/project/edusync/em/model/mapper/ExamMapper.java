@@ -16,6 +16,7 @@ public interface ExamMapper {
 
     // Converts Entity -> DTO for responses
     @Mapping(target = "isPublished", source = "published") // Resolves boolean isPublished vs Boolean published mismatch
+    @Mapping(target = "timetablePublished", source = "timetablePublished")
     @Mapping(target = "templateId", source = "template.uuid")
     @Mapping(target = "templateName", source = "template.name")
     ExamResponseDTO toResponseDTO(Exam exam);

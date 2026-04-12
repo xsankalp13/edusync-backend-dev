@@ -21,5 +21,17 @@ public class AsyncExecutorConfig {
         executor.initialize();
         return executor;
     }
+
+    @Bean(name = "admitCardPdfExecutor")
+    public Executor admitCardPdfExecutor() {
+        ThreadPoolTaskExecutor executor = new ThreadPoolTaskExecutor();
+        executor.setCorePoolSize(4);
+        executor.setMaxPoolSize(12);
+        executor.setQueueCapacity(2000);
+        executor.setThreadNamePrefix("admit-pdf-");
+        executor.setRejectedExecutionHandler(new ThreadPoolExecutor.CallerRunsPolicy());
+        executor.initialize();
+        return executor;
+    }
 }
 

@@ -4,7 +4,6 @@ import com.project.edusync.adm.model.entity.AcademicClass;
 import com.project.edusync.adm.model.entity.Section;
 import com.project.edusync.adm.model.entity.Subject;
 import com.project.edusync.adm.model.entity.Timeslot;
-import com.project.edusync.em.model.entity.Exam;
 import com.project.edusync.em.model.entity.snapshot.TemplateSnapshot;
 import com.project.edusync.em.model.enums.SeatSide;
 import jakarta.persistence.*;
@@ -65,6 +64,9 @@ public class ExamSchedule {
 
     @Column(name = "max_students_per_seat", nullable = false)
     private Integer maxStudentsPerSeat = 1;
+
+    @Column(name = "active_student_count", nullable = false)
+    private Integer activeStudentCount = 0;
 
     @Enumerated(EnumType.STRING)
     @Column(name = "seat_side", length = 5)

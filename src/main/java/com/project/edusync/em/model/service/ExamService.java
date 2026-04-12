@@ -18,6 +18,8 @@ public interface ExamService {
 
     ExamResponseDTO publishExam(UUID uuid, Boolean published);
 
+    ExamResponseDTO publishTimetable(UUID uuid);
+
     void deleteExam(UUID uuid);
 
     List<ExamResponseDTO> getUpcomingExams();

@@ -16,6 +16,20 @@ import java.util.UUID;
 
 @Repository
 public interface ExamScheduleRepository extends JpaRepository<ExamSchedule , Long> {
+interface AdmitCardScheduleProjection {
+	Long getId();
+	Long getAcademicClassId();
+	String getAcademicClassName();
+	Long getSectionId();
+	String getSectionName();
+	Long getSubjectId();
+	String getSubjectName();
+	LocalDate getExamDate();
+	java.time.LocalTime getStartTime();
+	java.time.LocalTime getEndTime();
+	Integer getActiveStudentCount();
+}
+
 List<ExamSchedule> findByExamUuid (UUID examUuid);
 
 @Query("""
@@ -45,4 +59,41 @@ List<ExamSchedule> findUpcomingForSection(@Param("sectionId") Long sectionId,
 			ORDER BY es.examDate ASC, ts.startTime ASC
 			""")
 	java.util.List<ExamSchedule> findByExamIdWithDetails(@Param("examId") Long examId);
+
+	@Query("""
+			SELECT es.id AS id,
+			       ac.id AS academicClassId,
+			       ac.name AS academicClassName,
+			       sec.id AS sectionId,
+			       sec.sectionName AS sectionName,
+			       sub.id AS subjectId,
+			       sub.name AS subjectName,
+			       es.examDate AS examDate,
+			       ts.startTime AS startTime,
+			       ts.endTime AS endTime,
+			       es.activeStudentCount AS activeStudentCount
+			FROM ExamSchedule es
+			JOIN es.academicClass ac
+			JOIN es.subject sub
+			JOIN es.timeslot ts
+			LEFT JOIN es.section sec
+			WHERE es.exam.id = :examId
+			ORDER BY es.examDate ASC, ts.startTime ASC
+			""")
+	List<AdmitCardScheduleProjection> findAdmitCardSchedulesByExamId(@Param("examId") Long examId);
+
+	@Query("""
+			SELECT es.id, COUNT(DISTINCT st.id)
+			FROM ExamSchedule es
+			JOIN com.project.edusync.uis.model.entity.Student st
+			  ON st.isActive = true
+			 AND (
+			      (es.section IS NOT NULL AND st.section.id = es.section.id)
+			      OR
+			      (es.section IS NULL AND st.section.academicClass.id = es.academicClass.id)
+			 )
+			WHERE es.exam.id = :examId
+			GROUP BY es.id
+			""")
+	java.util.List<Object[]> countActiveStudentsPerSchedule(@Param("examId") Long examId);
 }

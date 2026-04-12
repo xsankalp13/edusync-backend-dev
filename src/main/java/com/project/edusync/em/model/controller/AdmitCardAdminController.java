@@ -1,7 +1,7 @@
 package com.project.edusync.em.model.controller;
 
 import com.project.edusync.em.model.dto.RequestDTO.AdmitCardGenerateRequestDTO;
-import com.project.edusync.em.model.dto.RequestDTO.AdmitCardPublishRequestDTO;
+import com.project.edusync.em.model.dto.ResponseDTO.AdmitCardGenerationProgressDTO;
 import com.project.edusync.em.model.dto.ResponseDTO.AdmitCardGenerationResponseDTO;
 import com.project.edusync.em.model.dto.ResponseDTO.ScheduleAdmitCardStatusDTO;
 import com.project.edusync.em.model.service.AdmitCardService;
@@ -14,7 +14,6 @@ import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
-import java.util.Collections;
 import java.util.UUID;
 
 @RestController
@@ -28,11 +27,8 @@ public class AdmitCardAdminController {
     @PostMapping("/generate")
     public ResponseEntity<AdmitCardGenerationResponseDTO> generate(@Valid @RequestBody AdmitCardGenerateRequestDTO requestDTO) {
         if (requestDTO.getScheduleId() != null) {
-            // Per-schedule generation
-            return ResponseEntity.ok(
-                    admitCardService.generateAdmitCardsForSchedule(requestDTO.getExamId(), requestDTO.getScheduleId()));
+            return ResponseEntity.ok(admitCardService.generateAdmitCardsForSchedule(requestDTO.getExamId(), requestDTO.getScheduleId()));
         }
-        // Legacy: generate for entire exam
         return ResponseEntity.ok(admitCardService.generateAdmitCards(requestDTO.getExamId()));
     }
 
@@ -40,8 +36,17 @@ public class AdmitCardAdminController {
     public ResponseEntity<AdmitCardGenerationResponseDTO> generateForSchedule(
             @Valid @RequestBody AdmitCardGenerateRequestDTO requestDTO,
             @PathVariable Long scheduleId) {
-        return ResponseEntity.ok(
-                admitCardService.generateAdmitCardsForSchedule(requestDTO.getExamId(), scheduleId));
+        return ResponseEntity.ok(admitCardService.generateAdmitCardsForSchedule(requestDTO.getExamId(), scheduleId));
+    }
+
+    @PostMapping("/generate-batch")
+    public ResponseEntity<byte[]> generateBatch(@Valid @RequestBody AdmitCardGenerateRequestDTO requestDTO) {
+        byte[] pdf = admitCardService.generateBatchAdmitCardsPdf(requestDTO.getExamId(), requestDTO.getScheduleId());
+        return ResponseEntity.ok()
+                .header(HttpHeaders.CONTENT_DISPOSITION,
+                        "attachment; filename=admit-cards-batch-" + requestDTO.getExamId() + ".pdf")
+                .contentType(MediaType.APPLICATION_PDF)
+                .body(pdf);
     }
 
     @GetMapping("/status/{examUuid}")
@@ -49,32 +54,8 @@ public class AdmitCardAdminController {
         return ResponseEntity.ok(admitCardService.getAdmitCardStatusByExam(examUuid));
     }
 
-    @PostMapping("/publish/{examUuid}")
-    public ResponseEntity<String> publish(@PathVariable UUID examUuid) {
-        int published = admitCardService.publishAdmitCards(examUuid);
-        return ResponseEntity.ok("Published admit cards: " + published);
-    }
-
-    @PostMapping("/publish/{examUuid}/schedule/{scheduleId}")
-    public ResponseEntity<String> publishForSchedule(@PathVariable UUID examUuid,
-                                                     @PathVariable Long scheduleId) {
-        int published = admitCardService.publishAdmitCardsForSchedules(examUuid, Collections.singletonList(scheduleId));
-        return ResponseEntity.ok("Published admit cards for schedule " + scheduleId + ": " + published);
-    }
-
-    @PostMapping("/publish/{examUuid}/schedules")
-    public ResponseEntity<String> publishForSchedules(@PathVariable UUID examUuid,
-                                                      @Valid @RequestBody AdmitCardPublishRequestDTO requestDTO) {
-        int published = admitCardService.publishAdmitCardsForSchedules(examUuid, requestDTO.getScheduleIds());
-        return ResponseEntity.ok("Published admit cards for selected schedules: " + published);
-    }
-
-    @GetMapping("/download/{examUuid}")
-    public ResponseEntity<byte[]> download(@PathVariable UUID examUuid) {
-        byte[] zip = admitCardService.downloadAdmitCardsZip(examUuid);
-        return ResponseEntity.ok()
-                .header(HttpHeaders.CONTENT_DISPOSITION, "attachment; filename=admit-cards-exam-" + examUuid + ".zip")
-                .contentType(MediaType.APPLICATION_OCTET_STREAM)
-                .body(zip);
+    @GetMapping("/status/{examUuid}/progress")
+    public ResponseEntity<AdmitCardGenerationProgressDTO> getProgress(@PathVariable UUID examUuid) {
+        return ResponseEntity.ok(admitCardService.getGenerationProgress(examUuid));
     }
 }

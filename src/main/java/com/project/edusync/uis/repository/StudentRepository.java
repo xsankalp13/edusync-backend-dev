@@ -14,6 +14,16 @@ import java.util.UUID;
 
 public interface StudentRepository extends JpaRepository<Student, Long> {
 
+    interface AdmitCardStudentProjection {
+        Long getId();
+        String getEnrollmentNumber();
+        Integer getRollNo();
+        String getFirstName();
+        String getLastName();
+        Long getSectionId();
+        Long getClassId();
+    }
+
     boolean existsByEnrollmentNumber(String enrollmentNumber);
 
     Optional<Student> findByEnrollmentNumber(String enrollmentNumber);
@@ -82,6 +92,8 @@ public interface StudentRepository extends JpaRepository<Student, Long> {
 
     long countBySection_AcademicClass_Id(Long classId);
 
+    long countBySection_AcademicClass_IdAndIsActiveTrue(Long classId);
+
     @Query("SELECT s FROM Student s WHERE s.section.academicClass.id = :classId")
     List<Student> findByAcademicClassId(@Param("classId") Long classId);
 
@@ -137,4 +149,61 @@ public interface StudentRepository extends JpaRepository<Student, Long> {
            "JOIN FETCH sec.academicClass ac " +
            "WHERE sec.uuid = :sectionUuid AND s.isActive = true")
     java.util.List<Student> findAllBySectionUuidWithDetails(@Param("sectionUuid") java.util.UUID sectionUuid);
+
+    @Query("""
+            SELECT s FROM Student s
+            JOIN FETCH s.userProfile up
+            JOIN FETCH s.section sec
+            JOIN FETCH sec.academicClass ac
+            WHERE s.isActive = true
+              AND sec.id IN :sectionIds
+            ORDER BY sec.id ASC, s.rollNo ASC
+            """)
+    List<Student> findActiveBySectionIdsWithProfile(@Param("sectionIds") List<Long> sectionIds);
+
+    @Query("""
+            SELECT s FROM Student s
+            JOIN FETCH s.userProfile up
+            JOIN FETCH s.section sec
+            JOIN FETCH sec.academicClass ac
+            WHERE s.isActive = true
+              AND ac.id IN :classIds
+            ORDER BY ac.id ASC, sec.id ASC, s.rollNo ASC
+            """)
+    List<Student> findActiveByClassIdsWithProfile(@Param("classIds") List<Long> classIds);
+
+    @Query("""
+            SELECT s.id AS id,
+                   s.enrollmentNumber AS enrollmentNumber,
+                   s.rollNo AS rollNo,
+                   up.firstName AS firstName,
+                   up.lastName AS lastName,
+                   sec.id AS sectionId,
+                   sec.academicClass.id AS classId
+            FROM Student s
+            JOIN s.userProfile up
+            JOIN s.section sec
+            WHERE s.isActive = true
+              AND sec.id IN :sectionIds
+            ORDER BY sec.id ASC, s.rollNo ASC
+            """)
+    List<AdmitCardStudentProjection> findActiveAdmitCardStudentsBySectionIds(@Param("sectionIds") List<Long> sectionIds);
+
+    @Query("""
+            SELECT s.id AS id,
+                   s.enrollmentNumber AS enrollmentNumber,
+                   s.rollNo AS rollNo,
+                   up.firstName AS firstName,
+                   up.lastName AS lastName,
+                   sec.id AS sectionId,
+                   ac.id AS classId
+            FROM Student s
+            JOIN s.userProfile up
+            JOIN s.section sec
+            JOIN sec.academicClass ac
+            WHERE s.isActive = true
+              AND ac.id IN :classIds
+            ORDER BY ac.id ASC, sec.id ASC, s.rollNo ASC
+            """)
+    List<AdmitCardStudentProjection> findActiveAdmitCardStudentsByClassIds(@Param("classIds") List<Long> classIds);
 }
