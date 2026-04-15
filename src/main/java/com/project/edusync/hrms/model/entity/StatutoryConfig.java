@@ -2,7 +2,6 @@ package com.project.edusync.hrms.model.entity;
 
 import com.project.edusync.common.model.AuditableEntity;
 import com.project.edusync.hrms.dto.statutory.PtSlabDTO;
-import com.project.edusync.hrms.model.entity.converter.PtSlabListConverter;
 import jakarta.persistence.*;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
@@ -54,7 +53,7 @@ public class StatutoryConfig extends AuditableEntity {
     @Column(name = "pt_state", length = 40)
     private String ptState;
 
-    @Convert(converter = PtSlabListConverter.class)
+    @org.hibernate.annotations.JdbcTypeCode(org.hibernate.type.SqlTypes.JSON)
     @Column(name = "pt_slabs", columnDefinition = "jsonb")
     private List<PtSlabDTO> ptSlabs;
 

@@ -1,8 +1,7 @@
 package com.project.edusync.hrms.model.enums;
 
-public enum TaskRecordStatus {
+public enum PromotionStatus {
     PENDING,
-    COMPLETED,
-    SKIPPED
+    APPROVED,
+    REJECTED
 }
-
