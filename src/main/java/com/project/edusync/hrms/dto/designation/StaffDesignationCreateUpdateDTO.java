@@ -10,7 +10,9 @@ public record StaffDesignationCreateUpdateDTO(
         @NotBlank @Size(max = 100) String designationName,
         @NotNull StaffCategory category,
         @Size(max = 500) String description,
-        Integer sortOrder
+        Integer sortOrder,
+        String defaultSalaryTemplateRef,
+        String defaultGradeRef
 ) {
 }
 

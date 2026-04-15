@@ -10,6 +10,7 @@ public record PayrollPreflightDTO(
         int month,
         int year,
         boolean canProcess,
+        boolean alreadyProcessed,          // run already exists for this period
         List<PayrollBlockerDTO> blockers,
         List<PayrollWarningDTO> warnings,
         PayrollPreflightSummaryDTO summary
