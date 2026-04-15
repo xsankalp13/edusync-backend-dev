@@ -13,6 +13,11 @@ public record StaffDesignationResponseDTO(
         String description,
         Integer sortOrder,
         boolean active,
+        Long defaultSalaryTemplateId,
+        String defaultSalaryTemplateName,
+        Long defaultGradeId,
+        String defaultGradeCode,
+        String defaultGradeName,
         LocalDateTime createdAt,
         LocalDateTime updatedAt
 ) {
