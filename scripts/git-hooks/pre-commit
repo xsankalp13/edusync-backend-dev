@@ -1,0 +1,15 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+ROOT_DIR="$(cd "$(dirname "$0")/../.." && pwd)"
+cd "$ROOT_DIR"
+
+# Basic pre-commit checks: run a fast Maven validate
+if command -v mvn >/dev/null 2>&1; then
+  echo "[pre-commit] Running quick maven verify (skip tests)"
+  ./mvnw -q -DskipTests=true -Dspotless.check || ./mvnw -q -DskipTests=true verify
+else
+  echo "[pre-commit] mvn not found; skipping JVM checks"
+fi
+
+exit 0
