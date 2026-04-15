@@ -5,6 +5,7 @@ on:
     branches: [ main, master, develop ]
   pull_request:
     branches: [ main, master, develop ]
+  workflow_dispatch: {}
 
 jobs:
   build:
@@ -59,4 +60,5 @@ jobs:
           VALIDATE_SHELL: true
           VALIDATE_MARKDOWN: true
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
 
