@@ -147,7 +147,11 @@ public class StatutoryServiceImpl {
 
     @Transactional(readOnly = true)
     public Form16DataDTO getForm16Data(String financialYear) {
-        List<Object[]> rows = payslipRepo.findAnnualSummaryByFinancialYear(financialYear);
+        // financialYear format: "2025-2026"
+        String[] parts = financialYear.split("-");
+        int fromYear = Integer.parseInt(parts[0].trim());
+        int toYear = parts.length > 1 ? Integer.parseInt(parts[1].trim()) : fromYear + 1;
+        List<Object[]> rows = payslipRepo.findAnnualSummaryByFinancialYear(fromYear, toYear);
         List<Form16DataDTO.Form16Row> reportRows = rows.stream().map(r ->
                 new Form16DataDTO.Form16Row((String) r[0], (String) r[1], toBd(r[2]), toBd(r[3]),
                         new BigDecimal("50000"), toBd(r[2]).subtract(new BigDecimal("50000")).max(BigDecimal.ZERO)))
@@ -177,4 +181,5 @@ public class StatutoryServiceImpl {
     private BigDecimal nvl(BigDecimal v) { return v != null ? v : BigDecimal.ZERO; }
     private BigDecimal toBd(Object v) { return v instanceof BigDecimal bd ? bd : v instanceof Number n ? BigDecimal.valueOf(n.doubleValue()) : BigDecimal.ZERO; }
 }
+
 

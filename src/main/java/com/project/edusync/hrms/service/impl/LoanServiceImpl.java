@@ -2,7 +2,9 @@ package com.project.edusync.hrms.service.impl;
 
 import com.project.edusync.common.exception.EdusyncException;
 import com.project.edusync.common.exception.ResourceNotFoundException;
+import com.project.edusync.common.settings.service.AppSettingService;
 import com.project.edusync.common.utils.PublicIdentifierResolver;
+import com.project.edusync.finance.service.PdfGenerationService;
 import com.project.edusync.hrms.dto.loan.LoanDTOs.*;
 import com.project.edusync.hrms.model.entity.*;
 import com.project.edusync.hrms.model.enums.LoanStatus;
@@ -16,9 +18,12 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
+import java.math.RoundingMode;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.UUID;
 
 @Service("loanService")
@@ -28,6 +33,8 @@ public class LoanServiceImpl {
     private final StaffLoanRepository loanRepo;
     private final LoanRepaymentRecordRepository repaymentRepo;
     private final StaffRepository staffRepository;
+    private final PdfGenerationService pdfGenerationService;
+    private final AppSettingService appSettingService;
 
     @Transactional
     public LoanResponseDTO applyLoan(LoanApplicationDTO dto) {
@@ -37,7 +44,7 @@ public class LoanServiceImpl {
         loan.setLoanType(dto.loanType());
         loan.setPrincipalAmount(dto.principalAmount());
         loan.setEmiCount(dto.emiCount());
-        loan.setInterestRate(BigDecimal.ZERO);
+        loan.setInterestRate(dto.interestRate() != null ? dto.interestRate() : BigDecimal.ZERO);
         loan.setStatus(LoanStatus.PENDING);
         loan.setRemarks(dto.reason());
         return toLoanResponse(loanRepo.save(loan));
@@ -118,8 +125,52 @@ public class LoanServiceImpl {
         return new LoanSummaryDTO(staff.getUuid(), name, totalPrincipal, totalRepaid, outstanding, loans.size(), null, null);
     }
 
+    @Transactional(readOnly = true)
+    public byte[] getLoanDocumentPdf(UUID loanUuid) {
+        StaffLoan loan = findLoan(loanUuid);
+        List<RepaymentDTO> repayments = listRepayments(loanUuid);
+
+        BigDecimal totalRepayable = repayments.stream()
+                .map(RepaymentDTO::amount)
+                .reduce(BigDecimal.ZERO, BigDecimal::add);
+
+        long paidCount = repayments.stream()
+                .filter(r -> r.status() == RepaymentStatus.DEDUCTED || r.status() == RepaymentStatus.MANUAL)
+                .count();
+
+        Map<String, Object> data = new HashMap<>();
+        data.put("loan", toLoanResponse(loan));
+        data.put("repayments", repayments);
+        data.put("totalRepayable", totalRepayable);
+        data.put("paidCount", paidCount);
+        data.put("generatedAt", LocalDateTime.now());
+        data.put("schoolName", appSettingService.getValue("school.name", "Institution"));
+        data.put("schoolAddress", appSettingService.getValue("school.address", ""));
+        data.put("schoolPhone", appSettingService.getValue("school.phone", ""));
+
+        return pdfGenerationService.generatePdfFromHtml("hrms/loan-sanction-letter", data);
+    }
+
     private void scheduleRepayments(StaffLoan loan) {
-        if (loan.getEmiCount() == null || loan.getEmiAmount() == null || loan.getDisbursedAt() == null) return;
+        if (loan.getEmiCount() == null || loan.getDisbursedAt() == null) return;
+        // If emiAmount not already set, compute via PMT formula
+        if (loan.getEmiAmount() == null || loan.getEmiAmount().compareTo(BigDecimal.ZERO) == 0) {
+            BigDecimal principal = loan.getApprovedAmount() != null ? loan.getApprovedAmount() : loan.getPrincipalAmount();
+            BigDecimal annualRate = loan.getInterestRate();
+            BigDecimal emi;
+            if (annualRate != null && annualRate.compareTo(BigDecimal.ZERO) > 0) {
+                // PMT formula: EMI = P * r * (1+r)^n / ((1+r)^n - 1), r = monthly rate
+                double r = annualRate.doubleValue() / 100.0 / 12.0;
+                int n = loan.getEmiCount();
+                double pow = Math.pow(1 + r, n);
+                double emiD = principal.doubleValue() * r * pow / (pow - 1);
+                emi = BigDecimal.valueOf(emiD).setScale(2, RoundingMode.HALF_UP);
+            } else {
+                // Zero-interest: simple division
+                emi = principal.divide(BigDecimal.valueOf(loan.getEmiCount()), 2, RoundingMode.HALF_UP);
+            }
+            loan.setEmiAmount(emi);
+        }
         for (int i = 1; i <= loan.getEmiCount(); i++) {
             LoanRepaymentRecord r = new LoanRepaymentRecord();
             r.setLoan(loan);

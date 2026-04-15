@@ -6,7 +6,11 @@ import com.project.edusync.common.utils.PublicIdentifierResolver;
 import com.project.edusync.hrms.dto.designation.StaffDesignationCreateUpdateDTO;
 import com.project.edusync.hrms.dto.designation.StaffDesignationResponseDTO;
 import com.project.edusync.hrms.model.entity.StaffDesignation;
+import com.project.edusync.hrms.repository.SalaryTemplateRepository;
 import com.project.edusync.hrms.repository.StaffDesignationRepository;
+import com.project.edusync.hrms.repository.StaffGradeRepository;
+import com.project.edusync.hrms.model.entity.SalaryTemplate;
+import com.project.edusync.hrms.model.entity.StaffGrade;
 import com.project.edusync.hrms.service.StaffDesignationService;
 import com.project.edusync.uis.model.enums.StaffCategory;
 import com.project.edusync.uis.repository.StaffRepository;
@@ -23,6 +27,8 @@ public class StaffDesignationServiceImpl implements StaffDesignationService {
 
     private final StaffDesignationRepository staffDesignationRepository;
     private final StaffRepository staffRepository;
+    private final SalaryTemplateRepository salaryTemplateRepository;
+    private final StaffGradeRepository staffGradeRepository;
 
     @Override
     @Transactional(readOnly = true)
@@ -138,6 +144,30 @@ public class StaffDesignationServiceImpl implements StaffDesignationService {
         designation.setCategory(dto.category());
         designation.setDescription(dto.description());
         designation.setSortOrder(dto.sortOrder() == null ? 0 : dto.sortOrder());
+
+        if (dto.defaultSalaryTemplateRef() != null && !dto.defaultSalaryTemplateRef().isBlank()) {
+            SalaryTemplate template = PublicIdentifierResolver.resolve(
+                    dto.defaultSalaryTemplateRef(),
+                    salaryTemplateRepository::findByUuid,
+                    salaryTemplateRepository::findById,
+                    "Salary template"
+            );
+            designation.setDefaultSalaryTemplate(template);
+        } else {
+            designation.setDefaultSalaryTemplate(null);
+        }
+
+        if (dto.defaultGradeRef() != null && !dto.defaultGradeRef().isBlank()) {
+            StaffGrade grade = PublicIdentifierResolver.resolve(
+                    dto.defaultGradeRef(),
+                    staffGradeRepository::findByUuid,
+                    staffGradeRepository::findById,
+                    "Staff grade"
+            );
+            designation.setDefaultGrade(grade);
+        } else {
+            designation.setDefaultGrade(null);
+        }
     }
 
     private String normalizeCode(String code) {
@@ -154,6 +184,11 @@ public class StaffDesignationServiceImpl implements StaffDesignationService {
                 designation.getDescription(),
                 designation.getSortOrder(),
                 designation.isActive(),
+                designation.getDefaultSalaryTemplate() != null ? designation.getDefaultSalaryTemplate().getId() : null,
+                designation.getDefaultSalaryTemplate() != null ? designation.getDefaultSalaryTemplate().getTemplateName() : null,
+                designation.getDefaultGrade() != null ? designation.getDefaultGrade().getId() : null,
+                designation.getDefaultGrade() != null ? designation.getDefaultGrade().getGradeCode() : null,
+                designation.getDefaultGrade() != null ? designation.getDefaultGrade().getGradeName() : null,
                 designation.getCreatedAt(),
                 designation.getUpdatedAt()
         );

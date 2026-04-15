@@ -2,9 +2,14 @@ package com.project.edusync.hrms.service.impl;
 
 import com.project.edusync.common.exception.EdusyncException;
 import com.project.edusync.common.exception.ResourceNotFoundException;
+import com.project.edusync.common.settings.service.AppSettingService;
 import com.project.edusync.common.utils.PublicIdentifierResolver;
+import com.project.edusync.ams.model.dto.request.StaffAttendanceRequestDTO;
 import com.project.edusync.ams.model.dto.response.AttendanceCompletionDTO;
+import com.project.edusync.ams.model.enums.AttendanceSource;
 import com.project.edusync.ams.model.service.StaffAttendanceService;
+import com.project.edusync.hrms.dto.payroll.BankAdviceStaffEntryDTO;
+import com.project.edusync.hrms.dto.payroll.BankSalaryAdviceDTO;
 import com.project.edusync.hrms.dto.payroll.PayrollPreflightDTO;
 import com.project.edusync.hrms.dto.payroll.PayrollRunCreateDTO;
 import com.project.edusync.hrms.dto.payroll.PayrollRunEntryResponseDTO;
@@ -27,6 +32,12 @@ import com.project.edusync.hrms.model.enums.PayrollRunStatus;
 import com.project.edusync.hrms.model.enums.LeaveApplicationStatus;
 import com.project.edusync.hrms.model.enums.DayType;
 import com.project.edusync.hrms.model.enums.SalaryComponentType;
+import com.project.edusync.hrms.model.entity.LoanRepaymentRecord;
+import com.project.edusync.hrms.model.entity.StaffLoan;
+import com.project.edusync.hrms.model.enums.LoanStatus;
+import com.project.edusync.hrms.model.enums.RepaymentStatus;
+import com.project.edusync.hrms.repository.LoanRepaymentRecordRepository;
+import com.project.edusync.hrms.repository.StaffLoanRepository;
 import com.project.edusync.ams.model.entity.StaffDailyAttendance;
 import com.project.edusync.hrms.repository.AcademicCalendarEventRepository;
 import com.project.edusync.hrms.repository.LeaveApplicationRepository;
@@ -41,7 +52,9 @@ import com.project.edusync.finance.service.PdfGenerationService;
 import com.project.edusync.common.security.AuthUtil;
 import com.project.edusync.ams.model.repository.StaffDailyAttendanceRepository;
 import com.project.edusync.uis.model.entity.Staff;
+import com.project.edusync.uis.model.entity.StaffSensitiveInfo;
 import com.project.edusync.uis.repository.StaffRepository;
+import com.project.edusync.uis.repository.StaffSensitiveInfoRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.data.domain.Page;
@@ -56,14 +69,16 @@ import java.time.LocalDateTime;
 import java.time.DayOfWeek;
 import java.time.Month;
 import java.time.YearMonth;
+import java.time.format.TextStyle;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.HashSet;
-import java.util.Map;
-import java.math.RoundingMode;
 import java.util.Locale;
+import java.util.Map;
+import java.util.TreeMap;
+import java.math.RoundingMode;
 import java.util.Set;
 
 @Service
@@ -87,6 +102,13 @@ public class PayrollServiceImpl implements PayrollService {
     private final StaffRepository staffRepository;
     private final StaffDailyAttendanceRepository staffDailyAttendanceRepository;
     private final StaffAttendanceService staffAttendanceService;
+    private final StaffLoanRepository loanRepository;
+    private final LoanRepaymentRecordRepository loanRepaymentRepository;
+    private final StaffSensitiveInfoRepository staffSensitiveInfoRepository;
+    private final AppSettingService appSettingService;
+
+    @org.springframework.beans.factory.annotation.Autowired
+    private com.project.edusync.hrms.repository.OvertimeRecordRepository overtimeRecordRepository;
 
     @Value("${app.hrms.payroll.attendance.partial-mark-policy:TREAT_UNMARKED_AS_ABSENT}")
     private String partialMarkPolicy;
@@ -157,7 +179,45 @@ public class PayrollServiceImpl implements PayrollService {
                         .setScale(2, RoundingMode.HALF_UP);
             }
             BigDecimal adjustedDeductions = computed.totalDeductions().add(lopDeduction).setScale(2, RoundingMode.HALF_UP);
-            BigDecimal adjustedNet = computed.grossPay().subtract(adjustedDeductions).setScale(2, RoundingMode.HALF_UP);
+
+            // Deduct scheduled loan EMIs due this month
+            BigDecimal loanEmiDeduction = deductLoanEmis(mapping.getStaff().getId(), savedRun.getUuid(), rangeStart);
+            adjustedDeductions = adjustedDeductions.add(loanEmiDeduction).setScale(2, RoundingMode.HALF_UP);
+
+            // Add Cash Overtime
+            List<com.project.edusync.hrms.model.entity.OvertimeRecord> unprocessedOts = overtimeRecordRepository.findByStaff_IdAndStatusAndCompensationTypeAndWorkDateBetweenAndActiveTrue(
+                    mapping.getStaff().getId(),
+                    com.project.edusync.hrms.model.enums.OvertimeStatus.APPROVED,
+                    "CASH",
+                    rangeStart,
+                    rangeEnd
+            );
+
+            BigDecimal totalOtEarning = BigDecimal.ZERO;
+            for (com.project.edusync.hrms.model.entity.OvertimeRecord ot : unprocessedOts) {
+                if (ot.getApprovedAmount() != null) {
+                    totalOtEarning = totalOtEarning.add(ot.getApprovedAmount());
+                }
+                ot.setStatus(com.project.edusync.hrms.model.enums.OvertimeStatus.CONVERTED);
+                ot.setPayrollRunRef(savedRun.getUuid());
+                overtimeRecordRepository.save(ot);
+            }
+
+            BigDecimal adjustedGrossPay = computed.grossPay().add(totalOtEarning).setScale(2, RoundingMode.HALF_UP);
+            BigDecimal adjustedNet = adjustedGrossPay.subtract(adjustedDeductions).setScale(2, RoundingMode.HALF_UP);
+
+            // We need to inject the Overtime component into the earnings list for display
+            List<ComputedComponentDTO> augmentedEarnings = new ArrayList<>(computed.earnings());
+            if (totalOtEarning.compareTo(BigDecimal.ZERO) > 0) {
+                augmentedEarnings.add(new ComputedComponentDTO(
+                        "OVERTIME_PAY",
+                        "Overtime Payout",
+                        "FLAT",
+                        totalOtEarning,
+                        totalOtEarning,
+                        false
+                ));
+            }
 
             AttendanceMetrics attendanceMetrics = resolveAttendanceMetrics(
                     mapping.getStaff().getId(),
@@ -173,7 +233,7 @@ public class PayrollServiceImpl implements PayrollService {
             entry.setPayrollRun(savedRun);
             entry.setStaff(mapping.getStaff());
             entry.setMapping(mapping);
-            entry.setGrossPay(computed.grossPay());
+            entry.setGrossPay(adjustedGrossPay);
             entry.setTotalDeductions(adjustedDeductions);
             entry.setNetPay(adjustedNet);
             entry.setRemarks(mapping.getRemarks());
@@ -189,14 +249,26 @@ public class PayrollServiceImpl implements PayrollService {
                     presentDays,
                     absentDays,
                     lopDays,
+                    adjustedGrossPay,
                     adjustedDeductions,
                     adjustedNet
             );
             Payslip savedPayslip = payslipRepository.save(payslip);
-            saveLineItems(savedPayslip, computed.earnings(), SalaryComponentType.EARNING);
+            saveLineItems(savedPayslip, augmentedEarnings, SalaryComponentType.EARNING);
             saveLineItems(savedPayslip, computed.deductions(), SalaryComponentType.DEDUCTION);
 
-            totalGross = totalGross.add(computed.grossPay());
+            // Save loan EMI deductions as a payslip line item so they appear on payslips/bank advice
+            if (loanEmiDeduction.compareTo(BigDecimal.ZERO) > 0) {
+                PayslipLineItem loanLine = new PayslipLineItem();
+                loanLine.setPayslip(savedPayslip);
+                loanLine.setComponentCode("LOAN_EMI");
+                loanLine.setComponentName("Loan EMI");
+                loanLine.setType(SalaryComponentType.DEDUCTION);
+                loanLine.setAmount(loanEmiDeduction);
+                payslipLineItemRepository.save(loanLine);
+            }
+
+            totalGross = totalGross.add(adjustedGrossPay);
             totalDeductions = totalDeductions.add(adjustedDeductions);
             totalNet = totalNet.add(adjustedNet);
         }
@@ -474,23 +546,62 @@ public class PayrollServiceImpl implements PayrollService {
                     .build());
         }
 
-        int pendingLeaves = (int) leaveApplicationRepository.countByActiveTrueAndStatus(LeaveApplicationStatus.PENDING);
-        List<PayrollPreflightDTO.PayrollWarningDTO> warnings = pendingLeaves > 0
-                ? List.of(PayrollPreflightDTO.PayrollWarningDTO.builder()
-                .type("PENDING_LEAVE_APPLICATIONS")
-                .message(pendingLeaves + " leave applications are still pending approval")
-                .count(pendingLeaves)
-                .build())
-                : List.of();
-
+        // Check for unmapped staff (no salary template assigned)
         LocalDate snapshotDate = YearMonth.of(year, month).atEndOfMonth();
         long totalStaff = staffRepository.countByIsActiveTrue();
         long withSalary = staffSalaryMappingRepository.countDistinctStaffWithActiveMappingOnDate(snapshotDate, LocalDate.of(9999, 12, 31));
+        long unmappedCount = Math.max(totalStaff - withSalary, 0);
+        if (unmappedCount > 0) {
+            blockers.add(PayrollPreflightDTO.PayrollBlockerDTO.builder()
+                    .type("UNMAPPED_STAFF")
+                    .message(unmappedCount + " staff member(s) have no salary template assigned")
+                    .details(Map.of("unmappedCount", unmappedCount))
+                    .build());
+        }
+
+        // Check duplicate run
+        boolean alreadyProcessed = payrollRunRepository.existsByPayYearAndPayMonthAndActiveTrue(year, month);
+        if (alreadyProcessed) {
+            blockers.add(PayrollPreflightDTO.PayrollBlockerDTO.builder()
+                    .type("DUPLICATE_RUN")
+                    .message("A payroll run already exists for this period")
+                    .details(Map.of())
+                    .build());
+        }
+
+        int pendingLeaves = (int) leaveApplicationRepository.countByActiveTrueAndStatus(LeaveApplicationStatus.PENDING);
+
+        // Check for staff with active salary mappings who are missing bank details
+        List<Long> mappedStaffIds = staffSalaryMappingRepository.findCurrentMappedStaffIds(LocalDate.now());
+        long missingBankDetails = mappedStaffIds.stream()
+                .filter(staffId -> {
+                    var info = staffSensitiveInfoRepository.findByStaff_Id(staffId).orElse(null);
+                    return info == null
+                            || info.getBankAccountNumber() == null || info.getBankAccountNumber().isBlank()
+                            || info.getBankIfscCode() == null || info.getBankIfscCode().isBlank();
+                })
+                .count();
+
+        List<PayrollPreflightDTO.PayrollWarningDTO> warnings = new java.util.ArrayList<>();
+        if (pendingLeaves > 0) {
+            warnings.add(PayrollPreflightDTO.PayrollWarningDTO.builder()
+                    .type("PENDING_LEAVE_APPLICATIONS")
+                    .message(pendingLeaves + " leave applications are still pending approval")
+                    .count(pendingLeaves)
+                    .build());
+        }
+        if (missingBankDetails > 0) {
+            warnings.add(PayrollPreflightDTO.PayrollWarningDTO.builder()
+                    .type("MISSING_BANK_DETAILS")
+                    .message(missingBankDetails + " staff member(s) are missing bank account or IFSC details")
+                    .count((int) missingBankDetails)
+                    .build());
+        }
 
         PayrollPreflightDTO.PayrollPreflightSummaryDTO summary = PayrollPreflightDTO.PayrollPreflightSummaryDTO.builder()
                 .totalStaff(totalStaff)
                 .staffWithSalaryMapping(withSalary)
-                .staffWithoutSalaryMapping(Math.max(totalStaff - withSalary, 0))
+                .staffWithoutSalaryMapping(unmappedCount)
                 .totalApprovedLeaves(leaveApplicationRepository.countByActiveTrueAndStatus(LeaveApplicationStatus.APPROVED))
                 .totalLopDays(0)
                 .attendanceCompletionPercent(completion.completionPercentage())
@@ -499,7 +610,8 @@ public class PayrollServiceImpl implements PayrollService {
         return PayrollPreflightDTO.builder()
                 .month(month)
                 .year(year)
-                .canProcess(attendanceComplete)
+                .canProcess(attendanceComplete && !alreadyProcessed && unmappedCount == 0)
+                .alreadyProcessed(alreadyProcessed)
                 .blockers(blockers)
                 .warnings(warnings)
                 .summary(summary)
@@ -726,6 +838,7 @@ public class PayrollServiceImpl implements PayrollService {
             int presentDays,
             int absentDays,
             BigDecimal lopDays,
+            BigDecimal adjustedGrossPay,
             BigDecimal adjustedDeductions,
             BigDecimal adjustedNet
     ) {
@@ -738,7 +851,7 @@ public class PayrollServiceImpl implements PayrollService {
         payslip.setDaysAbsent(absentDays);
         payslip.setDaysPresent(presentDays);
         payslip.setLopDays(lopDays.setScale(2, RoundingMode.HALF_UP));
-        payslip.setGrossPay(computed.grossPay());
+        payslip.setGrossPay(adjustedGrossPay);
         payslip.setTotalDeductions(adjustedDeductions);
         payslip.setNetPay(adjustedNet);
         payslip.setStatus(run.getStatus());
@@ -756,6 +869,50 @@ public class PayrollServiceImpl implements PayrollService {
             lineItem.setAmount(component.computedAmount());
             payslipLineItemRepository.save(lineItem);
         }
+    }
+
+    private BigDecimal deductLoanEmis(Long staffId, java.util.UUID payrollRunRef, LocalDate monthStart) {
+        List<StaffLoan> activeLoans = loanRepository.findByStaff_IdAndStatusIn(
+                staffId,
+                List.of(LoanStatus.ACTIVE, LoanStatus.DISBURSED)
+        );
+        if (activeLoans.isEmpty()) {
+            return BigDecimal.ZERO;
+        }
+
+        YearMonth targetMonth = YearMonth.from(monthStart);
+        BigDecimal total = BigDecimal.ZERO;
+
+        for (StaffLoan loan : activeLoans) {
+            List<LoanRepaymentRecord> scheduled = loanRepaymentRepository.findByLoan_IdAndStatus(
+                    loan.getId(),
+                    RepaymentStatus.SCHEDULED
+            );
+
+            for (LoanRepaymentRecord repayment : scheduled) {
+                if (repayment.getDueDate() == null || !YearMonth.from(repayment.getDueDate()).equals(targetMonth)) {
+                    continue;
+                }
+                repayment.setStatus(RepaymentStatus.DEDUCTED);
+                repayment.setPaidDate(monthStart.withDayOfMonth(monthStart.lengthOfMonth()));
+                repayment.setPayrollRunRef(payrollRunRef);
+                loanRepaymentRepository.save(repayment);
+
+                total = total.add(repayment.getAmount() != null ? repayment.getAmount() : BigDecimal.ZERO);
+
+                if (loan.getRemainingEmis() != null && loan.getRemainingEmis() > 0) {
+                    loan.setRemainingEmis(loan.getRemainingEmis() - 1);
+                }
+            }
+
+            if (loan.getRemainingEmis() != null && loan.getRemainingEmis() <= 0) {
+                loan.setRemainingEmis(0);
+                loan.setStatus(LoanStatus.CLOSED);
+            }
+            loanRepository.save(loan);
+        }
+
+        return total.setScale(2, RoundingMode.HALF_UP);
     }
 
     private void updatePayslipStatusByRun(Long runId, PayrollRunStatus status) {
@@ -867,6 +1024,265 @@ public class PayrollServiceImpl implements PayrollService {
         return staffRepository.findByUserProfile_User_Id(currentUserId)
                 .orElseThrow(() -> new EdusyncException("Authenticated user is not linked to a staff profile", HttpStatus.FORBIDDEN))
                 .getId();
+    }
+
+    // ── Bank Salary Advice ────────────────────────────────────────────────────
+
+    @Override
+    @Transactional(readOnly = true)
+    public BankSalaryAdviceDTO getBankSalaryAdvice(String runIdentifier) {
+        PayrollRun run = findActiveRunByIdentifier(runIdentifier);
+
+        if (run.getStatus() == PayrollRunStatus.PROCESSED) {
+            throw new EdusyncException(
+                    "Bank Salary Advice is only available after the payroll run is APPROVED or DISBURSED.",
+                    HttpStatus.UNPROCESSABLE_ENTITY);
+        }
+
+        List<Payslip> payslips = payslipRepository.findByPayrollRun_IdAndActiveTrue(run.getId());
+        payslips.sort(java.util.Comparator.comparing(p -> p.getStaff().getEmployeeId()));
+
+        // Deduction aggregate map: code → (name, running total)
+        Map<String, BigDecimal> deductionTotalsMap = new TreeMap<>();
+        Map<String, String> deductionNameMap = new LinkedHashMap<>();
+
+        BigDecimal totalGross = BigDecimal.ZERO;
+        BigDecimal totalDeductions = BigDecimal.ZERO;
+        BigDecimal totalNet = BigDecimal.ZERO;
+
+        List<BankAdviceStaffEntryDTO> entries = new ArrayList<>();
+        int serial = 1;
+
+        for (Payslip payslip : payslips) {
+            Staff staff = payslip.getStaff();
+            StaffSensitiveInfo sensitive = staffSensitiveInfoRepository
+                    .findByStaff_Id(staff.getId())
+                    .orElse(null);
+
+            String bankName = sensitive != null ? sensitive.getBankName() : null;
+            String accountNumber = sensitive != null ? sensitive.getBankAccountNumber() : null;
+            String ifscCode = sensitive != null ? sensitive.getBankIfscCode() : null;
+
+            List<PayslipLineItemDTO> allItems = payslipLineItemRepository
+                    .findByPayslip_IdAndActiveTrueOrderByIdAsc(payslip.getId())
+                    .stream()
+                    .map(item -> new PayslipLineItemDTO(
+                            item.getComponentCode(),
+                            item.getComponentName(),
+                            item.getType().name(),
+                            item.getAmount()))
+                    .toList();
+
+            List<PayslipLineItemDTO> earningLines = allItems.stream()
+                    .filter(i -> "EARNING".equals(i.type()))
+                    .toList();
+            List<PayslipLineItemDTO> deductionLines = allItems.stream()
+                    .filter(i -> "DEDUCTION".equals(i.type()))
+                    .toList();
+
+            // Accumulate deduction component totals for annexure
+            for (PayslipLineItemDTO line : deductionLines) {
+                deductionTotalsMap.merge(line.componentCode(), line.amount(), BigDecimal::add);
+                deductionNameMap.putIfAbsent(line.componentCode(), line.componentName());
+            }
+
+            String designation = staff.getDesignation() != null
+                    ? staff.getDesignation().getDesignationName()
+                    : staff.getJobTitle();
+            String department = staff.getDepartment() != null
+                    ? staff.getDepartment().name()
+                    : null;
+
+            entries.add(new BankAdviceStaffEntryDTO(
+                    serial++,
+                    staff.getEmployeeId(),
+                    staffFullName(staff),
+                    designation,
+                    department,
+                    bankName,
+                    accountNumber,
+                    ifscCode,
+                    payslip.getGrossPay(),
+                    payslip.getTotalDeductions(),
+                    payslip.getNetPay(),
+                    earningLines,
+                    deductionLines
+            ));
+
+            totalGross = totalGross.add(payslip.getGrossPay());
+            totalDeductions = totalDeductions.add(payslip.getTotalDeductions());
+            totalNet = totalNet.add(payslip.getNetPay());
+        }
+
+        List<BankSalaryAdviceDTO.DeductionAggregateLine> deductionAggregates = deductionTotalsMap.entrySet()
+                .stream()
+                .map(e -> new BankSalaryAdviceDTO.DeductionAggregateLine(
+                        e.getKey(),
+                        deductionNameMap.getOrDefault(e.getKey(), e.getKey()),
+                        e.getValue()))
+                .toList();
+
+        String payPeriodLabel = Month.of(run.getPayMonth()).getDisplayName(TextStyle.FULL, Locale.ENGLISH)
+                + " " + run.getPayYear();
+
+        return new BankSalaryAdviceDTO(
+                runIdentifier,
+                run.getPayMonth(),
+                run.getPayYear(),
+                payPeriodLabel,
+                LocalDateTime.now(),
+                appSettingService.getValue("school.name", "Institution"),
+                entries.size(),
+                totalGross,
+                totalDeductions,
+                totalNet,
+                entries,
+                deductionAggregates
+        );
+    }
+
+    @Override
+    @Transactional
+    public int markAllAbsentForPeriod(int year, int month) {
+        AttendanceCompletionDTO completion = staffAttendanceService.getAttendanceCompletion(month, year);
+        List<AttendanceCompletionDTO.UnmarkedStaffAttendanceDTO> unmarked = completion.unmarkedStaff();
+        if (unmarked == null || unmarked.isEmpty()) {
+            return 0;
+        }
+
+        Long performedBy = authUtil.getCurrentUserId();
+        List<StaffAttendanceRequestDTO> requests = new ArrayList<>();
+
+        for (AttendanceCompletionDTO.UnmarkedStaffAttendanceDTO entry : unmarked) {
+            if (entry.staffUuid() == null || entry.missingDates() == null) continue;
+            java.util.UUID staffUuid = java.util.UUID.fromString(entry.staffUuid());
+            for (LocalDate date : entry.missingDates()) {
+                requests.add(new StaffAttendanceRequestDTO(
+                        staffUuid, date, "A", null, null, null,
+                        AttendanceSource.MANUAL, "Auto-marked absent via payroll preflight", null, null
+                ));
+            }
+        }
+
+        if (requests.isEmpty()) return 0;
+        staffAttendanceService.bulkCreate(requests, performedBy);
+        return requests.size();
+    }
+
+    @Override
+    @Transactional
+    public int markAllPresentForPeriod(int year, int month) {
+        AttendanceCompletionDTO completion = staffAttendanceService.getAttendanceCompletion(month, year);
+        List<AttendanceCompletionDTO.UnmarkedStaffAttendanceDTO> unmarked = completion.unmarkedStaff();
+        if (unmarked == null || unmarked.isEmpty()) {
+            return 0;
+        }
+
+        Long performedBy = authUtil.getCurrentUserId();
+        List<StaffAttendanceRequestDTO> requests = new ArrayList<>();
+
+        for (AttendanceCompletionDTO.UnmarkedStaffAttendanceDTO entry : unmarked) {
+            if (entry.staffUuid() == null || entry.missingDates() == null) continue;
+            java.util.UUID staffUuid = java.util.UUID.fromString(entry.staffUuid());
+            for (LocalDate date : entry.missingDates()) {
+                requests.add(new StaffAttendanceRequestDTO(
+                        staffUuid, date, "P", null, null, null,
+                        AttendanceSource.MANUAL, "Auto-marked present via payroll preflight", null, null
+                ));
+            }
+        }
+
+        if (requests.isEmpty()) return 0;
+        staffAttendanceService.bulkCreate(requests, performedBy);
+        return requests.size();
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public byte[] getBankSalaryAdvicePdf(String runIdentifier) {
+        BankSalaryAdviceDTO advice = getBankSalaryAdvice(runIdentifier);
+        Map<String, Object> data = new HashMap<>();
+        data.put("advice", advice);
+        return pdfGenerationService.generatePdfFromHtml("hrms/bank-salary-advice", data);
+    }
+
+    @Override
+    @Transactional
+    public PayrollRunResponseDTO voidRun(String identifier) {
+        PayrollRun run = findActiveRunByIdentifier(identifier);
+
+        if (run.getStatus() == PayrollRunStatus.DISBURSED) {
+            throw new EdusyncException(
+                    "Cannot void a DISBURSED payroll run. Salaries have already been paid.",
+                    org.springframework.http.HttpStatus.BAD_REQUEST);
+        }
+        if (run.getStatus() == PayrollRunStatus.VOIDED) {
+            throw new EdusyncException("This payroll run is already voided.",
+                    org.springframework.http.HttpStatus.BAD_REQUEST);
+        }
+
+        // 1. Revert loan repayment records DEDUCTED by this run → back to SCHEDULED
+        List<Payslip> payslips = payslipRepository.findByPayrollRun_IdAndActiveTrue(run.getId());
+
+        // Revert loan repayments by payrollRunRef directly
+        List<com.project.edusync.hrms.model.entity.LoanRepaymentRecord> allDeducted =
+                loanRepaymentRepository.findByPayrollRunRef(run.getUuid());
+        for (com.project.edusync.hrms.model.entity.LoanRepaymentRecord repayment : allDeducted) {
+            repayment.setStatus(RepaymentStatus.SCHEDULED);
+            repayment.setPaidDate(null);
+            repayment.setPayrollRunRef(null);
+            loanRepaymentRepository.save(repayment);
+
+            // Restore loan remaining EMI count and reopen if CLOSED
+            com.project.edusync.hrms.model.entity.StaffLoan loan = repayment.getLoan();
+            if (loan != null) {
+                if (loan.getRemainingEmis() != null) {
+                    loan.setRemainingEmis(loan.getRemainingEmis() + 1);
+                }
+                if (loan.getStatus() == LoanStatus.CLOSED) {
+                    loan.setStatus(LoanStatus.ACTIVE);
+                }
+                loanRepository.save(loan);
+            }
+        }
+
+        // 2. Revert overtime records converted by this run → back to APPROVED
+        List<com.project.edusync.hrms.model.entity.OvertimeRecord> convertedOts =
+                overtimeRecordRepository.findByPayrollRunRefAndStatusAndActiveTrue(
+                        run.getUuid(),
+                        com.project.edusync.hrms.model.enums.OvertimeStatus.CONVERTED
+                );
+        for (com.project.edusync.hrms.model.entity.OvertimeRecord ot : convertedOts) {
+            ot.setStatus(com.project.edusync.hrms.model.enums.OvertimeStatus.APPROVED);
+            ot.setPayrollRunRef(null);
+            overtimeRecordRepository.save(ot);
+        }
+
+        // 3. Soft-delete payslip line items, payslips, and payroll entries
+        for (Payslip payslip : payslips) {
+            List<com.project.edusync.hrms.model.entity.PayslipLineItem> lineItems =
+                    payslipLineItemRepository.findByPayslip_IdAndActiveTrueOrderByIdAsc(payslip.getId());
+            for (com.project.edusync.hrms.model.entity.PayslipLineItem li : lineItems) {
+                li.setActive(false);
+                payslipLineItemRepository.save(li);
+            }
+            payslip.setActive(false);
+            payslipRepository.save(payslip);
+        }
+
+        List<PayrollEntry> entries = payrollEntryRepository
+                .findByPayrollRun_IdAndActiveTrueOrderByStaff_IdAsc(run.getId());
+        for (PayrollEntry entry : entries) {
+            entry.setActive(false);
+            payrollEntryRepository.save(entry);
+        }
+
+        // 4. Mark run as VOIDED (keep the record for audit; soft delete guard lifted by setting active=false)
+        run.setStatus(PayrollRunStatus.VOIDED);
+        run.setActive(false);
+        PayrollRun saved = payrollRunRepository.save(run);
+
+        return toRunResponse(saved, List.of());
     }
 }
 

@@ -12,6 +12,7 @@ import com.project.edusync.hrms.dto.salary.StaffSalaryMappingBulkCreateDTO;
 import com.project.edusync.hrms.dto.salary.StaffSalaryMappingCreateDTO;
 import com.project.edusync.hrms.dto.salary.StaffSalaryMappingResponseDTO;
 import com.project.edusync.hrms.dto.salary.StaffSalaryMappingUpdateDTO;
+import com.project.edusync.hrms.dto.staff.UnmappedStaffDTO;
 import com.project.edusync.hrms.model.entity.SalaryComponent;
 import com.project.edusync.hrms.model.entity.SalaryTemplate;
 import com.project.edusync.hrms.model.entity.SalaryTemplateComponent;
@@ -61,6 +62,53 @@ public class StaffSalaryMappingServiceImpl implements StaffSalaryMappingService 
     @Transactional(readOnly = true)
     public Page<StaffSalaryMappingResponseDTO> listMappings(Pageable pageable) {
         return staffSalaryMappingRepository.findByActiveTrue(pageable).map(this::toResponse);
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public Page<StaffSalaryMappingResponseDTO> listMappingsFiltered(String view, String gradeCode, String templateRef, Pageable pageable) {
+        String normalizedView = (view == null || view.isBlank()) ? "CURRENT" : view.toUpperCase();
+        Long templateId = null;
+        if (templateRef != null && !templateRef.isBlank()) {
+            try {
+                templateId = Long.parseLong(templateRef);
+            } catch (NumberFormatException e) {
+                try {
+                    var uuid = java.util.UUID.fromString(templateRef);
+                    templateId = salaryTemplateRepository.findByUuid(uuid).map(t -> t.getId()).orElse(null);
+                } catch (IllegalArgumentException ignored) {}
+            }
+        }
+        return staffSalaryMappingRepository
+                .findFiltered(normalizedView, LocalDate.now(), gradeCode, templateId, pageable)
+                .map(this::toResponse);
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public List<UnmappedStaffDTO> listUnmappedStaff() {
+        LocalDate today = LocalDate.now();
+        Set<Long> mappedIds = new java.util.HashSet<>(staffSalaryMappingRepository.findCurrentMappedStaffIds(today));
+        return staffRepository.findByIsActiveTrue().stream()
+                .filter(s -> !mappedIds.contains(s.getId()))
+                .map(s -> UnmappedStaffDTO.builder()
+                        .staffId(s.getId())
+                        .uuid(s.getUuid() != null ? s.getUuid().toString() : null)
+                        .staffName(staffFullName(s))
+                        .employeeId(s.getEmployeeId())
+                        .category(s.getCategory() != null ? s.getCategory().name() : null)
+                        .designationName(s.getDesignation() != null ? s.getDesignation().getDesignationName() : null)
+                        .departmentName(s.getDepartment() != null ? s.getDepartment().name() : null)
+                        .build())
+                .toList();
+    }
+
+    @Override
+    @Transactional
+    public void deleteByIdentifier(String identifier) {
+        StaffSalaryMapping mapping = findActiveMappingByIdentifier(identifier);
+        mapping.setActive(false);
+        staffSalaryMappingRepository.save(mapping);
     }
 
     @Override

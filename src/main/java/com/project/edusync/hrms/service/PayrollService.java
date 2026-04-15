@@ -1,5 +1,6 @@
 package com.project.edusync.hrms.service;
 
+import com.project.edusync.hrms.dto.payroll.BankSalaryAdviceDTO;
 import com.project.edusync.hrms.dto.payroll.PayrollRunCreateDTO;
 import com.project.edusync.hrms.dto.payroll.PayrollPreflightDTO;
 import com.project.edusync.hrms.dto.payroll.PayrollRunResponseDTO;
@@ -57,6 +58,33 @@ public interface PayrollService {
     StaffAttendanceSummaryDTO getMyAttendanceSummary(int year, int month);
 
     PayrollPreflightDTO getPayrollPreflight(int year, int month);
+
+    /** Builds the Bank Salary Advice data model for the given payroll run. */
+    BankSalaryAdviceDTO getBankSalaryAdvice(String runIdentifier);
+
+    /** Generates the Bank Salary Advice as a PDF byte array (Thymeleaf → OpenHTMLtoPDF). */
+    byte[] getBankSalaryAdvicePdf(String runIdentifier);
+
+    /**
+     * Bulk-marks all unmarked staff attendance as ABSENT for the given payroll period.
+     * @return number of attendance records created
+     */
+    int markAllAbsentForPeriod(int year, int month);
+
+    /**
+     * Bulk-marks all unmarked staff attendance as PRESENT for the given payroll period.
+     * @return number of attendance records created
+     */
+    int markAllPresentForPeriod(int year, int month);
+
+    /**
+     * Voids a PROCESSED (not yet DISBURSED) payroll run:
+     * - Reverts loan repayment records back to SCHEDULED
+     * - Reverts overtime records back to APPROVED
+     * - Soft-deletes all payslips, line items, and payroll entries
+     * - Marks the run as VOIDED and resets the duplicate-run guard
+     */
+    PayrollRunResponseDTO voidRun(String identifier);
 }
 
 
