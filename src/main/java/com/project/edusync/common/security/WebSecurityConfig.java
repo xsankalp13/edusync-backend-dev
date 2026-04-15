@@ -36,7 +36,8 @@ public class WebSecurityConfig {
     // Grouping whitelisted URLs for clarity
     private static final String[] AUTH_WHITELIST = {
             "/auth/**",
-            "/public/**" // For any future public-facing school data
+            "/public/**", // For any future public-facing school data
+            "/admission/signup" // Self-signup for applicants
     };
 
     private static final String[] SWAGGER_WHITELIST = {
@@ -108,12 +109,18 @@ public class WebSecurityConfig {
                         .requestMatchers(HttpMethod.GET, apiVersionPath + "/teacher/answer-sheets/*/file").permitAll()
 
                         // 7. Teacher dashboard APIs
-                        .requestMatchers(apiVersionPath + "/teacher/**").hasAnyRole("TEACHER", "ADMIN", "SUPER_ADMIN")
+                        .requestMatchers(apiVersionPath + "/teacher/**").hasAnyRole("TEACHER", "ADMIN", "SCHOOL_ADMIN", "SUPER_ADMIN")
 
                         // 8. Student APIs
-                        .requestMatchers(apiVersionPath + "/student/**").hasAnyRole("STUDENT", "ADMIN", "SUPER_ADMIN")
+                        .requestMatchers(apiVersionPath + "/student/**").hasAnyRole("STUDENT", "ADMIN", "SCHOOL_ADMIN", "SUPER_ADMIN")
 
-                        // 9. Default: all remaining endpoints require authentication
+                        // 9. Admission APIs (Applicant)
+                        .requestMatchers(apiVersionPath + "/admission/**").hasAnyRole("APPLICANT", "ADMIN", "SCHOOL_ADMIN", "SUPER_ADMIN")
+
+                        // 10. Admission Admin APIs
+                        .requestMatchers(apiVersionPath + "/adm/admission/**").hasAnyRole("ADMIN", "SCHOOL_ADMIN", "SUPER_ADMIN")
+
+                        // 11. Default: all remaining endpoints require authentication
                         .anyRequest().authenticated()
                 )
                 .exceptionHandling(ex -> ex.authenticationEntryPoint(customAuthenticationEntryPoint))

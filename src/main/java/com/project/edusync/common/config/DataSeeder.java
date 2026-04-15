@@ -88,7 +88,8 @@ public class DataSeeder implements ApplicationRunner {
                 "ROLE_ADMIN",
                 "ROLE_SUPER_ADMIN",
                 "ROLE_SCHOOL_ADMIN",
-                "ROLE_SECURITY_GUARD"
+                "ROLE_SECURITY_GUARD",
+                "ROLE_APPLICANT"
         );
 
         Map<String, Role> rolesByName = new LinkedHashMap<>();
@@ -248,6 +249,18 @@ public class DataSeeder implements ApplicationRunner {
                 "reports:read:school"
         ));
 
+        blueprint.put("ROLE_APPLICANT", List.of(
+                "profile:read:own",
+                "profile:update:own",
+                "admission:enquiry:create",
+                "admission:enquiry:read:own",
+                "admission:form:create",
+                "admission:form:save",
+                "admission:form:submit",
+                "admission:form:read:own",
+                "admission:payment:create"
+        ));
+
         blueprint.put("ROLE_SCHOOL_ADMIN", List.of(
                 "profile:read:own",
                 "profile:update:own",
@@ -292,11 +305,12 @@ public class DataSeeder implements ApplicationRunner {
                 "rbac:role-permission:assign",
                 "rbac:role-permission:revoke",
                 "rbac:role-permission:read",
-                "visitor:manage",
-                "visitor:read:all",
-                "evaluation:assignment:manage",
-                "evaluation:assignment:read:all",
-                "evaluation:answer-sheet:read:all"
+                "evaluation:marks:publish",
+                "evaluation:annotation:write",
+                "admission:enquiry:read:all",
+                "admission:enquiry:reply",
+                "admission:form:read:all",
+                "admission:form:approve"
         ));
 
         blueprint.put("ROLE_SUPER_ADMIN", List.of(

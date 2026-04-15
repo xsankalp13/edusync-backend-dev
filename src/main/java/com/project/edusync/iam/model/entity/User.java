@@ -29,6 +29,9 @@ public class User extends AuditableEntity implements UserDetails {
     @Column(length = 100, unique = true)
     private String email;
 
+    @Column(length = 20)
+    private String mobile;
+
     @Column(length = 255, nullable = false)
     private String password;
 
