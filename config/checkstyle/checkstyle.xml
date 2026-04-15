@@ -5,17 +5,18 @@
 <module name="Checker">
     <property name="severity" value="warning"/>
 
-            <module name="TreeWalker">
-                <module name="AvoidStarImport"/>
-                <module name="UnusedImports"/>
-                <module name="LineLength">
-                    <property name="max" value="200"/>
-                </module>
-            </module>
-            <!-- FileTabCharacter must be a direct child of Checker, not TreeWalker -->
-            <module name="FileTabCharacter">
-                <property name="eachLine" value="true"/>
-            </module>
+    <module name="TreeWalker">
+        <module name="AvoidStarImport"/>
+        <module name="UnusedImports"/>
+    </module>
+    <!-- LineLength and FileTabCharacter are top-level checks in newer Checkstyle versions -->
+    <module name="LineLength">
+        <property name="max" value="200"/>
+    </module>
+    <module name="FileTabCharacter">
+        <property name="eachLine" value="true"/>
+    </module>
 </module>
+
 
 
