@@ -161,3 +161,13 @@ Local development notes
 
 See `CONTRIBUTING.md` for more on setting up your IDE and running the full test suite.
 
+Developer setup
+
+After cloning, run the helper to install git hooks used by the repository:
+
+```bash
+./scripts/setup-git-hooks.sh
+```
+
+This will copy the `scripts/git-hooks/pre-commit` hook into `.git/hooks` so local commits run quick validations.
+
