@@ -11,6 +11,7 @@ import org.springframework.security.core.Authentication;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Service;
 
+import java.util.Map;
 import java.util.Optional;
 
 @Service
@@ -57,14 +58,28 @@ public class GeoFenceValidator {
         }
 
         boolean adminRole = hasAuthority("ROLE_SUPER_ADMIN") || hasAuthority("ROLE_SCHOOL_ADMIN") || hasAuthority("ROLE_ADMIN");
-        boolean selfCheckIn = isSelfCheckIn(performedByUserId, targetStaffId);
+
+        // Resolve caller user ID: prefer the explicit argument; fall back to JWT claims.
+        Long resolvedCallerId = performedByUserId != null ? performedByUserId : resolveUserIdFromSecurityContext();
+        boolean selfCheckIn = isSelfCheckIn(resolvedCallerId, targetStaffId);
 
         if (adminRole || !selfCheckIn) {
             return false;
         }
 
         if (request.getLatitude() == null || request.getLongitude() == null) {
-            throw new AttendanceProcessingException("Location data is required for self check-in");
+            throw new AttendanceProcessingException(
+                    "GEO_FENCE_VIOLATION: Location access is required for self check-in. " +
+                    "Please enable location permissions in your browser and try again.");
+        }
+
+        String latRaw = appSettingService.getValue(GEOFENCE_LAT_KEY, "").trim();
+        String lngRaw = appSettingService.getValue(GEOFENCE_LNG_KEY, "").trim();
+
+        if (latRaw.isBlank() || lngRaw.isBlank()) {
+            throw new AttendanceProcessingException(
+                    "GEO_FENCE_VIOLATION: Geofence is enabled but the school location has not been configured. " +
+                    "Please contact your administrator.");
         }
 
         double schoolLat = parseSettingAsDouble(GEOFENCE_LAT_KEY);
@@ -74,11 +89,10 @@ public class GeoFenceValidator {
         double distance = haversineMeters(request.getLatitude(), request.getLongitude(), schoolLat, schoolLng);
         if (distance > radius) {
             throw new AttendanceProcessingException(
-                    "GEO_FENCE_VIOLATION: You are not within school premises. You are approximately "
-                            + Math.round(distance)
-                            + "m away. Allowed radius: "
-                            + radius
-                            + "m."
+                    "GEO_FENCE_VIOLATION: You are not within school premises. " +
+                    "You are approximately " + Math.round(distance) + "m away. " +
+                    "Allowed radius: " + radius + "m. " +
+                    "Please move closer to school and try again."
             );
         }
 
@@ -96,11 +110,43 @@ public class GeoFenceValidator {
     }
 
     private boolean isSelfCheckIn(Long performedByUserId, Long targetStaffId) {
-        if (performedByUserId == null || targetStaffId == null) {
+        if (targetStaffId == null) {
             return false;
         }
-        Optional<Staff> actorStaff = staffRepository.findByUserProfile_User_Id(performedByUserId);
+        // Resolve the caller's user ID; if still null after JWT fallback, we cannot confirm self check-in.
+        Long resolvedUserId = performedByUserId != null ? performedByUserId : resolveUserIdFromSecurityContext();
+        if (resolvedUserId == null) {
+            return false;
+        }
+        Optional<Staff> actorStaff = staffRepository.findByUserProfile_User_Id(resolvedUserId);
         return actorStaff.map(staff -> targetStaffId.equals(staff.getId())).orElse(false);
+    }
+
+    /**
+     * Reads the {@code user_id} claim from the JWT details injected by JWTFilter into
+     * {@link org.springframework.security.core.context.SecurityContextHolder}.
+     * This is the definitive source of truth for the caller's identity — it cannot be
+     * spoofed via a client-supplied HTTP header.
+     */
+    private Long resolveUserIdFromSecurityContext() {
+        Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
+        if (authentication == null || authentication.getDetails() == null) {
+            return null;
+        }
+        if (authentication.getDetails() instanceof Map<?, ?> details) {
+            Object userId = details.get("user_id");
+            if (userId instanceof Number number) {
+                return number.longValue();
+            }
+            if (userId instanceof String raw && !((String) userId).isBlank()) {
+                try {
+                    return Long.parseLong(raw);
+                } catch (NumberFormatException ignored) {
+                    return null;
+                }
+            }
+        }
+        return null;
     }
 
     private boolean hasAuthority(String authority) {

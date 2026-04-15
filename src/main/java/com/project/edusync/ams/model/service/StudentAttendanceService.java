@@ -24,7 +24,10 @@ public interface StudentAttendanceService {
             Optional<UUID> takenByStaffUuid,
             Optional<String> fromDateIso,
             Optional<String> toDateIso,
-            Optional<String> attendanceTypeShortCode
+            Optional<String> attendanceTypeShortCode,
+            Optional<UUID> classUuid,
+            Optional<UUID> sectionUuid,
+            Optional<String> search
     );
 
     StudentAttendanceResponseDTO getAttendance(UUID recordUuid);

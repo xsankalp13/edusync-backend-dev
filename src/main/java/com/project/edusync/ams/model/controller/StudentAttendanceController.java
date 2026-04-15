@@ -76,7 +76,10 @@ public class StudentAttendanceController {
             @RequestParam(value = "takenByStaffUuid", required = false) UUID takenByStaffUuid,
             @RequestParam(value = "fromDate", required = false) String fromDate,
             @RequestParam(value = "toDate", required = false) String toDate,
-            @RequestParam(value = "attendanceTypeShortCode", required = false) String attendanceTypeShortCode
+            @RequestParam(value = "attendanceTypeShortCode", required = false) String attendanceTypeShortCode,
+            @RequestParam(value = "classUuid", required = false) UUID classUuid,
+            @RequestParam(value = "sectionUuid", required = false) UUID sectionUuid,
+            @RequestParam(value = "search", required = false) String search
     ) {
         String[] sortParts = sort.split(",");
         Sort s;
@@ -91,7 +94,10 @@ public class StudentAttendanceController {
                 Optional.ofNullable(takenByStaffUuid),
                 Optional.ofNullable(fromDate),
                 Optional.ofNullable(toDate),
-                Optional.ofNullable(attendanceTypeShortCode));
+                Optional.ofNullable(attendanceTypeShortCode),
+                Optional.ofNullable(classUuid),
+                Optional.ofNullable(sectionUuid),
+                Optional.ofNullable(search));
         return ResponseEntity.ok(resp);
     }
 
