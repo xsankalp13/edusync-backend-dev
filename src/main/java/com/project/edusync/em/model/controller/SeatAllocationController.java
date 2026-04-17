@@ -36,6 +36,13 @@ public class SeatAllocationController {
         return ResponseEntity.ok(seatAllocationService.getAvailableSeats(examScheduleId, roomUuid));
     }
 
+    @PostMapping("/rooms/seats/bulk")
+    public ResponseEntity<java.util.Map<UUID, List<SeatAvailabilityDTO>>> getBulkSeatGrids(
+            @RequestParam Long examScheduleId,
+            @RequestBody List<UUID> roomUuids) {
+        return ResponseEntity.ok(seatAllocationService.getBulkAvailableSeats(examScheduleId, roomUuids));
+    }
+
     @PostMapping("/allocate")
     public ResponseEntity<SeatAllocationResponseDTO> allocateSingleSeat(
             @Validated @RequestBody SingleSeatAllocationRequestDTO dto) {
@@ -55,8 +62,10 @@ public class SeatAllocationController {
     }
 
     @GetMapping("/schedule/{examScheduleId}/print")
-    public ResponseEntity<byte[]> printAllocationsForSchedule(@PathVariable Long examScheduleId) {
-        byte[] pdf = seatAllocationService.generateSeatingPlanPdf(examScheduleId);
+    public ResponseEntity<byte[]> printAllocationsForSchedule(
+            @PathVariable Long examScheduleId,
+            @RequestParam(name = "format", required = false, defaultValue = "ROOM_WISE") String format) {
+        byte[] pdf = seatAllocationService.generateSeatingPlanPdf(examScheduleId, format);
         return ResponseEntity.ok()
                 .header(HttpHeaders.CONTENT_DISPOSITION, "attachment; filename=seating-plan-" + examScheduleId + ".pdf")
                 .contentType(MediaType.APPLICATION_PDF)

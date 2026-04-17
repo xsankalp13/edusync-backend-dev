@@ -22,6 +22,7 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.cache.annotation.CacheEvict;
 import org.springframework.cache.annotation.Cacheable;
+import org.springframework.cache.annotation.Caching;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -29,6 +30,7 @@ import java.time.format.DateTimeFormatter;
 import java.time.LocalDateTime;
 import java.util.*;
 import java.util.stream.Collectors;
+import java.util.stream.IntStream;
 
 @Slf4j
 @Service
@@ -44,6 +46,23 @@ public class SeatAllocationService {
     private final AppSettingService appSettingService;
 
     private static final int BATCH_SIZE = 50;
+
+    private enum SeatingPlanPdfFormat {
+        ROOM_WISE,
+        ADMIN_TABLE;
+
+        static SeatingPlanPdfFormat from(String value) {
+            if (value == null || value.isBlank()) {
+                return ROOM_WISE;
+            }
+            String normalized = value.trim().replace('-', '_').toUpperCase(Locale.ROOT);
+            try {
+                return SeatingPlanPdfFormat.valueOf(normalized);
+            } catch (IllegalArgumentException ex) {
+                throw new BadRequestException("Invalid seating plan format: " + value + ". Supported values: ROOM_WISE, ADMIN_TABLE");
+            }
+        }
+    }
 
     /** Position labels: 0→LEFT, 1→MIDDLE, 2→RIGHT */
     private static final String[] POSITION_LABELS = {"LEFT", "MIDDLE", "RIGHT"};
@@ -237,12 +256,100 @@ public class SeatAllocationService {
     }
 
     // ════════════════════════════════════════════════════════════════
+    // GET BULK AVAILABLE SEATS IN MULTIPLE ROOMS (for grid visualization)
+    // ════════════════════════════════════════════════════════════════
+
+    @Transactional(readOnly = true)
+    public Map<UUID, List<SeatAvailabilityDTO>> getBulkAvailableSeats(Long examScheduleId, List<UUID> roomUuids) {
+        if (roomUuids == null || roomUuids.isEmpty()) {
+            return Collections.emptyMap();
+        }
+
+        ExamSchedule schedule = fetchSchedule(examScheduleId);
+        List<Room> rooms = roomRepository.findAllActive().stream()
+            .filter(r -> roomUuids.contains(r.getUuid()))
+            .collect(Collectors.toList());
+
+        if (rooms.isEmpty()) {
+            return Collections.emptyMap();
+        }
+
+        LocalDateTime start = deriveStartTime(schedule);
+        LocalDateTime end = deriveEndTime(schedule);
+        int maxPerSeat = schedule.getMaxStudentsPerSeat();
+
+        List<Long> roomIds = rooms.stream().map(Room::getId).collect(Collectors.toList());
+
+        // All seats for requested rooms (SINGLE query)
+        List<Seat> allSeats = seatRepository.findByRoomIdInOrderByRowNumberAscColumnNumberAsc(roomIds);
+
+        // Per-seat occupancy count (SINGLE bulk query)
+        Map<Long, Long> seatOccupancy = new HashMap<>();
+        allocationRepository.countAllocationsPerSeatInRooms(roomIds, start, end)
+            .forEach(row -> seatOccupancy.put((Long) row[0], (Long) row[1]));
+
+        // Rich slot details: [roomUuid, seatId, positionIndex, subjectName, className, studentName]
+        Map<Long, List<OccupiedSlotDTO>> slotsMap = new HashMap<>();
+        allocationRepository.findOccupiedSlotDetailsInRooms(roomIds, start, end)
+            .forEach(row -> {
+                Long seatId = (Long) row[1];
+                int posIdx = (Integer) row[2];
+                OccupiedSlotDTO slot = OccupiedSlotDTO.builder()
+                    .positionIndex(posIdx)
+                    .positionLabel(positionLabel(posIdx))
+                    .subjectName((String) row[3])
+                    .className((String) row[4])
+                    .studentName(((String) row[5]).trim())
+                    .build();
+                slotsMap.computeIfAbsent(seatId, k -> new ArrayList<>()).add(slot);
+            });
+
+        // Group seats by Room UUID
+        Map<UUID, List<Seat>> seatsByRoomUuid = allSeats.stream()
+            .collect(Collectors.groupingBy(s -> s.getRoom().getUuid()));
+
+        Map<UUID, List<SeatAvailabilityDTO>> result = new HashMap<>();
+
+        for (Room room : rooms) {
+            List<Seat> roomSeats = seatsByRoomUuid.getOrDefault(room.getUuid(), Collections.emptyList());
+            
+            List<SeatAvailabilityDTO> dtoList = roomSeats.stream()
+                .map(s -> {
+                    int occupied = seatOccupancy.getOrDefault(s.getId(), 0L).intValue();
+                    boolean isFull = occupied >= maxPerSeat;
+                    int availableSlots = Math.max(0, maxPerSeat - occupied);
+
+                    return SeatAvailabilityDTO.builder()
+                        .seatId(s.getId())
+                        .label(s.getLabel())
+                        .rowNumber(s.getRowNumber())
+                        .columnNumber(s.getColumnNumber())
+                        .capacity(maxPerSeat)
+                        .occupiedCount(occupied)
+                        .availableSlots(availableSlots)
+                        .isFull(isFull)
+                        .available(!isFull)
+                        .occupiedSlots(slotsMap.getOrDefault(s.getId(), Collections.emptyList()))
+                        .build();
+                })
+                .collect(Collectors.toList());
+                
+            result.put(room.getUuid(), dtoList);
+        }
+
+        return result;
+    }
+
+    // ════════════════════════════════════════════════════════════════
     // SINGLE STUDENT ALLOCATION (manual assignment)
     // Finds next available positionIndex, validates conflicts
     // ════════════════════════════════════════════════════════════════
 
     @Transactional
-    @CacheEvict(value = CacheNames.ROOM_AVAILABILITY, key = "#dto.examScheduleId")
+    @Caching(evict = {
+        @CacheEvict(value = CacheNames.ROOM_AVAILABILITY, key = "#dto.examScheduleId"),
+        @CacheEvict(value = CacheNames.SEATING_PLAN_PDF, allEntries = true)
+    })
     public SeatAllocationResponseDTO allocateSingleSeat(SingleSeatAllocationRequestDTO dto) {
         ExamSchedule schedule = fetchSchedule(dto.getExamScheduleId());
         LocalDateTime start = deriveStartTime(schedule);
@@ -272,14 +379,11 @@ public class SeatAllocationService {
             throw new BadRequestException("Seat is at full capacity (" + maxPerSeat + "/" + maxPerSeat + "). Cannot assign.");
         }
 
-        // Conflict check: same subject AND same class on same seat → reject
-        if (maxPerSeat > 1 && allocationRepository.existsConflictOnSeat(
-                seat.getId(), start, end,
-                schedule.getSubject().getId(),
-                schedule.getAcademicClass().getId())) {
+        // A seat can host only one student for the same schedule in the overlapping slot.
+        if (allocationRepository.existsScheduleConflictOnSeat(
+                seat.getId(), start, end, schedule.getId())) {
             throw new BadRequestException(
-                "Conflict: another student with the same subject and class is already on this seat. " +
-                "Students sharing a seat must have different subjects or different classes.");
+                "Conflict: this seat already has a student for the selected exam schedule.");
         }
 
         // Find next available positionIndex
@@ -310,7 +414,10 @@ public class SeatAllocationService {
     // ════════════════════════════════════════════════════════════════
 
     @Transactional
-    @CacheEvict(value = CacheNames.ROOM_AVAILABILITY, key = "#dto.examScheduleId")
+    @Caching(evict = {
+        @CacheEvict(value = CacheNames.ROOM_AVAILABILITY, key = "#dto.examScheduleId"),
+        @CacheEvict(value = CacheNames.SEATING_PLAN_PDF, allEntries = true)
+    })
     public List<SeatAllocationResponseDTO> bulkAllocate(BulkSeatAllocationRequestDTO dto) {
         ExamSchedule schedule = fetchSchedule(dto.getExamScheduleId());
         Room room = roomRepository.findActiveById(dto.getRoomId())
@@ -359,9 +466,14 @@ public class SeatAllocationService {
                 occupiedPositionsPerSeat.computeIfAbsent(seatId, k -> new HashSet<>()).add(posIdx);
             });
 
-        // 6. Filter to seats with available capacity
+        // Seats already used by this schedule cannot be reused.
+        Set<Long> scheduleUsedSeatIds = allocationRepository.findSeatIdsAlreadyUsedByScheduleInRoom(
+            room.getId(), start, end, schedule.getId());
+
+        // 6. Filter to seats with available capacity and no same-schedule occupancy
         List<Seat> availableSeats = allSeats.stream()
             .filter(s -> seatOccupancy.getOrDefault(s.getId(), 0L) < maxPerSeat)
+            .filter(s -> !scheduleUsedSeatIds.contains(s.getId()))
             .collect(Collectors.toList());
 
         long totalAvailableSlots = availableSeats.stream()
@@ -372,9 +484,10 @@ public class SeatAllocationService {
             throw new BadRequestException("No available capacity in this room");
         }
 
-        int toAllocate = Math.min(unallocated.size(), (int) totalAvailableSlots);
-        log.info("Allocating {} students to room {} (slots: {}, maxPerSeat: {}) for Schedule ID {}",
-            toAllocate, room.getUuid(), totalAvailableSlots, maxPerSeat, schedule.getId());
+        int scheduleEligibleSeats = availableSeats.size();
+        int toAllocate = Math.min(unallocated.size(), scheduleEligibleSeats);
+        log.info("Allocating {} students to room {} (eligibleSeats: {}, openSlots: {}, maxPerSeat: {}) for Schedule ID {}",
+            toAllocate, room.getUuid(), scheduleEligibleSeats, totalAvailableSlots, maxPerSeat, schedule.getId());
 
         // 7. SORT: partially filled seats first (higher occupancy = higher priority), then by position
         List<Seat> sortedSeats = availableSeats.stream()
@@ -384,57 +497,31 @@ public class SeatAllocationService {
                 .thenComparingInt(Seat::getColumnNumber))
             .collect(Collectors.toList());
 
-        // 8. Build allocations — fill seats up to maxPerSeat each
+        // 8. Build allocations — at most one student per seat for this schedule
         List<SeatAllocation> newAllocations = new ArrayList<>(toAllocate);
         int studentIdx = 0;
-
-        // Track subject+class per seat for conflict checking during bulk
-        // Key: seatId, Value: Set of "subjectId:classId" strings
-        Map<Long, Set<String>> seatSubjectClassTracker = new HashMap<>();
-
-        // Pre-populate tracker with existing allocations
-        allocationRepository.findOccupiedSlotDetailsInRoom(room.getId(), start, end)
-            .forEach(row -> {
-                // We need subject and class IDs for conflict tracking, but the query returns names
-                // For bulk, we use the schedule's own subject and class since all students in this
-                // batch belong to the same schedule
-            });
-
-        String scheduleConflictKey = schedule.getSubject().getId() + ":" + schedule.getAcademicClass().getId();
 
         for (Seat seat : sortedSeats) {
             if (studentIdx >= toAllocate) break;
 
-            long currentOccupancy = seatOccupancy.getOrDefault(seat.getId(), 0L);
             Set<Integer> occupiedPos = occupiedPositionsPerSeat.getOrDefault(seat.getId(), new HashSet<>());
-
-            // For multi-seating, check conflict: skip if same subject+class already on seat
-            if (maxPerSeat > 1 && currentOccupancy > 0) {
-                boolean hasConflict = allocationRepository.existsConflictOnSeat(
-                    seat.getId(), start, end,
-                    schedule.getSubject().getId(),
-                    schedule.getAcademicClass().getId());
-                if (hasConflict) {
-                    continue; // Skip this seat — conflict
-                }
+            if (occupiedPos.size() >= maxPerSeat) {
+                continue;
             }
 
-            // Fill up to maxPerSeat on this seat
-            while (studentIdx < toAllocate && occupiedPos.size() < maxPerSeat) {
-                int positionIndex = findNextAvailablePosition(occupiedPos, maxPerSeat);
+            int positionIndex = findNextAvailablePosition(occupiedPos, maxPerSeat);
 
-                SeatAllocation sa = new SeatAllocation();
-                sa.setSeat(seat);
-                sa.setStudent(unallocated.get(studentIdx));
-                sa.setExamSchedule(schedule);
-                sa.setStartTime(start);
-                sa.setEndTime(end);
-                sa.setPositionIndex(positionIndex);
+            SeatAllocation sa = new SeatAllocation();
+            sa.setSeat(seat);
+            sa.setStudent(unallocated.get(studentIdx));
+            sa.setExamSchedule(schedule);
+            sa.setStartTime(start);
+            sa.setEndTime(end);
+            sa.setPositionIndex(positionIndex);
 
-                newAllocations.add(sa);
-                occupiedPos.add(positionIndex);
-                studentIdx++;
-            }
+            newAllocations.add(sa);
+            occupiedPos.add(positionIndex);
+            studentIdx++;
         }
 
         // 9. BATCHED insert
@@ -462,9 +549,21 @@ public class SeatAllocationService {
     }
 
     @Transactional(readOnly = true)
+    @Cacheable(value = CacheNames.SEATING_PLAN_PDF, key = "#examScheduleId + ':ROOM_WISE:V2'")
     public byte[] generateSeatingPlanPdf(Long examScheduleId) {
+        return buildSeatingPlanPdf(examScheduleId, SeatingPlanPdfFormat.ROOM_WISE);
+    }
+
+    @Transactional(readOnly = true)
+    @Cacheable(value = CacheNames.SEATING_PLAN_PDF, key = "#examScheduleId + ':' + (#format == null ? 'ROOM_WISE' : #format.trim().replace('-', '_').toUpperCase()) + ':V2'")
+    public byte[] generateSeatingPlanPdf(Long examScheduleId, String format) {
+        SeatingPlanPdfFormat selectedFormat = SeatingPlanPdfFormat.from(format);
+        return buildSeatingPlanPdf(examScheduleId, selectedFormat);
+    }
+
+    private byte[] buildSeatingPlanPdf(Long examScheduleId, SeatingPlanPdfFormat selectedFormat) {
         ExamSchedule schedule = fetchSchedule(examScheduleId);
-        List<SeatAllocationResponseDTO> allocations = getAllocationsForSchedule(examScheduleId);
+        SeatingPlanPdfFormat effectiveFormat = SeatingPlanPdfFormat.ROOM_WISE;
 
         Map<String, Object> data = new HashMap<>();
         populateSchoolBrandingData(data);
@@ -478,10 +577,124 @@ public class SeatAllocationService {
         data.put("startTime", schedule.getTimeslot() != null ? String.valueOf(schedule.getTimeslot().getStartTime()) : "-");
         data.put("endTime", schedule.getTimeslot() != null ? String.valueOf(schedule.getTimeslot().getEndTime()) : "-");
         data.put("generatedAt", LocalDateTime.now().format(DateTimeFormatter.ofPattern("dd MMM yyyy, hh:mm a")));
+        data.put("format", effectiveFormat.name());
+        data.put("isRoomWise", true);
+        data.put("isAdminTable", false);
+
+        LocalDateTime start = deriveStartTime(schedule);
+        LocalDateTime end = deriveEndTime(schedule);
+        List<SeatAllocationRepository.SeatingPlanPdfProjection> allocations =
+            allocationRepository.findSeatingPlanRowsByRoomsAndTimeOverlap(examScheduleId, start, end);
         data.put("totalAssigned", allocations.size());
-        data.put("rows", allocations);
+        data.put("rows", Collections.emptyList());
+        data.put("rooms", buildRoomWiseLayout(allocations));
 
         return pdfGenerationService.generatePdfFromHtml("em/seating-plan", data);
+    }
+
+    private List<SeatingPlanRoomPdfDTO> buildRoomWiseLayout(List<SeatAllocationRepository.SeatingPlanPdfProjection> allocations) {
+        Map<Long, RoomAggregation> grouped = new HashMap<>();
+
+        for (SeatAllocationRepository.SeatingPlanPdfProjection allocation : allocations) {
+            Long roomId = allocation.getRoomId() != null ? allocation.getRoomId() : -1L;
+            String roomName = allocation.getRoomName() == null || allocation.getRoomName().isBlank()
+                ? "Unknown Room"
+                : allocation.getRoomName();
+            int rowNumber = Math.max(1, Optional.ofNullable(allocation.getRowNumber()).orElse(1));
+            int columnNumber = Math.max(1, Optional.ofNullable(allocation.getColumnNumber()).orElse(1));
+
+            RoomAggregation roomAggregation = grouped.computeIfAbsent(
+                roomId,
+                key -> new RoomAggregation(roomId, roomName)
+            );
+
+            String rollDisplay = formatRollClassCode(allocation);
+            roomAggregation.rows
+                .computeIfAbsent(rowNumber, key -> new TreeMap<>())
+                .computeIfAbsent(columnNumber, key -> new ArrayList<>())
+                .add(rollDisplay);
+            roomAggregation.totalStudents++;
+        }
+
+        return grouped.values().stream()
+            .sorted(Comparator
+                .comparing((RoomAggregation room) -> room.roomName, String.CASE_INSENSITIVE_ORDER)
+                .thenComparing(room -> room.roomId))
+            .map(this::toRoomPdfDto)
+            .collect(Collectors.toList());
+    }
+
+    private SeatingPlanRoomPdfDTO toRoomPdfDto(RoomAggregation roomAggregation) {
+        int maxBenchCount = roomAggregation.rows.values().stream()
+            .flatMap(columns -> columns.keySet().stream())
+            .max(Integer::compareTo)
+            .orElse(0);
+
+        List<Integer> benchHeaders = maxBenchCount > 0
+            ? IntStream.rangeClosed(1, maxBenchCount).boxed().collect(Collectors.toList())
+            : Collections.emptyList();
+
+        List<RowDTO> rows = roomAggregation.rows.entrySet().stream()
+            .map(rowEntry -> {
+                List<BenchDTO> benches = IntStream.rangeClosed(1, Math.max(1, maxBenchCount))
+                    .mapToObj(columnNumber -> {
+                        List<String> rolls = rowEntry.getValue().getOrDefault(columnNumber, Collections.emptyList());
+                        String display = rolls.isEmpty() ? "-" : String.join(" | ", rolls);
+                        return BenchDTO.builder()
+                            .rowNumber(rowEntry.getKey())
+                            .columnNumber(columnNumber)
+                            .display(display)
+                            .build();
+                    })
+                    .collect(Collectors.toList());
+
+                return RowDTO.builder()
+                    .rowNumber(rowEntry.getKey())
+                    .benches(benches)
+                    .build();
+            })
+            .collect(Collectors.toList());
+
+        return SeatingPlanRoomPdfDTO.builder()
+            .roomName(roomAggregation.roomName)
+            .totalStudents(roomAggregation.totalStudents)
+            .maxBenchCount(maxBenchCount)
+            .benchHeaders(benchHeaders)
+            .rows(rows)
+            .build();
+    }
+
+    private static final class RoomAggregation {
+        private final Long roomId;
+        private final String roomName;
+        private final Map<Integer, Map<Integer, List<String>>> rows = new TreeMap<>();
+        private int totalStudents;
+
+        private RoomAggregation(Long roomId, String roomName) {
+            this.roomId = roomId;
+            this.roomName = roomName;
+        }
+    }
+
+    private String formatRollClassCode(SeatAllocationRepository.SeatingPlanPdfProjection allocation) {
+        if (allocation.getRollNo() == null) {
+            return "-";
+        }
+        String classNumber = extractClassNumber(allocation.getClassName());
+        return allocation.getRollNo() + "-C" + classNumber;
+    }
+
+    private String extractClassNumber(String className) {
+        if (className == null || className.isBlank()) {
+            return "NA";
+        }
+
+        String digitsOnly = className.replaceAll("\\D+", "");
+        if (!digitsOnly.isBlank()) {
+            return digitsOnly;
+        }
+
+        return className.trim();
     }
 
     @Transactional(readOnly = true)
@@ -501,7 +714,7 @@ public class SeatAllocationService {
     // ════════════════════════════════════════════════════════════════
 
     @Transactional
-    @CacheEvict(value = CacheNames.ROOM_AVAILABILITY, allEntries = true)
+    @CacheEvict(value = {CacheNames.ROOM_AVAILABILITY, CacheNames.SEATING_PLAN_PDF}, allEntries = true)
     public void deleteAllocation(Long allocationId) {
         if (!allocationRepository.existsById(allocationId)) {
             throw new ResourceNotFoundException("SeatAllocation not found with id: " + allocationId);
@@ -510,7 +723,7 @@ public class SeatAllocationService {
     }
 
     @Transactional
-    @CacheEvict(value = CacheNames.ROOM_AVAILABILITY, allEntries = true)
+    @CacheEvict(value = {CacheNames.ROOM_AVAILABILITY, CacheNames.SEATING_PLAN_PDF}, allEntries = true)
     public void bulkDeleteAllocations(List<Long> allocationIds) {
         if (allocationIds == null || allocationIds.isEmpty()) return;
         allocationRepository.deleteAllByIdInBatch(allocationIds);
@@ -566,6 +779,7 @@ public class SeatAllocationService {
         }
         return Collections.emptyList();
     }
+
 
     private SeatAllocationResponseDTO toResponse(SeatAllocation sa) {
         String firstName = sa.getStudent().getUserProfile().getFirstName();

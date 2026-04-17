@@ -1,5 +1,7 @@
 package com.project.edusync.em.model.dto.response;
 
+import com.fasterxml.jackson.annotation.JsonIgnore;
+import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Data;
@@ -17,6 +19,7 @@ import java.util.UUID;
 @Builder
 @NoArgsConstructor
 @AllArgsConstructor
+@JsonIgnoreProperties(ignoreUnknown = true)
 public class RoomAvailabilityDTO {
 
     private Long roomId;
@@ -51,7 +54,9 @@ public class RoomAvailabilityDTO {
 
     // ── Backward-compatible aliases ────────────────────────────────
     /** @deprecated Use {@link #occupiedCapacity} */
+    @JsonIgnore
     public int getOccupiedSeats() { return occupiedCapacity; }
     /** @deprecated Use {@link #availableCapacity} */
+    @JsonIgnore
     public int getAvailableSeats() { return availableCapacity; }
 }

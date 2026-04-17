@@ -7,7 +7,6 @@ import com.google.zxing.qrcode.QRCodeWriter;
 import com.openhtmltopdf.pdfboxout.PdfRendererBuilder;
 import com.openhtmltopdf.svgsupport.BatikSVGDrawer;
 import com.project.edusync.common.exception.finance.PdfGenerationException;
-import com.project.edusync.common.settings.service.AppSettingService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.jsoup.Jsoup;
@@ -28,6 +27,8 @@ import java.net.URI;
 import java.nio.file.FileSystems;
 import java.util.Base64;
 import java.util.Map;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.atomic.AtomicReference;
 
 @Service
 @RequiredArgsConstructor
@@ -39,7 +40,8 @@ public class PdfGenerationService {
             "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII=";
 
     private final TemplateEngine templateEngine;
-    private final AppSettingService appSettingService;
+    private final AtomicReference<String> schoolLogoBase64Cache = new AtomicReference<>();
+    private final Map<String, String> remoteImageBase64Cache = new ConcurrentHashMap<>();
 
     /**
      * Generates a PDF from a Thymeleaf template using OpenHTMLtoPDF.
@@ -65,12 +67,6 @@ public class PdfGenerationService {
                 PdfRendererBuilder builder = new PdfRendererBuilder();
                 builder.useFastMode();
                 builder.useSVGDrawer(new BatikSVGDrawer());
-
-                // Register Noto Sans fonts (supports ₹ and other currency glyphs)
-                registerFont(builder, "fonts/NotoSans-Regular.ttf", "Noto Sans", 400,
-                        com.openhtmltopdf.outputdevice.helper.BaseRendererBuilder.FontStyle.NORMAL);
-                registerFont(builder, "fonts/NotoSans-Bold.ttf", "Noto Sans", 700,
-                        com.openhtmltopdf.outputdevice.helper.BaseRendererBuilder.FontStyle.NORMAL);
 
                 String baseUri = FileSystems.getDefault()
                         .getPath("src/main/resources/templates")
@@ -98,61 +94,11 @@ public class PdfGenerationService {
             data.put("qrCodeBase64", qrCodeBase64);
         }
 
-        // Load school logo: prefer configured logo URL from settings, fall back to classpath logo.png
+        // Load and add school logo as Base64 if not already set
         if (!data.containsKey("schoolLogoBase64") || data.get("schoolLogoBase64") == null
                 || ((String) data.get("schoolLogoBase64")).isEmpty()) {
-            String logoUrl = appSettingService.getValue("school.logo_url", "");
-            String logoBase64;
-            if (logoUrl != null && !logoUrl.isBlank()) {
-                logoBase64 = fetchRemoteImageAsBase64OrEmpty(logoUrl);
-            } else {
-                logoBase64 = "";
-            }
-            // Final fallback: classpath logo.png
-            if (logoBase64.isBlank()) {
-                logoBase64 = loadSchoolLogoBase64();
-            }
+            String logoBase64 = loadSchoolLogoBase64();
             data.put("schoolLogoBase64", logoBase64);
-        }
-
-        // Inject currency symbol from settings and normalize bad placeholders like '#'.
-        Object existingCurrencySymbol = data.get("currencySymbol");
-        if (!(existingCurrencySymbol instanceof String symbol) || symbol.isBlank() || "#".equals(symbol.trim())) {
-            String currencyCode = appSettingService.getValue("school.currency", "INR");
-            data.put("currencySymbol", currencyCodeToSymbol(currencyCode));
-        }
-    }
-
-    /** Maps ISO 4217 currency codes to their symbols. Falls back to rupee when config is unset or unknown. */
-    private String currencyCodeToSymbol(String code) {
-        if (code == null || code.isBlank()) return "\u20B9";
-        return switch (code.toUpperCase()) {
-            case "INR" -> "\u20B9";
-            case "USD" -> "$";
-            case "EUR" -> "\u20AC";
-            case "GBP" -> "\u00A3";
-            case "JPY" -> "\u00A5";
-            case "AED" -> "AED";
-            case "SAR" -> "\uFDFC";
-            default -> "\u20B9";
-        };
-    }
-
-    /** Registers a classpath font with the PDF renderer so currency glyphs like ₹ render correctly. */
-    private void registerFont(PdfRendererBuilder builder, String classpathPath, String fontFamily,
-                              int weight, com.openhtmltopdf.outputdevice.helper.BaseRendererBuilder.FontStyle style) {
-        try {
-            ClassPathResource res = new ClassPathResource(classpathPath);
-            if (res.exists()) {
-                builder.useFont(() -> {
-                    try { return res.getInputStream(); }
-                    catch (IOException e) { throw new RuntimeException(e); }
-                }, fontFamily, weight, style, true);
-            } else {
-                log.warn("Font not found on classpath: {}", classpathPath);
-            }
-        } catch (Exception e) {
-            log.warn("Failed to register font {}: {}", classpathPath, e.getMessage());
         }
     }
 
@@ -186,17 +132,26 @@ public class PdfGenerationService {
      * Loads the school logo from the classpath and encodes it in Base64.
      */
     public String loadSchoolLogoBase64() {
+        String cached = schoolLogoBase64Cache.get();
+        if (cached != null) {
+            return cached;
+        }
+
         try {
             ClassPathResource resource = new ClassPathResource("static/images/logo.png");
             if (!resource.exists()) {
                 log.warn("logo.png not found. Using empty string.");
-                return "";
+                schoolLogoBase64Cache.compareAndSet(null, "");
+                return schoolLogoBase64Cache.get();
             }
             byte[] fileContent = resource.getInputStream().readAllBytes();
-            return "data:image/png;base64," + Base64.getEncoder().encodeToString(fileContent);
+            String base64 = "data:image/png;base64," + Base64.getEncoder().encodeToString(fileContent);
+            schoolLogoBase64Cache.compareAndSet(null, base64);
+            return schoolLogoBase64Cache.get();
         } catch (IOException e) {
             log.warn("Could not load logo.png: {}", e.getMessage());
-            return "";
+            schoolLogoBase64Cache.compareAndSet(null, "");
+            return schoolLogoBase64Cache.get();
         }
     }
 

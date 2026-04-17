@@ -13,7 +13,7 @@ import java.time.LocalDateTime;
  * startTime/endTime are denormalized from ExamSchedule for indexed overlap queries.
  * Old allocations are NEVER deleted — availability is derived purely from time logic.
  *
- * BENCH SHARING: Multiple students may share the same seat for the same schedule,
+ * BENCH SHARING: Multiple students may share the same seat only across different schedules,
  * up to ExamSchedule.maxStudentsPerSeat.
  *
  * positionIndex:
@@ -30,9 +30,9 @@ import java.time.LocalDateTime;
 @Entity
 @Table(name = "seat_allocation",
     uniqueConstraints = {
-        // Ensures no two students can claim the same position on a seat
-        @UniqueConstraint(name = "uk_seat_alloc_seat_schedule_posidx",
-            columnNames = {"seat_id", "exam_schedule_id", "position_index"}),
+        // Ensures only one student can be allocated to a seat for a schedule
+        @UniqueConstraint(name = "uk_seat_alloc_seat_schedule",
+            columnNames = {"seat_id", "exam_schedule_id"}),
         // A student still can only have ONE seat per schedule
         @UniqueConstraint(name = "uk_seat_alloc_student_schedule",
             columnNames = {"student_id", "exam_schedule_id"})
@@ -44,7 +44,7 @@ import java.time.LocalDateTime;
             columnList = "exam_schedule_id"),
         @Index(name = "idx_seat_alloc_student_time",
             columnList = "student_id, start_time, end_time"),
-        @Index(name = "idx_seat_alloc_posidx",
+        @Index(name = "idx_seat_alloc_seat_schedule",
             columnList = "seat_id, exam_schedule_id, position_index")
     })
 public class SeatAllocation {

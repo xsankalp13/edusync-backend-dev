@@ -11,6 +11,7 @@ import org.springframework.context.annotation.Configuration;
 import org.springframework.data.redis.cache.RedisCacheConfiguration;
 import org.springframework.data.redis.serializer.GenericJackson2JsonRedisSerializer;
 import org.springframework.data.redis.serializer.RedisSerializationContext;
+import org.springframework.data.redis.serializer.RedisSerializer;
 
 import com.fasterxml.jackson.annotation.JsonTypeInfo;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -108,6 +109,20 @@ public class CacheConfig {
                 .withCacheConfiguration(
                         CacheNames.SCHEDULE_STUDENTS,
                         redisCacheConfiguration().entryTtl(Duration.ofMinutes(15))
+                )
+                .withCacheConfiguration(
+                        CacheNames.STUDENT_EVALUATION_RESULTS,
+                        redisCacheConfiguration().entryTtl(Duration.ofMinutes(10))
+                )
+                .withCacheConfiguration(
+                        CacheNames.SEATING_PLAN_PDF,
+                        redisCacheConfiguration()
+                                .entryTtl(Duration.ofMinutes(30))
+                                .serializeValuesWith(
+                                        RedisSerializationContext.SerializationPair.fromSerializer(
+                                                RedisSerializer.byteArray()
+                                        )
+                                )
                 )
                 .withCacheConfiguration(
                         CacheNames.MASTER_DASHBOARD_ANALYTICS,

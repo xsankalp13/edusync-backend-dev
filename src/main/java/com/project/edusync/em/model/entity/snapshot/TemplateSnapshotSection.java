@@ -1,9 +1,13 @@
 package com.project.edusync.em.model.entity.snapshot;
 
+import com.project.edusync.em.model.enums.TemplateSectionType;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Data;
 import lombok.NoArgsConstructor;
+
+import java.util.ArrayList;
+import java.util.List;
 
 @Data
 @Builder
@@ -14,5 +18,12 @@ public class TemplateSnapshotSection {
     private Integer sectionOrder;
     private Integer questionCount;
     private Integer marksPerQuestion;
+    private Integer totalQuestions;
+    private Integer attemptQuestions;
+    private TemplateSectionType sectionType;
+    private Boolean internalChoiceEnabled;
+
+    @Builder.Default
+    private List<TemplateSnapshotQuestion> questions = new ArrayList<>();
 }
 

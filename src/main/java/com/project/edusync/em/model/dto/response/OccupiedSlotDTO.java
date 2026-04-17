@@ -6,27 +6,19 @@ import lombok.Data;
 import lombok.NoArgsConstructor;
 
 /**
- * Detailed information about a single occupied position on a seat.
- * Used within SeatAvailabilityDTO to show who occupies each slot.
+ * Represents a single occupied slot within a seat.
+ * Used in SeatAvailabilityDTO to give the frontend rich per-position info.
  */
 @Data
 @Builder
 @NoArgsConstructor
 @AllArgsConstructor
 public class OccupiedSlotDTO {
-
-    /** Zero-based position index on the seat (0=LEFT, 1=MIDDLE, 2=RIGHT) */
+    /** 0-based index: 0=LEFT, 1=MIDDLE, 2=RIGHT */
     private int positionIndex;
-
-    /** Human-readable label: LEFT, MIDDLE, RIGHT, etc. */
+    /** Human-readable label derived from positionIndex */
     private String positionLabel;
-
-    /** Subject name for this allocation */
     private String subjectName;
-
-    /** Class name for this allocation */
     private String className;
-
-    /** Full name of the student occupying this slot */
     private String studentName;
 }

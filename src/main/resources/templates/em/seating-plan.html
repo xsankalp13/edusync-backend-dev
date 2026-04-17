@@ -4,31 +4,148 @@
     <meta charset="UTF-8" />
     <title>Seating Plan</title>
     <style>
-        @page { margin: 20px; size: A4; }
-        body { font-family: "Helvetica", Arial, sans-serif; color: #1f2937; font-size: 11px; line-height: 1.35; }
-        .sheet { border: 1px solid #111827; padding: 12px; }
-        .header-table { width: 100%; border-collapse: collapse; }
-        .header-table td { vertical-align: middle; }
-        .logo-cell { width: 80px; text-align: left; }
-        .logo { width: 62px; height: 62px; border: 1px solid #d1d5db; padding: 2px; object-fit: contain; }
-        .title-cell { text-align: center; }
-        .school-name { font-size: 20px; font-weight: 700; letter-spacing: 0.4px; text-transform: uppercase; }
-        .dept-title { font-size: 12px; font-weight: 600; margin-top: 2px; }
-        .session-title { font-size: 12px; margin-top: 2px; }
-        .meta-cell { text-align: right; font-size: 10px; }
-        .separator { border-top: 2px solid #111827; margin: 8px 0 10px 0; }
-        .meta-grid { border: 1px solid #d1d5db; padding: 8px; margin-bottom: 10px; }
-        .meta-row { margin: 3px 0; }
-        .meta-label { font-weight: 700; display: inline-block; min-width: 120px; }
-        .plan-table { width: 100%; border-collapse: collapse; }
-        .plan-table th, .plan-table td { border: 1px solid #9ca3af; padding: 6px; text-align: left; }
-        .plan-table th { background: #f3f4f6; font-size: 10px; text-transform: uppercase; letter-spacing: 0.2px; }
-        .text-center { text-align: center; }
+        @page { margin: 18px; size: A4 landscape; }
+        body {
+            font-family: "Segoe UI", Arial, sans-serif;
+            color: #0f172a;
+            font-size: 11px;
+            line-height: 1.35;
+            margin: 0;
+        }
+        .report {
+            border: 1px solid #cbd5e1;
+            padding: 12px;
+            margin-bottom: 10px;
+        }
+        .header-banner {
+            border: 1px solid #111827;
+            background: #ffffff;
+            padding: 8px 10px;
+            margin-bottom: 10px;
+        }
+        .header-main {
+            width: 100%;
+            border-collapse: collapse;
+        }
+        .header-main td { vertical-align: top; }
+        .logo-cell { width: 70px; }
+        .logo {
+            width: 58px;
+            height: 58px;
+            border: 1px solid #cbd5e1;
+            background: #ffffff;
+        }
+        .org-title {
+            font-size: 18px;
+            font-weight: 700;
+            letter-spacing: 0.3px;
+            text-transform: uppercase;
+        }
+        .org-sub { font-size: 12px; margin-top: 2px; }
+        .report-type {
+            margin-top: 4px;
+            font-size: 13px;
+            font-weight: 700;
+            color: #111827;
+            text-transform: uppercase;
+        }
+        .generated-block {
+            text-align: right;
+            font-size: 10px;
+            white-space: nowrap;
+        }
+        .meta-table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-bottom: 10px;
+        }
+        .meta-table td {
+            border: 1px solid #cbd5e1;
+            padding: 6px 8px;
+            width: 25%;
+        }
+        .meta-label {
+            display: block;
+            font-size: 9px;
+            text-transform: uppercase;
+            color: #64748b;
+            margin-bottom: 2px;
+            letter-spacing: 0.2px;
+        }
+        .meta-value { font-weight: 600; }
+
+        .room-page {
+            border: 1px solid #94a3b8;
+            padding: 10px;
+            margin-top: 10px;
+            page-break-after: always;
+        }
+        .room-page:last-child {
+            page-break-after: auto;
+        }
+        .room-title {
+            font-size: 14px;
+            font-weight: 700;
+            color: #111827;
+            margin-bottom: 2px;
+        }
+        .room-subtitle {
+            font-size: 10px;
+            color: #475569;
+            margin-bottom: 8px;
+        }
+        .room-table {
+            width: 100%;
+            border-collapse: collapse;
+            border: 1px solid #94a3b8;
+            table-layout: fixed;
+            font-size: 10px;
+        }
+        .room-table th,
+        .room-table td {
+            border: 1px solid #94a3b8;
+            padding: 4px 6px;
+            text-align: center;
+            vertical-align: middle;
+            word-wrap: break-word;
+            overflow-wrap: break-word;
+            min-height: 45px;
+        }
+        .room-table th {
+            background: #f3f4f6;
+            color: #111827;
+            font-size: 9px;
+            text-transform: uppercase;
+            letter-spacing: 0.2px;
+        }
+        .room-table tbody tr {
+            height: 45px;
+        }
+        .row-header {
+            width: 40px;
+            font-weight: 700;
+            background: #f8fafc;
+        }
+        .bench-cell {
+            font-family: "Consolas", "Courier New", monospace;
+            font-size: 9.5px;
+            font-weight: 700;
+            line-height: 1.4;
+            padding: 6px;
+            white-space: pre-wrap; 
+            letter-spacing: -0.2px;
+        }
+        .empty-room {
+            border: 1px dashed #94a3b8;
+            padding: 8px;
+            color: #64748b;
+        }
     </style>
 </head>
 <body>
-<div class="sheet">
-    <table class="header-table">
+<div class="report">
+    <div class="header-banner">
+        <table class="header-main">
         <tr th:if="${headerImageEnabled != null and headerImageEnabled}">
             <td colspan="3" style="text-align: center; padding-bottom: 8px;">
                 <img th:src="${headerImageBase64}" alt="School Header" style="max-width: 100%; max-height: 70px;" />
@@ -38,62 +155,88 @@
             <td class="logo-cell">
                 <img class="logo" th:if="${schoolLogoBase64 != null and !schoolLogoBase64.isEmpty()}" th:src="${schoolLogoBase64}" alt="School Logo" />
             </td>
-            <td class="title-cell">
-                <div class="school-name" th:text="${schoolName}">School Name</div>
-                <div class="dept-title" th:if="${schoolShortName != null and !schoolShortName.isEmpty()}" th:text="${schoolShortName}">Short Name</div>
-                <div class="session-title" th:if="${schoolTagline != null and !schoolTagline.isEmpty()}" th:text="${schoolTagline}">Tagline</div>
-                <div class="dept-title">Examination Department</div>
-                <div class="session-title">Seating Plan</div>
-                <div class="session-title" th:if="${schoolAddress != null and !schoolAddress.isEmpty()}" th:text="${schoolAddress}">Address</div>
-                <div class="session-title" th:if="${(schoolPhone != null and !schoolPhone.isEmpty()) or (schoolEmail != null and !schoolEmail.isEmpty())}">
+            <td>
+                <div class="org-title" th:text="${schoolName}">School Name</div>
+                <div class="org-sub" th:if="${schoolShortName != null and !schoolShortName.isEmpty()}" th:text="${schoolShortName}">Short Name</div>
+                <div class="org-sub" th:if="${schoolTagline != null and !schoolTagline.isEmpty()}" th:text="${schoolTagline}">Tagline</div>
+                <div class="org-sub">Examination Department</div>
+                <div class="report-type" th:text="${title}">Seating Plan</div>
+                <div class="org-sub" th:if="${schoolAddress != null and !schoolAddress.isEmpty()}" th:text="${schoolAddress}">Address</div>
+                <div class="org-sub" th:if="${(schoolPhone != null and !schoolPhone.isEmpty()) or (schoolEmail != null and !schoolEmail.isEmpty())}">
                     <span th:text="${schoolPhone}">Phone</span>
                     <span th:if="${schoolPhone != null and !schoolPhone.isEmpty() and schoolEmail != null and !schoolEmail.isEmpty()}"> | </span>
                     <span th:text="${schoolEmail}">Email</span>
                 </div>
             </td>
-            <td class="meta-cell">
-                <div><strong th:text="${title}">Seating Plan</strong></div>
-                <div style="margin-top: 6px;">Generated: <span th:text="${generatedAt}">12 Apr 2026, 10:30 AM</span></div>
-                <div>Total Assigned: <strong th:text="${totalAssigned}">0</strong></div>
+            <td class="generated-block">
+                <div>Generated:</div>
+                <div><strong th:text="${generatedAt}">12 Apr 2026, 10:30 AM</strong></div>
+                <div style="margin-top: 8px;">Total Assigned</div>
+                <div><strong th:text="${totalAssigned}">0</strong></div>
+                <div style="margin-top: 8px;">Format</div>
+                <div><strong th:text="${format}">ROOM_WISE</strong></div>
+            </td>
+        </tr>
+        </table>
+    </div>
+
+    <table class="meta-table">
+        <tr>
+            <td>
+                <span class="meta-label">Exam</span>
+                <span class="meta-value" th:text="${examName}">Exam</span>
+            </td>
+            <td>
+                <span class="meta-label">Subject</span>
+                <span class="meta-value" th:text="${subjectName}">Subject</span>
+            </td>
+            <td>
+                <span class="meta-label">Class / Section</span>
+                <span class="meta-value" th:text="${className + ' / ' + sectionName}">Class / Section</span>
+            </td>
+            <td>
+                <span class="meta-label">Date</span>
+                <span class="meta-value" th:text="${examDate}">2026-04-12</span>
+            </td>
+        </tr>
+        <tr>
+            <td colspan="4">
+                <span class="meta-label">Time</span>
+                <span class="meta-value" th:text="${startTime + ' - ' + endTime}">09:00 - 12:00</span>
             </td>
         </tr>
     </table>
 
-    <div class="separator"></div>
+    <div th:if="${isRoomWise}">
+        <div class="room-page" th:each="room : ${rooms}">
+            <div class="room-title" th:text="${room.roomName}">Room A</div>
+            <div class="room-subtitle">Students Assigned: <strong th:text="${room.totalStudents}">0</strong></div>
 
-    <div class="meta-grid">
-        <div class="meta-row"><span class="meta-label">Exam:</span><span th:text="${examName}">Exam</span></div>
-        <div class="meta-row"><span class="meta-label">Subject:</span><span th:text="${subjectName}">Subject</span></div>
-        <div class="meta-row"><span class="meta-label">Class / Section:</span><span th:text="${className + ' / ' + sectionName}">Class / Section</span></div>
-        <div class="meta-row"><span class="meta-label">Date:</span><span th:text="${examDate}">2026-04-12</span></div>
-        <div class="meta-row"><span class="meta-label">Time:</span><span th:text="${startTime + ' - ' + endTime}">09:00 - 12:00</span></div>
+            <div th:if="${room.rows == null or #lists.isEmpty(room.rows)}" class="empty-room">
+                No bench mapping available for this room.
+            </div>
+
+            <table class="room-table" th:if="${room.rows != null and !#lists.isEmpty(room.rows)}">
+                <thead>
+                <tr>
+                    <th class="row-header">Row</th>
+                    <th th:each="benchNo : ${room.benchHeaders}" th:text="${'Bench ' + benchNo}">Bench 1</th>
+                </tr>
+                </thead>
+                <tbody>
+                <tr th:each="roomRow : ${room.rows}">
+                    <td class="row-header" th:text="${roomRow.rowNumber}">1</td>
+                    <td th:each="bench : ${roomRow.benches}" class="bench-cell" th:text="${bench.display}">54 | 55</td>
+                </tr>
+                </tbody>
+            </table>
+        </div>
+
+        <div th:if="${rooms == null or #lists.isEmpty(rooms)}" class="empty-room">
+            No seat allocations found for this schedule.
+        </div>
     </div>
 
-    <table class="plan-table">
-        <thead>
-        <tr>
-            <th style="width: 8%;" class="text-center">#</th>
-            <th style="width: 10%;">Roll No</th>
-            <th style="width: 26%;">Student Name</th>
-            <th style="width: 18%;">Enrollment No</th>
-            <th style="width: 18%;">Room</th>
-            <th style="width: 20%;">Seat</th>
-        </tr>
-        </thead>
-        <tbody>
-        <tr th:each="row, iter : ${rows}">
-            <td class="text-center" th:text="${iter.count}">1</td>
-            <td th:text="${row.rollNo}">1</td>
-            <td th:text="${row.studentName}">Student</td>
-            <td th:text="${row.enrollmentNumber}">ENR001</td>
-            <td th:text="${row.roomName}">Room A</td>
-            <td th:text="${row.seatLabel}">R1-C1 - LEFT</td>
-        </tr>
-        <tr th:if="${rows == null or #lists.isEmpty(rows)}">
-            <td colspan="6" class="text-center">No seat allocations found for this schedule.</td>
-        </tr>
-        </tbody>
-    </table>
 </div>
 </body>
 </html>

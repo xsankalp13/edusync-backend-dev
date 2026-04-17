@@ -30,6 +30,16 @@ public interface SeatAllocationRepository extends JpaRepository<SeatAllocation, 
         String getSubjectName();
     }
 
+    interface SeatingPlanPdfProjection {
+        Long getRoomId();
+        String getRoomName();
+        Integer getRowNumber();
+        Integer getColumnNumber();
+        Integer getPositionIndex();
+        Integer getRollNo();
+        String getClassName();
+    }
+
     // ── 1. Occupied seat IDs in a room (ANY allocation = occupied) ─────────
     @Query("""
         SELECT DISTINCT sa.seat.id FROM SeatAllocation sa
@@ -90,6 +100,19 @@ public interface SeatAllocationRepository extends JpaRepository<SeatAllocation, 
         @Param("startTime") LocalDateTime startTime,
         @Param("endTime") LocalDateTime endTime);
 
+    @Query("""
+        SELECT sa.seat.id, COUNT(sa.id)
+        FROM SeatAllocation sa
+        WHERE sa.seat.room.id IN :roomIds
+          AND sa.startTime < :endTime
+          AND sa.endTime > :startTime
+        GROUP BY sa.seat.id
+        """)
+    List<Object[]> countAllocationsPerSeatInRooms(
+        @Param("roomIds") Collection<Long> roomIds,
+        @Param("startTime") LocalDateTime startTime,
+        @Param("endTime") LocalDateTime endTime);
+
     // ── 6. Fetch allocations with all joins ───────────────────────────────
     @Query("""
         SELECT sa FROM SeatAllocation sa
@@ -105,6 +128,50 @@ public interface SeatAllocationRepository extends JpaRepository<SeatAllocation, 
         """)
     List<SeatAllocation> findByExamScheduleWithDetails(
         @Param("examScheduleId") Long examScheduleId);
+
+    @Query("""
+        SELECT sa.seat.room.id AS roomId,
+               sa.seat.room.name AS roomName,
+               sa.seat.rowNumber AS rowNumber,
+               sa.seat.columnNumber AS columnNumber,
+               sa.positionIndex AS positionIndex,
+               sa.student.rollNo AS rollNo,
+               sa.examSchedule.academicClass.name AS className
+        FROM SeatAllocation sa
+        WHERE sa.examSchedule.id = :examScheduleId
+        ORDER BY sa.seat.room.name ASC,
+                 sa.seat.rowNumber ASC,
+                 sa.seat.columnNumber ASC,
+                 sa.positionIndex ASC
+        """)
+    List<SeatingPlanPdfProjection> findSeatingPlanRowsByExamScheduleId(
+        @Param("examScheduleId") Long examScheduleId);
+
+    @Query("""
+        SELECT sa.seat.room.id AS roomId,
+               sa.seat.room.name AS roomName,
+               sa.seat.rowNumber AS rowNumber,
+               sa.seat.columnNumber AS columnNumber,
+               sa.positionIndex AS positionIndex,
+               sa.student.rollNo AS rollNo,
+               sa.examSchedule.academicClass.name AS className
+        FROM SeatAllocation sa
+        WHERE sa.seat.room.id IN (
+            SELECT DISTINCT sa0.seat.room.id
+            FROM SeatAllocation sa0
+            WHERE sa0.examSchedule.id = :examScheduleId
+        )
+          AND sa.startTime < :endTime
+          AND sa.endTime > :startTime
+        ORDER BY sa.seat.room.name ASC,
+                 sa.seat.rowNumber ASC,
+                 sa.seat.columnNumber ASC,
+                 sa.positionIndex ASC
+        """)
+    List<SeatingPlanPdfProjection> findSeatingPlanRowsByRoomsAndTimeOverlap(
+        @Param("examScheduleId") Long examScheduleId,
+        @Param("startTime") LocalDateTime startTime,
+        @Param("endTime") LocalDateTime endTime);
 
     // ── 7. Single student conflict check ──────────────────────────────────
     @Query("""
@@ -167,6 +234,22 @@ public interface SeatAllocationRepository extends JpaRepository<SeatAllocation, 
         """)
     List<Object[]> findOccupiedSlotDetailsInRoom(
         @Param("roomId") Long roomId,
+        @Param("startTime") LocalDateTime startTime,
+        @Param("endTime") LocalDateTime endTime);
+
+    @Query("""
+        SELECT sa.seat.room.uuid, sa.seat.id, sa.positionIndex,
+               sa.examSchedule.subject.name,
+               sa.examSchedule.academicClass.name,
+               CONCAT(sa.student.userProfile.firstName, ' ', COALESCE(sa.student.userProfile.lastName, ''))
+        FROM SeatAllocation sa
+        WHERE sa.seat.room.id IN :roomIds
+          AND sa.startTime < :endTime
+          AND sa.endTime > :startTime
+        ORDER BY sa.seat.id, sa.positionIndex
+        """)
+    List<Object[]> findOccupiedSlotDetailsInRooms(
+        @Param("roomIds") Collection<Long> roomIds,
         @Param("startTime") LocalDateTime startTime,
         @Param("endTime") LocalDateTime endTime);
 
@@ -280,19 +363,31 @@ public interface SeatAllocationRepository extends JpaRepository<SeatAllocation, 
         @Param("startTime") LocalDateTime startTime,
         @Param("endTime") LocalDateTime endTime);
 
-    // ── 15. Conflict check: same seat, overlapping time, same subject + class ──
+    // ── 15. Conflict check: same seat, overlapping time, same exam schedule ──
     @Query("""
         SELECT COUNT(sa) > 0 FROM SeatAllocation sa
         WHERE sa.seat.id = :seatId
           AND sa.startTime < :endTime
           AND sa.endTime > :startTime
-          AND sa.examSchedule.subject.id = :subjectId
-          AND sa.examSchedule.academicClass.id = :classId
+          AND sa.examSchedule.id = :examScheduleId
         """)
-    boolean existsConflictOnSeat(
+    boolean existsScheduleConflictOnSeat(
         @Param("seatId") Long seatId,
         @Param("startTime") LocalDateTime startTime,
         @Param("endTime") LocalDateTime endTime,
-        @Param("subjectId") Long subjectId,
-        @Param("classId") Long classId);
+        @Param("examScheduleId") Long examScheduleId);
+
+    @Query("""
+        SELECT DISTINCT sa.seat.id
+        FROM SeatAllocation sa
+        WHERE sa.seat.room.id = :roomId
+          AND sa.startTime < :endTime
+          AND sa.endTime > :startTime
+          AND sa.examSchedule.id = :examScheduleId
+        """)
+    Set<Long> findSeatIdsAlreadyUsedByScheduleInRoom(
+        @Param("roomId") Long roomId,
+        @Param("startTime") LocalDateTime startTime,
+        @Param("endTime") LocalDateTime endTime,
+        @Param("examScheduleId") Long examScheduleId);
 }
