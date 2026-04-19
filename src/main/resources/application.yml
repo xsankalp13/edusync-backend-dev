@@ -13,16 +13,7 @@ spring:
     redis:
       host: ${REDIS_HOST:localhost}
       port: ${REDIS_PORT:6379}
-      timeout: ${REDIS_TIMEOUT:2s}
-      repositories:
-        enabled: false
-      lettuce:
-        pool:
-          enabled: true
-          max-active: ${REDIS_POOL_MAX_ACTIVE:16}
-          max-idle: ${REDIS_POOL_MAX_IDLE:16}
-          min-idle: ${REDIS_POOL_MIN_IDLE:2}
-          max-wait: ${REDIS_POOL_MAX_WAIT:1s}
+      timeout: 500ms
   profiles:
     active: dev
   mail:
@@ -51,10 +42,6 @@ spring:
     properties:
       hibernate:
         dialect: org.hibernate.dialect.PostgreSQLDialect
-        jdbc:
-          batch_size: ${HIBERNATE_BATCH_SIZE:50}
-        order_inserts: true
-        order_updates: true
   flyway:
     enabled: true
     locations: classpath:db/migration
@@ -253,6 +240,7 @@ spring:
       ddl-auto: validate
     show-sql: false
   flyway:
+    enable: true
     # Production baseline remains explicit and controlled via env var.
     baseline-on-migrate: ${FLYWAY_BASELINE_ON_MIGRATE:false}
 

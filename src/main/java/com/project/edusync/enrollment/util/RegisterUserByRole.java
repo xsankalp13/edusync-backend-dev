@@ -57,6 +57,8 @@ public class RegisterUserByRole {
     private final LibrarianDetailsRepository librarianDetailsRepository;
     private final PrincipalDetailsRepository principalDetailsRepository;
     private final StaffDesignationRepository staffDesignationRepository;
+    private final com.project.edusync.hrms.repository.StaffSalaryMappingRepository staffSalaryMappingRepository;
+    private final com.project.edusync.hrms.repository.StaffGradeAssignmentRepository staffGradeAssignmentRepository;
     // (Add other details repositories here)
 
     // --- Utilities ---
@@ -224,7 +226,7 @@ public class RegisterUserByRole {
             LocalDate dob,
             Gender gender,
             LocalDate joiningDate,
-            String jobTitle,
+            String designationCode,
             Department department,
             StaffType staffType,
             StaffCategory staffCategory,
@@ -241,27 +243,14 @@ public class RegisterUserByRole {
         Staff staff = new Staff();
         staff.setEmployeeId(employeeId);
         staff.setHireDate(joiningDate);
-        staff.setJobTitle(jobTitle);
         staff.setDepartment(department);
         staff.setStaffType(staffType);
         staff.setCategory(staffCategory);
 
-        StaffDesignation designation = staffDesignationRepository.findByDesignationNameIgnoreCase(jobTitle)
-                .orElseGet(() -> {
-                    StaffDesignation newDesig = new StaffDesignation();
-                    newDesig.setDesignationName(jobTitle);
-                    String safeCode = jobTitle.toUpperCase().replaceAll("[^A-Z0-9]", "_");
-                    if (safeCode.length() > 15) {
-                         safeCode = safeCode.substring(0, 15);
-                    }
-                    safeCode = safeCode + "_" + java.util.UUID.randomUUID().toString().substring(0, 4).toUpperCase();
-                    newDesig.setDesignationCode(safeCode);
-                    newDesig.setCategory(staffCategory);
-                    newDesig.setActive(true);
-                    newDesig.setSortOrder(99);
-                    return staffDesignationRepository.save(newDesig);
-                });
+        StaffDesignation designation = staffDesignationRepository.findByDesignationCodeIgnoreCase(designationCode)
+                .orElseThrow(() -> new RuntimeException("Designation not found for code: " + designationCode));
         staff.setDesignation(designation);
+        staff.setJobTitle(designation.getDesignationName());
 
         staff.setActive(true);
         staff.setUserProfile(userProfile);
@@ -269,6 +258,26 @@ public class RegisterUserByRole {
         log.info("Attempting to create base Staff record for: {}", email);
         Staff savedStaff = staffRepository.save(staff);
         log.info("Successfully created base Staff with ID: {}", savedStaff.getId());
+
+        if (designation.getDefaultSalaryTemplate() == null) {
+            throw new RuntimeException("Designation " + designationCode + " has no default salary template. Cannot proceed with staff creation.");
+        }
+
+        com.project.edusync.hrms.model.entity.StaffSalaryMapping ssm = new com.project.edusync.hrms.model.entity.StaffSalaryMapping();
+        ssm.setStaff(savedStaff);
+        ssm.setTemplate(designation.getDefaultSalaryTemplate());
+        ssm.setEffectiveFrom(joiningDate);
+        ssm.setActive(true);
+        staffSalaryMappingRepository.save(ssm);
+
+        if (designation.getDefaultGrade() != null) {
+            com.project.edusync.hrms.model.entity.StaffGradeAssignment sga = new com.project.edusync.hrms.model.entity.StaffGradeAssignment();
+            sga.setStaff(savedStaff);
+            sga.setGrade(designation.getDefaultGrade());
+            sga.setEffectiveFrom(joiningDate);
+            sga.setActive(true);
+            staffGradeAssignmentRepository.save(sga);
+        }
 
         // --- Create Staff Details based on StaffType ---
         // Any exception thrown here (e.g., from validationHelper)

@@ -5,7 +5,6 @@ import com.project.edusync.adm.model.entity.Section;
 import com.project.edusync.adm.model.entity.Subject;
 import com.project.edusync.adm.model.entity.Timeslot;
 import com.project.edusync.em.model.entity.snapshot.TemplateSnapshot;
-import com.project.edusync.em.model.enums.SeatSide;
 import jakarta.persistence.*;
 import lombok.*;
 import org.hibernate.annotations.JdbcTypeCode;
@@ -62,15 +61,15 @@ public class ExamSchedule {
     @Column(nullable = false)
     private Integer maxMarks;
 
+    /**
+     * How many students can share a single physical seat for this schedule.
+     * 1 = single seating, 2 = double (LEFT/RIGHT), 3 = triple (LEFT/MIDDLE/RIGHT).
+     */
     @Column(name = "max_students_per_seat", nullable = false)
     private Integer maxStudentsPerSeat = 1;
 
     @Column(name = "active_student_count", nullable = false)
     private Integer activeStudentCount = 0;
-
-    @Enumerated(EnumType.STRING)
-    @Column(name = "seat_side", length = 5)
-    private SeatSide seatSide;
 
     @Column(nullable = false, updatable = false)
     private LocalDateTime createdAt;

@@ -63,6 +63,13 @@ public interface UserManagementService {
     User createLibrarian(CreateLibrarianRequestDTO request);
 
     /**
+     * Creates a Security Guard.
+     * @param request DTO with security guard specific fields.
+     * @return The created User entity.
+     */
+    User createSecurityGuard(CreateSecurityGuardRequestDTO request);
+
+    /**
      * Creates a guardian user and links it with a student.
      * @param studentId Student UUID.
      * @param request Guardian creation payload.
@@ -187,4 +194,6 @@ public interface UserManagementService {
      * Returns lightweight KPI metrics for a staff profile hero banner.
      */
     StaffKpiMetricsDTO getStaffKpiMetrics(java.util.UUID staffId);
+
+    User findByUsername(String name);
 }

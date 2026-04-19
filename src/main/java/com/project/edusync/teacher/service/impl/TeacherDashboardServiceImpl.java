@@ -395,12 +395,12 @@ public class TeacherDashboardServiceImpl implements TeacherDashboardService {
         Staff staff = resolveStaffFromCurrentUser(currentUserId);
         LocalDate targetDate = date == null ? LocalDate.now() : date;
 
-        Optional<Section> homeroomOpt = sectionRepository.findActiveHomeroomByClassTeacherId(staff.getId());
-        if (homeroomOpt.isEmpty()) {
+        List<Section> homeroomSections = sectionRepository.findActiveHomeroomByClassTeacherId(staff.getId());
+        if (homeroomSections.isEmpty()) {
             return TeacherHomeroomResponseDto.builder().isClassTeacher(false).build();
         }
 
-        Section homeroom = homeroomOpt.get();
+        Section homeroom = homeroomSections.get(0);
         List<Student> students = studentRepository.findAllBySectionIdWithDetails(homeroom.getId());
         List<Long> studentIds = students.stream().map(Student::getId).toList();
 

@@ -20,6 +20,7 @@ public class StaffSensitiveInfoMapper {
                 info.getBankName(),
                 maskBankAccount(info.getBankAccountNumber()),
                 info.getBankIfscCode(),
+                info.getBankAccountType(),
                 info.getEmergencyContactName(),
                 info.getEmergencyContactPhone(),
                 info.getEmergencyContactRelation()

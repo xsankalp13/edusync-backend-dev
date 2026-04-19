@@ -51,3 +51,13 @@ src/main/java/com/project/edusync/common/security/WebSecurityConfig.java
 src/main/resources/application.yml
 pom.xml
 import.sql
+
+# Local and generated files
+/logs/
+/uploads/
+.DS_Store
+.idea/
+*.iml
+edusync.db
+localstack/tmp/
+localstack/logs/

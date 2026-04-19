@@ -2,7 +2,6 @@ package com.project.edusync.em.model.repository;
 
 import com.project.edusync.em.model.entity.Seat;
 import com.project.edusync.em.model.entity.SeatAllocation;
-import com.project.edusync.em.model.enums.SeatPosition;
 import jakarta.persistence.LockModeType;
 import jakarta.persistence.QueryHint;
 import org.springframework.data.jpa.repository.JpaRepository;
@@ -31,10 +30,19 @@ public interface SeatAllocationRepository extends JpaRepository<SeatAllocation, 
         String getSubjectName();
     }
 
-    // ── 1. Overlap detection: occupied seat IDs in a room (SINGLE query) ─────
-    //    KEPT for backward compat
+    interface SeatingPlanPdfProjection {
+        Long getRoomId();
+        String getRoomName();
+        Integer getRowNumber();
+        Integer getColumnNumber();
+        Integer getPositionIndex();
+        Integer getRollNo();
+        String getClassName();
+    }
+
+    // ── 1. Occupied seat IDs in a room (ANY allocation = occupied) ─────────
     @Query("""
-        SELECT sa.seat.id FROM SeatAllocation sa
+        SELECT DISTINCT sa.seat.id FROM SeatAllocation sa
         WHERE sa.seat.room.id = :roomId
           AND sa.startTime < :endTime
           AND sa.endTime > :startTime
@@ -44,8 +52,7 @@ public interface SeatAllocationRepository extends JpaRepository<SeatAllocation, 
         @Param("startTime") LocalDateTime startTime,
         @Param("endTime") LocalDateTime endTime);
 
-    // ── 2. Room availability: total allocation count per room — ALL rooms (SINGLE query)
-    //    COUNT(sa.id) counts total allocations, not distinct seats, for capacity math
+    // ── 2. Total allocation count per room (SINGLE query) ─────────────────
     @Query("""
         SELECT sa.seat.room.id, COUNT(sa.id)
         FROM SeatAllocation sa
@@ -57,7 +64,7 @@ public interface SeatAllocationRepository extends JpaRepository<SeatAllocation, 
         @Param("startTime") LocalDateTime startTime,
         @Param("endTime") LocalDateTime endTime);
 
-    // ── 3. Bulk student conflict check — ALL students at once, SINGLE query ──
+    // ── 3. Bulk student conflict check ────────────────────────────────────
     @Query("""
         SELECT sa.student.id FROM SeatAllocation sa
         WHERE sa.student.id IN :studentIds
@@ -69,8 +76,7 @@ public interface SeatAllocationRepository extends JpaRepository<SeatAllocation, 
         @Param("startTime") LocalDateTime startTime,
         @Param("endTime") LocalDateTime endTime);
 
-    // ── 4. Pessimistic lock — lock ALL seats in room (unfiltered) ────────────
-    //    Locks every seat row in the room to prevent concurrent allocation races.
+    // ── 4. Pessimistic lock — lock ALL seats in room ──────────────────────
     @Lock(LockModeType.PESSIMISTIC_WRITE)
     @QueryHints(@QueryHint(name = "jakarta.persistence.lock.timeout", value = "3000"))
     @Query("""
@@ -80,30 +86,7 @@ public interface SeatAllocationRepository extends JpaRepository<SeatAllocation, 
         """)
     List<Seat> lockAllSeatsInRoom(@Param("roomId") Long roomId);
 
-    // ── 4b. Pessimistic lock — lock AVAILABLE seats in room (filtered via NOT EXISTS) ────────────
-    @Lock(LockModeType.PESSIMISTIC_WRITE)
-    @QueryHints(@QueryHint(name = "jakarta.persistence.lock.timeout", value = "3000"))
-    @Query("""
-        SELECT s FROM Seat s
-        WHERE s.room.id = :roomId
-          AND NOT EXISTS (
-              SELECT 1 FROM SeatAllocation sa
-              WHERE sa.seat.id = s.id
-                AND sa.startTime < :endTime
-                AND sa.endTime > :startTime
-                AND (sa.position = com.project.edusync.em.model.enums.SeatPosition.SINGLE OR sa.position = :requestedPosition)
-          )
-        ORDER BY s.rowNumber ASC, s.columnNumber ASC
-        """)
-    List<Seat> lockAvailableSeatsInRoom(
-        @Param("roomId") Long roomId,
-        @Param("startTime") LocalDateTime startTime,
-        @Param("endTime") LocalDateTime endTime,
-        @Param("requestedPosition") SeatPosition requestedPosition);
-
-    // ── 5. Per-seat occupancy via GROUP BY (no subquery, no N+1) ─────────────
-    //    Returns [seatId, allocationCount] pairs for occupied seats in a time window.
-    //    Seats with 0 allocations won't appear — absent = 0.
+    // ── 5. Per-seat occupancy via GROUP BY (no subquery, no N+1) ──────────
     @Query("""
         SELECT sa.seat.id, COUNT(sa.id)
         FROM SeatAllocation sa
@@ -117,20 +100,80 @@ public interface SeatAllocationRepository extends JpaRepository<SeatAllocation, 
         @Param("startTime") LocalDateTime startTime,
         @Param("endTime") LocalDateTime endTime);
 
-    // ── 6. Fetch allocations with all joins — zero lazy-loading issues ────────
+    @Query("""
+        SELECT sa.seat.id, COUNT(sa.id)
+        FROM SeatAllocation sa
+        WHERE sa.seat.room.id IN :roomIds
+          AND sa.startTime < :endTime
+          AND sa.endTime > :startTime
+        GROUP BY sa.seat.id
+        """)
+    List<Object[]> countAllocationsPerSeatInRooms(
+        @Param("roomIds") Collection<Long> roomIds,
+        @Param("startTime") LocalDateTime startTime,
+        @Param("endTime") LocalDateTime endTime);
+
+    // ── 6. Fetch allocations with all joins ───────────────────────────────
     @Query("""
         SELECT sa FROM SeatAllocation sa
         JOIN FETCH sa.seat s
         JOIN FETCH s.room r
         JOIN FETCH sa.student st
         JOIN FETCH st.userProfile up
+        JOIN FETCH sa.examSchedule es
+        JOIN FETCH es.subject sub
+        JOIN FETCH es.academicClass ac
         WHERE sa.examSchedule.id = :examScheduleId
-        ORDER BY s.rowNumber ASC, s.columnNumber ASC
+        ORDER BY s.rowNumber ASC, s.columnNumber ASC, sa.positionIndex ASC
         """)
     List<SeatAllocation> findByExamScheduleWithDetails(
         @Param("examScheduleId") Long examScheduleId);
 
-    // ── 7. Single student conflict check ──────────────────────────────────────
+    @Query("""
+        SELECT sa.seat.room.id AS roomId,
+               sa.seat.room.name AS roomName,
+               sa.seat.rowNumber AS rowNumber,
+               sa.seat.columnNumber AS columnNumber,
+               sa.positionIndex AS positionIndex,
+               sa.student.rollNo AS rollNo,
+               sa.examSchedule.academicClass.name AS className
+        FROM SeatAllocation sa
+        WHERE sa.examSchedule.id = :examScheduleId
+        ORDER BY sa.seat.room.name ASC,
+                 sa.seat.rowNumber ASC,
+                 sa.seat.columnNumber ASC,
+                 sa.positionIndex ASC
+        """)
+    List<SeatingPlanPdfProjection> findSeatingPlanRowsByExamScheduleId(
+        @Param("examScheduleId") Long examScheduleId);
+
+    @Query("""
+        SELECT sa.seat.room.id AS roomId,
+               sa.seat.room.name AS roomName,
+               sa.seat.rowNumber AS rowNumber,
+               sa.seat.columnNumber AS columnNumber,
+               sa.positionIndex AS positionIndex,
+               sa.student.rollNo AS rollNo,
+               sa.examSchedule.academicClass.name AS className
+        FROM SeatAllocation sa
+        WHERE sa.seat.room.id IN (
+            SELECT DISTINCT sa0.seat.room.id
+            FROM SeatAllocation sa0
+            WHERE sa0.examSchedule.id = :examScheduleId
+        )
+          AND sa.startTime < :endTime
+          AND sa.endTime > :startTime
+        ORDER BY sa.seat.room.name ASC,
+                 sa.seat.rowNumber ASC,
+                 sa.seat.columnNumber ASC,
+                 sa.positionIndex ASC
+        """)
+    List<SeatingPlanPdfProjection> findSeatingPlanRowsByRoomsAndTimeOverlap(
+        @Param("examScheduleId") Long examScheduleId,
+        @Param("startTime") LocalDateTime startTime,
+        @Param("endTime") LocalDateTime endTime);
+
+    // ── 7. Single student conflict check ──────────────────────────────────
     @Query("""
         SELECT COUNT(sa) > 0 FROM SeatAllocation sa
         WHERE sa.student.id = :studentId
@@ -142,80 +185,83 @@ public interface SeatAllocationRepository extends JpaRepository<SeatAllocation, 
         @Param("startTime") LocalDateTime startTime,
         @Param("endTime") LocalDateTime endTime);
 
-    // ── 8. Simple fetch by schedule (for bulk delete etc.) ────────────────────
+    // ── 8. Simple fetch by schedule ───────────────────────────────────────
     List<SeatAllocation> findByExamScheduleId(Long examScheduleId);
 
-    // ── 9. Find seats blocked for a requested side in DOUBLE seating ─────────────
-    //    Blocked if seat already has SINGLE allocation, or an allocation on requested side.
+    // ── 9. Find seat IDs at full capacity ─────────────────────────────────
+    //    Returns seat IDs where allocation count >= maxPerSeat
     @Query("""
-        SELECT DISTINCT sa.seat.id
+        SELECT sa.seat.id
         FROM SeatAllocation sa
         WHERE sa.seat.room.id = :roomId
           AND sa.startTime < :endTime
           AND sa.endTime > :startTime
-          AND (sa.position = com.project.edusync.em.model.enums.SeatPosition.SINGLE OR sa.position = :requestedPosition)
+        GROUP BY sa.seat.id
+        HAVING COUNT(sa.id) >= :maxPerSeat
         """)
-    Set<Long> findSeatIdsBlockedForPosition(
+    Set<Long> findFullSeatIdsInRoom(
         @Param("roomId") Long roomId,
         @Param("startTime") LocalDateTime startTime,
         @Param("endTime") LocalDateTime endTime,
-        @Param("requestedPosition") SeatPosition requestedPosition);
+        @Param("maxPerSeat") int maxPerSeat);
 
-    // ── 10. Count seats blocked for requested side per room ────────────────
+    // ── 10. Count full seats per room (for room availability) ─────────────
     @Query("""
         SELECT sa.seat.room.id, COUNT(DISTINCT sa.seat.id)
         FROM SeatAllocation sa
         WHERE sa.startTime < :endTime
           AND sa.endTime > :startTime
-          AND (sa.position = com.project.edusync.em.model.enums.SeatPosition.SINGLE OR sa.position = :requestedPosition)
-        GROUP BY sa.seat.room.id
+        GROUP BY sa.seat.room.id, sa.seat.id
+        HAVING COUNT(sa.id) >= :maxPerSeat
         """)
-    List<Object[]> countBlockedSeatsPerRoomForPosition(
+    List<Object[]> countFullSeatsPerRoom(
         @Param("startTime") LocalDateTime startTime,
         @Param("endTime") LocalDateTime endTime,
-        @Param("requestedPosition") SeatPosition requestedPosition);
+        @Param("maxPerSeat") int maxPerSeat);
 
-    // ── 11. Count allocations on a requested position per room ────────
+    // ── 11. Occupied position details per seat in room ────────────────────
+    //    Returns [seatId, positionIndex, subjectName, className, studentFullName]
     @Query("""
-        SELECT sa.seat.room.id, COUNT(sa.id)
-        FROM SeatAllocation sa
-        WHERE sa.startTime < :endTime
-          AND sa.endTime > :startTime
-          AND sa.position = :position
-        GROUP BY sa.seat.room.id
-        """)
-    List<Object[]> countAllocationsPerRoomByPosition(
-        @Param("startTime") LocalDateTime startTime,
-        @Param("endTime") LocalDateTime endTime,
-        @Param("position") SeatPosition position);
-
-    @Query("""
-        SELECT sa.seat.id, COUNT(sa.id)
+        SELECT sa.seat.id, sa.positionIndex,
+               sa.examSchedule.subject.name,
+               sa.examSchedule.academicClass.name,
+               CONCAT(sa.student.userProfile.firstName, ' ', COALESCE(sa.student.userProfile.lastName, ''))
         FROM SeatAllocation sa
         WHERE sa.seat.room.id = :roomId
           AND sa.startTime < :endTime
           AND sa.endTime > :startTime
-          AND sa.position = :position
-        GROUP BY sa.seat.id
+        ORDER BY sa.seat.id, sa.positionIndex
         """)
-    List<Object[]> countAllocationsPerSeatInRoomByPosition(
+    List<Object[]> findOccupiedSlotDetailsInRoom(
         @Param("roomId") Long roomId,
         @Param("startTime") LocalDateTime startTime,
-        @Param("endTime") LocalDateTime endTime,
-        @Param("position") SeatPosition position);
+        @Param("endTime") LocalDateTime endTime);
 
-    // ── 12. Find occupied positions for seats in a room during a time window ──
-    // Returns [seatId, position] pairs for all allocations overlapping the window.
-    // Used to determine which position (LEFT/RIGHT) is already taken.
     @Query("""
-        SELECT sa.seat.id, sa.position
+        SELECT sa.seat.room.uuid, sa.seat.id, sa.positionIndex,
+               sa.examSchedule.subject.name,
+               sa.examSchedule.academicClass.name,
+               CONCAT(sa.student.userProfile.firstName, ' ', COALESCE(sa.student.userProfile.lastName, ''))
         FROM SeatAllocation sa
-        WHERE sa.seat.room.id = :roomId
+        WHERE sa.seat.room.id IN :roomIds
+          AND sa.startTime < :endTime
+          AND sa.endTime > :startTime
+        ORDER BY sa.seat.id, sa.positionIndex
+        """)
+    List<Object[]> findOccupiedSlotDetailsInRooms(
+        @Param("roomIds") Collection<Long> roomIds,
+        @Param("startTime") LocalDateTime startTime,
+        @Param("endTime") LocalDateTime endTime);
+
+    // ── 12. Find occupied positionIndices for a specific seat ─────────────
+    @Query("""
+        SELECT sa.positionIndex FROM SeatAllocation sa
+        WHERE sa.seat.id = :seatId
           AND sa.startTime < :endTime
           AND sa.endTime > :startTime
         """)
-    List<Object[]> findOccupiedPositionsPerSeatInRoom(
-        @Param("roomId") Long roomId,
+    Set<Integer> findOccupiedPositionIndices(
+        @Param("seatId") Long seatId,
         @Param("startTime") LocalDateTime startTime,
         @Param("endTime") LocalDateTime endTime);
 
@@ -305,7 +351,7 @@ public interface SeatAllocationRepository extends JpaRepository<SeatAllocation, 
     List<AdmitCardSeatAllocationProjection> findAdmitCardAllocationsByScheduleIds(
         @Param("scheduleIds") Collection<Long> scheduleIds);
 
-    // ── 14. Find allocations by room to build Room mode and OccpuiedBy ──
+    // ── 14. Room occupancy details for mode and occupiedBy ─────────────────
     @Query("""
         SELECT sa.seat.room.id, sa.examSchedule.maxStudentsPerSeat, sa.examSchedule.subject.name, sa.examSchedule.academicClass.name, COUNT(sa.id)
         FROM SeatAllocation sa
@@ -316,4 +362,32 @@ public interface SeatAllocationRepository extends JpaRepository<SeatAllocation, 
     List<Object[]> findRoomOccupancyDetails(
         @Param("startTime") LocalDateTime startTime,
         @Param("endTime") LocalDateTime endTime);
+
+    // ── 15. Conflict check: same seat, overlapping time, same exam schedule ──
+    @Query("""
+        SELECT COUNT(sa) > 0 FROM SeatAllocation sa
+        WHERE sa.seat.id = :seatId
+          AND sa.startTime < :endTime
+          AND sa.endTime > :startTime
+          AND sa.examSchedule.id = :examScheduleId
+        """)
+    boolean existsScheduleConflictOnSeat(
+        @Param("seatId") Long seatId,
+        @Param("startTime") LocalDateTime startTime,
+        @Param("endTime") LocalDateTime endTime,
+        @Param("examScheduleId") Long examScheduleId);
+
+    @Query("""
+        SELECT DISTINCT sa.seat.id
+        FROM SeatAllocation sa
+        WHERE sa.seat.room.id = :roomId
+          AND sa.startTime < :endTime
+          AND sa.endTime > :startTime
+          AND sa.examSchedule.id = :examScheduleId
+        """)
+    Set<Long> findSeatIdsAlreadyUsedByScheduleInRoom(
+        @Param("roomId") Long roomId,
+        @Param("startTime") LocalDateTime startTime,
+        @Param("endTime") LocalDateTime endTime,
+        @Param("examScheduleId") Long examScheduleId);
 }

@@ -100,4 +100,10 @@ public interface StaffRepository extends JpaRepository<Staff, Long> {
     long countByIsActiveTrueAndCategory(StaffCategory category);
 
     long countByDesignation_IdAndIsActiveTrue(Long designationId);
+
+    List<Staff> findByDesignation_IdAndIsActiveTrue(Long designationId);
+
+    List<Staff> findByIsActiveTrue();
+
+    Page<Staff> findByIsActiveTrue(Pageable pageable);
 }

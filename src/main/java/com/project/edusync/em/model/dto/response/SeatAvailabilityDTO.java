@@ -5,12 +5,14 @@ import lombok.Builder;
 import lombok.Data;
 import lombok.NoArgsConstructor;
 
+import java.util.List;
+
 /**
  * Individual seat availability within a room for a given time window.
  * Frontend can render this as a visual seat grid with occupancy indicators.
  *
- * BENCH SHARING: Each seat now has capacity/occupiedCount/availableSlots
- * instead of a simple boolean available flag.
+ * DYNAMIC SEATING: Each seat has capacity/occupiedCount/availableSlots
+ * and detailed occupiedSlots showing who sits where.
  */
 @Data
 @Builder
@@ -32,15 +34,12 @@ public class SeatAvailabilityDTO {
     /** capacity - occupiedCount */
     private int availableSlots;
 
-    /** True if occupiedCount >= capacity or blocked by single-seating */
+    /** True if occupiedCount >= capacity */
     private boolean isFull;
 
     /** Backward compatible: true if seat has any capacity left */
     private boolean available;
 
-    /** Name of the occupying student (only set for single-seat mode) */
-    private String occupiedByStudentName;
-
-    /** List of occupied position names, e.g. ["LEFT"] */
-    private java.util.List<String> occupiedPositions;
+    /** Detailed info per occupied slot: positionIndex, subject, class, student */
+    private List<OccupiedSlotDTO> occupiedSlots;
 }

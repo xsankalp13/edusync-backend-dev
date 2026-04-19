@@ -28,6 +28,8 @@ public abstract class BaseStaffRequestDTO extends CreateUserRequestDTO {
 
     private Long designationId;
 
+    private String designationCode;
+
     private String officeLocation;
 
     // Helper method to get the specific type in the service

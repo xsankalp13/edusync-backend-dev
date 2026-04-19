@@ -9,5 +9,9 @@ public class StudentDTO {
     Long id;
     String name;
     Integer rollNo;
+    String enrollmentNumber;
+    String className;
+    String sectionName;
+    String photoBase64;
 }
 

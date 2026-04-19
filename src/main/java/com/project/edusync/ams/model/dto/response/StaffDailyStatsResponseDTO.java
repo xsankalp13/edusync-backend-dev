@@ -11,6 +11,7 @@ public record StaffDailyStatsResponseDTO(
         long present,
         long absent,
         long late,
+        long halfDay,
         long onLeave,
         long unmarkedCount
 ) {

@@ -180,6 +180,30 @@ public class UserManagementController {
         return ResponseEntity.status(HttpStatus.CREATED).body("Librarian created successfully.");
     }
 
+    /**
+     * Hire a new Security Guard.
+     * ACCESSIBLE BY: Super Admin, School Admin.
+     */
+    @PostMapping("/staff/security-guard")
+//    @PreAuthorize("hasAnyAuthority('ROLE_SUPER_ADMIN', 'ROLE_SCHOOL_ADMIN')")
+    @SecurityRequirement(name = "bearerAuth")
+    @Operation(
+            summary = "Create Security Guard",
+            description = "Creates a Security Guard account and corresponding staff details. Intended for School Admin and Super Admin."
+    )
+    @ApiResponses(value = {
+            @ApiResponse(responseCode = "201", description = "Security Guard created successfully"),
+            @ApiResponse(responseCode = "400", description = "Invalid request payload"),
+            @ApiResponse(responseCode = "403", description = "Forbidden - Requires School Admin or Super Admin privileges"),
+            @ApiResponse(responseCode = "409", description = "Conflict - Username, email, or employee ID already exists"),
+            @ApiResponse(responseCode = "500", description = "Internal server error")
+    })
+    public ResponseEntity<String> createSecurityGuard(@Valid @RequestBody CreateSecurityGuardRequestDTO request) {
+        log.info("API Request: Hire Security Guard [{}]", request.getUsername());
+        userManagementService.createSecurityGuard(request);
+        return ResponseEntity.status(HttpStatus.CREATED).body("Security Guard created successfully.");
+    }
+
     @PostMapping("/student/{studentId}/guardian")
     @PreAuthorize("hasAnyAuthority('ROLE_SUPER_ADMIN', 'ROLE_SCHOOL_ADMIN')")
     @SecurityRequirement(name = "bearerAuth")

@@ -137,3 +137,37 @@ Baseline regression artifact:
 - `docs/hrms/artifacts/2026-04-04_hrms_regression_baseline.md`
 
 Use these documents to apply profile-safe Flyway rollout and payroll attendance policy controls during deployment.
+
+## Quickstart
+
+If you want to get the service running quickly for local development, follow these steps:
+
+1. Start dependent services using Docker Compose (Postgres, localstack if used):
+   ```bash
+   docker-compose up -d
+   ```
+2. Build and run the application:
+   ```bash
+   ./mvnw clean install
+   ./mvnw spring-boot:run
+   ```
+3. Open http://localhost:8080 and use the API or admin endpoints.
+
+Local development notes
+
+- Use the `application-dev.yml` or override properties locally for DB credentials.
+- Uploaded files are stored under the `uploads/` directory in development.
+- To run tests locally: `./mvnw test` (consider using test profile with H2 for faster runs).
+
+See `CONTRIBUTING.md` for more on setting up your IDE and running the full test suite.
+
+Developer setup
+
+After cloning, run the helper to install git hooks used by the repository:
+
+```bash
+./scripts/setup-git-hooks.sh
+```
+
+This will copy the `scripts/git-hooks/pre-commit` hook into `.git/hooks` so local commits run quick validations.
+

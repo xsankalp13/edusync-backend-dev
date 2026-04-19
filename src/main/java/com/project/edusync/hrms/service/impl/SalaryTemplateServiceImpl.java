@@ -92,6 +92,7 @@ public class SalaryTemplateServiceImpl implements SalaryTemplateService {
 
         SalaryTemplate savedTemplate = salaryTemplateRepository.save(template);
         salaryTemplateComponentRepository.deleteByTemplate_Id(templateId);
+        salaryTemplateComponentRepository.flush(); // Force Hibernate to execute deletes before queuing new inserts
         replaceTemplateComponents(savedTemplate, dto.components());
 
         return toResponse(savedTemplate);

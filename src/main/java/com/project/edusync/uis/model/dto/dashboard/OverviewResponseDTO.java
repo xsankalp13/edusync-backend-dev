@@ -1,12 +1,14 @@
 package com.project.edusync.uis.model.dto.dashboard;
 
 import io.swagger.v3.oas.annotations.media.Schema;
+import com.fasterxml.jackson.annotation.JsonTypeInfo;
 
 import java.math.BigDecimal;
 import java.time.Instant;
 import java.util.List;
 
 @Schema(description = "Consolidated student dashboard overview payload")
+@JsonTypeInfo(use = JsonTypeInfo.Id.CLASS, property = "@class")
 public record OverviewResponseDTO(
         ProfileDTO profile,
         KpisDTO kpis,

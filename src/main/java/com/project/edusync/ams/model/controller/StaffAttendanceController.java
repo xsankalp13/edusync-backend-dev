@@ -18,10 +18,13 @@ import org.springframework.data.domain.*;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.core.Authentication;
+import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.web.bind.annotation.*;
 
 import java.time.LocalDate;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 import java.util.UUID;
 
@@ -37,22 +40,24 @@ public class StaffAttendanceController {
     @PostMapping(consumes = MediaType.APPLICATION_JSON_VALUE)
     @Operation(summary = "Create staff attendance")
     public ResponseEntity<StaffAttendanceResponseDTO> create(
-            @Valid @RequestBody StaffAttendanceRequestDTO request,
-            @RequestHeader(value = "X-User-Id", required = false) Long headerUserId) {
+            @Valid @RequestBody StaffAttendanceRequestDTO request) {
 
-        log.debug("POST staff attendance request: staffUuid={}, date={}", request.getStaffUuid(), request.getAttendanceDate());
-        StaffAttendanceResponseDTO dto = service.createAttendance(request, headerUserId);
+        Long callerUserId = resolveCallerUserId();
+        log.debug("POST staff attendance request: staffUuid={}, date={}, callerUserId={}",
+                request.getStaffUuid(), request.getAttendanceDate(), callerUserId);
+        StaffAttendanceResponseDTO dto = service.createAttendance(request, callerUserId);
         return ResponseEntity.status(HttpStatus.CREATED).body(dto);
     }
 
     @PostMapping(path = "/bulk", consumes = MediaType.APPLICATION_JSON_VALUE)
     @Operation(summary = "Bulk create staff attendance")
     public ResponseEntity<List<StaffAttendanceResponseDTO>> bulkCreate(
-            @Valid @RequestBody List<StaffAttendanceRequestDTO> requests,
-            @RequestHeader(value = "X-User-Id", required = false) Long headerUserId) {
+            @Valid @RequestBody List<StaffAttendanceRequestDTO> requests) {
 
-        log.debug("POST bulk staff attendance request, count={}", requests == null ? 0 : requests.size());
-        return ResponseEntity.status(HttpStatus.CREATED).body(service.bulkCreate(requests, headerUserId));
+        Long callerUserId = resolveCallerUserId();
+        log.debug("POST bulk staff attendance request, count={}, callerUserId={}",
+                requests == null ? 0 : requests.size(), callerUserId);
+        return ResponseEntity.status(HttpStatus.CREATED).body(service.bulkCreate(requests, callerUserId));
     }
 
     @GetMapping
@@ -109,6 +114,24 @@ public class StaffAttendanceController {
         return ResponseEntity.ok(service.getUnmarkedStaff(LocalDate.parse(date), Optional.ofNullable(category)));
     }
 
+    @PostMapping("/mark-all-present")
+    @Operation(summary = "Mark all unmarked staff as Present for a date (skips leaves)")
+    public ResponseEntity<Map<String, Object>> markAllPresent(
+            @RequestParam("date") String date,
+            @RequestParam(value = "testMode", defaultValue = "false") boolean testMode) {
+        int count = service.markAllPresent(LocalDate.parse(date), testMode);
+        return ResponseEntity.ok(Map.of("marked", count, "type", "PRESENT", "date", date));
+    }
+
+    @PostMapping("/mark-all-absent")
+    @Operation(summary = "Mark all unmarked staff as Absent for a date (skips leaves)")
+    public ResponseEntity<Map<String, Object>> markAllAbsent(
+            @RequestParam("date") String date,
+            @RequestParam(value = "testMode", defaultValue = "false") boolean testMode) {
+        int count = service.markAllAbsent(LocalDate.parse(date), testMode);
+        return ResponseEntity.ok(Map.of("marked", count, "type", "ABSENT", "date", date));
+    }
+
     @GetMapping("/{recordUuid}")
     @Operation(summary = "Get staff attendance record by UUID")
     public ResponseEntity<StaffAttendanceResponseDTO> getById(
@@ -122,10 +145,10 @@ public class StaffAttendanceController {
     public ResponseEntity<StaffAttendanceResponseDTO> update(
             @Parameter(description = "Staff attendance record UUID", schema = @Schema(format = "uuid"))
             @PathVariable UUID recordUuid,
-            @Valid @RequestBody StaffAttendanceRequestDTO request,
-            @RequestHeader(value = "X-User-Id", required = false) Long headerUserId) {
+            @Valid @RequestBody StaffAttendanceRequestDTO request) {
 
-        return ResponseEntity.ok(service.updateAttendance(recordUuid, request, headerUserId));
+        Long callerUserId = resolveCallerUserId();
+        return ResponseEntity.ok(service.updateAttendance(recordUuid, request, callerUserId));
     }
 
     @DeleteMapping("/{recordUuid}")
@@ -133,8 +156,36 @@ public class StaffAttendanceController {
     @Operation(summary = "Delete staff attendance record by UUID")
     public void delete(
                        @Parameter(description = "Staff attendance record UUID", schema = @Schema(format = "uuid"))
-                       @PathVariable UUID recordUuid,
-                       @RequestHeader(value = "X-User-Id", required = false) Long headerUserId) {
-        service.deleteAttendance(recordUuid, headerUserId);
+                       @PathVariable UUID recordUuid) {
+        Long callerUserId = resolveCallerUserId();
+        service.deleteAttendance(recordUuid, callerUserId);
+    }
+
+    /**
+     * Resolves the authenticated caller's user ID from the JWT claims injected by JWTFilter
+     * into {@code Authentication.getDetails()}. This is always present for authenticated
+     * requests and cannot be spoofed via a client-controlled request header.
+     *
+     * @return the Long user ID of the caller, or {@code null} if the token does not carry the claim.
+     */
+    private Long resolveCallerUserId() {
+        Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
+        if (authentication == null || authentication.getDetails() == null) {
+            return null;
+        }
+        if (authentication.getDetails() instanceof Map<?, ?> details) {
+            Object userId = details.get("user_id");
+            if (userId instanceof Number number) {
+                return number.longValue();
+            }
+            if (userId instanceof String raw && !raw.isBlank()) {
+                try {
+                    return Long.parseLong(raw);
+                } catch (NumberFormatException ignored) {
+                    log.warn("Invalid user_id claim in JWT details: {}", raw);
+                }
+            }
+        }
+        return null;
     }
 }

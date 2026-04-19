@@ -29,6 +29,7 @@ public interface StaffMapper {
     @Mapping(target = "hireDate", source = "hireDate")
     @Mapping(target = "officeLocation", source = "officeLocation")
     @Mapping(target = "active", constant = "true")
+    @Mapping(target = "designation", ignore = true)
     Staff toEntity(BaseStaffRequestDTO dto);
 
     /**

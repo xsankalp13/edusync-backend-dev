@@ -9,7 +9,7 @@ import java.math.BigDecimal;
 
 @Entity
 @Table(name = "question_marks", uniqueConstraints = {
-        @UniqueConstraint(columnNames = {"evaluation_result_id", "section_name", "question_number"})
+        @UniqueConstraint(columnNames = {"evaluation_result_id", "section_name", "question_number", "option_label"})
 })
 @Getter
 @Setter
@@ -28,6 +28,9 @@ public class QuestionMark extends AuditableEntity {
 
     @Column(name = "question_number", nullable = false)
     private Integer questionNumber;
+
+    @Column(name = "option_label", nullable = false, length = 10)
+    private String optionLabel;
 
     @Column(name = "marks_obtained", nullable = false, precision = 7, scale = 2)
     private BigDecimal marksObtained;

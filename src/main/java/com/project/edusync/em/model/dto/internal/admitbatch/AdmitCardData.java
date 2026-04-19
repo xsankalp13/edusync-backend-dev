@@ -10,5 +10,9 @@ import java.util.List;
 public class AdmitCardData {
     StudentDTO student;
     List<ScheduleDTO> schedules;
+    String admitCardNumber;
+    String qrCodeBase64;
+    String verificationCode;
+    String examType;
+    String issueDate;
 }
-

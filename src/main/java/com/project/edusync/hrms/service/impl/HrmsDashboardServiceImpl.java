@@ -1,5 +1,6 @@
 package com.project.edusync.hrms.service.impl;
 
+import com.project.edusync.hrms.dto.dashboard.AttendanceHeatmapDTO;
 import com.project.edusync.hrms.dto.dashboard.GradeDistributionItem;
 import com.project.edusync.hrms.dto.dashboard.HrmsDashboardSummaryDTO;
 import com.project.edusync.hrms.dto.dashboard.MonthlyPayrollTrendItem;
@@ -93,23 +94,27 @@ public class HrmsDashboardServiceImpl implements HrmsDashboardService {
 
         List<MonthlyPayrollTrendItem> trend = buildLastSixMonthsTrend(currentMonth, payrollStatuses);
 
-        return new HrmsDashboardSummaryDTO(
-                totalActiveStaff,
-                staffWithSalaryMapping,
-                staffWithoutSalaryMapping,
-                nullSafe(totalPayrollThisMonth),
-                nullSafe(totalPayrollLastMonth),
-                pendingLeaveApplications,
-                todayPresent,
-                todayAbsent,
-                todayOnLeave,
-                totalTeachingStaff,
-                totalNonTeachingAdmin,
-                totalNonTeachingSupport,
-                gradeDistribution,
-                trend,
-                categoryAttendance
-        );
+        AttendanceHeatmapDTO heatmap = buildHeatmap(today.getYear(), today.getMonthValue());
+
+        return HrmsDashboardSummaryDTO.builder()
+                .totalActiveStaff(totalActiveStaff)
+                .staffWithSalaryMapping(staffWithSalaryMapping)
+                .staffWithoutSalaryMapping(staffWithoutSalaryMapping)
+                .totalPayrollThisMonth(nullSafe(totalPayrollThisMonth))
+                .totalPayrollLastMonth(nullSafe(totalPayrollLastMonth))
+                .pendingLeaveApplications(pendingLeaveApplications)
+                .todayPresent(todayPresent)
+                .todayAbsent(todayAbsent)
+                .todayOnLeave(todayOnLeave)
+                .totalTeachingStaff(totalTeachingStaff)
+                .totalNonTeachingAdmin(totalNonTeachingAdmin)
+                .totalNonTeachingSupport(totalNonTeachingSupport)
+                .gradeDistribution(gradeDistribution)
+                .payrollTrend(trend)
+                .categoryAttendance(categoryAttendance)
+                .currentMonthHeatmap(heatmap)
+                .pendingApprovalRequests(0)
+                .build();
     }
 
     private CategoryAttendanceItem buildCategoryAttendance(LocalDate date, StaffCategory category) {
@@ -133,11 +138,33 @@ public class HrmsDashboardServiceImpl implements HrmsDashboardService {
         return (int) Math.min(Integer.MAX_VALUE, Math.max(0, value));
     }
 
+    private AttendanceHeatmapDTO buildHeatmap(int year, int month) {
+        java.time.YearMonth ym = java.time.YearMonth.of(year, month);
+        java.time.LocalDate start = ym.atDay(1);
+        java.time.LocalDate end = ym.atEndOfMonth();
+        java.util.List<AttendanceHeatmapDTO.HeatmapDayEntry> days = new java.util.ArrayList<>();
+        java.time.LocalDate cursor = start;
+        while (!cursor.isAfter(end)) {
+            int present = toInt(staffDailyAttendanceRepository.countDistinctPresentStaffByDate(cursor));
+            int absent = toInt(staffDailyAttendanceRepository.countDistinctAbsentStaffByDate(cursor));
+            int onLeave = toInt(leaveApplicationRepository.countDistinctStaffOnApprovedLeave(cursor));
+            days.add(new AttendanceHeatmapDTO.HeatmapDayEntry(cursor, present, absent, onLeave));
+            cursor = cursor.plusDays(1);
+        }
+        return new AttendanceHeatmapDTO(year, month, days);
+    }
 
     private BigDecimal nullSafe(BigDecimal value) {
         return value == null ? BigDecimal.ZERO : value;
     }
+
+    @Override
+    @Transactional(readOnly = true)
+    public AttendanceHeatmapDTO getAttendanceHeatmap(int year, int month) {
+        return buildHeatmap(year, month);
+    }
 }
+
 
 
 

@@ -37,8 +37,9 @@ public interface SectionRepository extends JpaRepository<Section, Long> {
             LEFT JOIN FETCH ct.userProfile up
             WHERE s.classTeacher.id = :staffId
               AND s.isActive = true
+            ORDER BY s.id ASC
             """)
-    Optional<Section> findActiveHomeroomByClassTeacherId(Long staffId);
+    List<Section> findActiveHomeroomByClassTeacherId(@Param("staffId") Long staffId);
 
     @Query("SELECT s FROM Section s where s.uuid = :sectionId")
     Optional<Section> findById(UUID sectionId);

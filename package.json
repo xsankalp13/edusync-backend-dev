@@ -2,4 +2,8 @@
   "dependencies": {
     "pg": "^8.16.3"
   }
+  "scripts": {
+    "lint": "eslint . || true",
+    "format": "prettier --write . || true"
+  }
 }

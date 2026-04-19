@@ -1,6 +1,7 @@
 package com.project.edusync.uis.model.dto.dashboard;
 
 import io.swagger.v3.oas.annotations.media.Schema;
+import com.fasterxml.jackson.annotation.JsonTypeInfo;
 
 import java.math.BigDecimal;
 import java.time.LocalDate;
@@ -12,6 +13,7 @@ import java.time.LocalDateTime;
  * This DTO is intentionally nested and strictly typed so the API contract
  * remains stable even when entity models evolve.
  */
+@JsonTypeInfo(use = JsonTypeInfo.Id.CLASS, property = "@class")
 public record IntelligenceResponseDTO(
         @Schema(description = "Student profile details")
         ProfileDTO profile,

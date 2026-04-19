@@ -18,9 +18,12 @@ import java.util.Optional;
 public class AmsDataSeeder implements ApplicationRunner {
 
     private static final List<AttendanceTypeSeed> DEFAULT_TYPES = List.of(
-            new AttendanceTypeSeed("Present", "P", true, false, false, "#10b981"),
-            new AttendanceTypeSeed("Absent", "A", false, true, false, "#ef4444"),
-            new AttendanceTypeSeed("Late", "L", false, false, true, "#f59e0b")
+            new AttendanceTypeSeed("Present",            "P",  true,  false, false, "#10b981"),
+            new AttendanceTypeSeed("Absent",             "A",  false, true,  false, "#ef4444"),
+            new AttendanceTypeSeed("Late",               "L",  false, false, true,  "#f59e0b"),
+            new AttendanceTypeSeed("Half Day",           "HD", true,  false, false, "#f97316"),
+            new AttendanceTypeSeed("Unexcused Absence",  "UA", false, true,  false, "#dc2626"),
+            new AttendanceTypeSeed("Excused",            "E",  false, false, false, "#6366f1")
     );
 
     private final AttendanceTypeRepository attendanceTypeRepository;

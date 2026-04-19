@@ -3,6 +3,8 @@ package com.project.edusync.em.model.dto.ResponseDTO;
 import lombok.Builder;
 import lombok.Data;
 
+import java.time.LocalDateTime;
+
 @Data
 @Builder
 public class ScheduleAdmitCardStatusDTO {
@@ -16,5 +18,5 @@ public class ScheduleAdmitCardStatusDTO {
     private boolean allGenerated;
     private int publishedCount;
     private boolean allPublished;
+    private LocalDateTime lastGeneratedAt;
 }
-

@@ -1,0 +1,159 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org">
+<head>
+    <meta charset="UTF-8"/>
+    <title>Loan Sanction Letter</title>
+    <style>
+        @page { size: A4; margin: 16mm; }
+        * { box-sizing: border-box; }
+        body { font-family: 'Noto Sans', Arial, sans-serif; font-size: 11px; color: #1f2937; margin: 0; }
+        .header { display: flex; align-items: center; gap: 12px; border-bottom: 2px solid #111827; padding-bottom: 10px; margin-bottom: 14px; }
+        .header img { height: 52px; }
+        .school-name { font-size: 17px; font-weight: 700; }
+        .school-meta { font-size: 10px; color: #6b7280; margin-top: 2px; }
+        .header-right { margin-left: auto; font-size: 11px; color: #374151; }
+        .title { text-align: center; font-size: 15px; font-weight: 700; letter-spacing: .08em; text-transform: uppercase; margin-bottom: 14px; }
+        .summary { width: 100%; border-collapse: separate; border-spacing: 0; margin-bottom: 14px; }
+        .summary td { border: 1px solid #bbf7d0; background: #f0fdf4; padding: 8px 10px; }
+        .summary .label { font-size: 9px; color: #6b7280; text-transform: uppercase; letter-spacing: .05em; }
+        .summary .value { font-size: 13px; font-weight: 700; color: #166534; margin-top: 2px; }
+        .section-title { font-size: 10px; color: #6b7280; text-transform: uppercase; letter-spacing: .05em; font-weight: 700; border-bottom: 1px solid #e5e7eb; padding-bottom: 4px; margin: 10px 0 8px; }
+        .details { width: 100%; border-collapse: collapse; }
+        .details td { width: 25%; padding: 4px 6px 4px 0; vertical-align: top; }
+        .details .label { color: #6b7280; }
+        .details .value { font-weight: 700; }
+        .schedule { width: 100%; border-collapse: collapse; margin-top: 6px; }
+        .schedule th { background: #111827; color: #ffffff; padding: 7px 8px; text-align: left; font-size: 10px; text-transform: uppercase; }
+        .schedule td { padding: 7px 8px; border-bottom: 1px solid #e5e7eb; }
+        .schedule td.right, .schedule th.right { text-align: right; }
+        .schedule tr:nth-child(even) td { background: #f8fafc; }
+        .schedule tfoot td { font-weight: 700; background: #f0fdf4; border-top: 2px solid #bbf7d0; }
+        .status-scheduled { color: #2563eb; font-weight: 700; }
+        .status-deducted, .status-manual { color: #15803d; font-weight: 700; }
+        .signatures { width: 100%; border-collapse: collapse; margin-top: 26px; }
+        .signatures td { width: 33.33%; text-align: center; vertical-align: bottom; padding: 0 8px; }
+        .sign-line { border-top: 1px solid #111827; margin-top: 34px; padding-top: 5px; font-size: 10px; color: #4b5563; }
+        .footer { margin-top: 18px; padding-top: 8px; border-top: 1px solid #d1d5db; text-align: center; color: #6b7280; font-size: 9px; }
+    </style>
+</head>
+<body>
+<div class="header">
+    <img th:if="${schoolLogoBase64 != null and !schoolLogoBase64.isEmpty()}" th:src="${schoolLogoBase64}" alt="Logo"/>
+    <div>
+        <div class="school-name" th:text="${schoolName}">Institution</div>
+        <div class="school-meta" th:if="${schoolAddress != null and !schoolAddress.isEmpty()}" th:text="${schoolAddress}">Address</div>
+        <div class="school-meta" th:if="${schoolPhone != null and !schoolPhone.isEmpty()}" th:text="'Phone: ' + ${schoolPhone}">Phone</div>
+    </div>
+    <div class="header-right">
+        Date: <span th:text="${#temporals.format(generatedAt, 'dd MMM yyyy')}">15 Apr 2026</span>
+    </div>
+</div>
+
+<div class="title">Staff Loan Sanction Letter</div>
+
+<table class="summary">
+    <tr>
+        <td>
+            <div class="label">Sanctioned Amount</div>
+            <div class="value" th:text="${currencySymbol} + ' ' + ${#numbers.formatDecimal(loan.approvedAmount() != null ? loan.approvedAmount() : loan.principalAmount(), 1, 'COMMA', 2, 'POINT')}">₹ 0.00</div>
+        </td>
+        <td>
+            <div class="label">Monthly EMI</div>
+            <div class="value" th:text="${currencySymbol} + ' ' + ${#numbers.formatDecimal(loan.emiAmount(), 1, 'COMMA', 2, 'POINT')}">₹ 0.00</div>
+        </td>
+        <td>
+            <div class="label">Total EMIs</div>
+            <div class="value" th:text="${loan.emiCount()}">12</div>
+        </td>
+        <td>
+            <div class="label">EMIs Paid</div>
+            <div class="value" th:text="${paidCount}">0</div>
+        </td>
+        <td>
+            <div class="label">EMIs Remaining</div>
+            <div class="value" th:text="${loan.remainingEmis()}">12</div>
+        </td>
+    </tr>
+</table>
+
+<div class="section-title">Borrower Details</div>
+<table class="details">
+    <tr>
+        <td><span class="label">Staff Name</span></td>
+        <td><span class="value" th:text="${loan.staffName()}">Staff</span></td>
+        <td><span class="label">Loan Type</span></td>
+        <td><span class="value" th:text="${loan.loanType()}">Personal</span></td>
+    </tr>
+    <tr>
+        <td><span class="label">Principal Requested</span></td>
+        <td><span class="value" th:text="${currencySymbol} + ' ' + ${#numbers.formatDecimal(loan.principalAmount(), 1, 'COMMA', 2, 'POINT')}">₹ 0.00</span></td>
+        <td><span class="label">Approved Amount</span></td>
+        <td><span class="value" th:text="${currencySymbol} + ' ' + ${#numbers.formatDecimal(loan.approvedAmount() != null ? loan.approvedAmount() : loan.principalAmount(), 1, 'COMMA', 2, 'POINT')}">₹ 0.00</span></td>
+    </tr>
+</table>
+
+<div class="section-title">Loan Terms</div>
+<table class="details">
+    <tr>
+        <td><span class="label">Interest Rate</span></td>
+        <td><span class="value" th:text="${loan.interestRate() != null ? #numbers.formatDecimal(loan.interestRate(), 1, 'COMMA', 2, 'POINT') + '% p.a.' : 'Interest free'}">0% p.a.</span></td>
+        <td><span class="label">Number of EMIs</span></td>
+        <td><span class="value" th:text="${loan.emiCount()}">12</span></td>
+    </tr>
+    <tr>
+        <td><span class="label">Monthly EMI</span></td>
+        <td><span class="value" th:text="${currencySymbol} + ' ' + ${#numbers.formatDecimal(loan.emiAmount(), 1, 'COMMA', 2, 'POINT')}">₹ 0.00</span></td>
+        <td><span class="label">Status</span></td>
+        <td><span class="value" th:text="${loan.status()}">ACTIVE</span></td>
+    </tr>
+    <tr>
+        <td><span class="label">Disbursement Date</span></td>
+        <td><span class="value" th:text="${loan.disbursedAt() != null ? #temporals.format(loan.disbursedAt(), 'dd/MM/yyyy') : '-'}">15/04/2026</span></td>
+        <td><span class="label">Total Repayable</span></td>
+        <td><span class="value" th:text="${currencySymbol} + ' ' + ${#numbers.formatDecimal(totalRepayable, 1, 'COMMA', 2, 'POINT')}">₹ 0.00</span></td>
+    </tr>
+</table>
+
+<div class="section-title">Repayment Schedule</div>
+<table class="schedule">
+    <thead>
+    <tr>
+        <th>#</th>
+        <th>Month</th>
+        <th class="right">EMI Amount</th>
+        <th>Status</th>
+    </tr>
+    </thead>
+    <tbody>
+    <tr th:each="repayment, stat : ${repayments}">
+        <td th:text="${stat.count}">1</td>
+        <td th:text="${repayment.dueDate() != null ? #temporals.format(repayment.dueDate(), 'MMMM yyyy') : '-'}">May 2026</td>
+        <td class="right" th:text="${currencySymbol} + ' ' + ${#numbers.formatDecimal(repayment.amount(), 1, 'COMMA', 2, 'POINT')}">₹ 0.00</td>
+        <td>
+            <span th:text="${repayment.status()}"
+                  th:classappend="${repayment.status().name() == 'SCHEDULED' ? 'status-scheduled' : (repayment.status().name() == 'DEDUCTED' or repayment.status().name() == 'MANUAL' ? 'status-deducted' : '')}">SCHEDULED</span>
+        </td>
+    </tr>
+    </tbody>
+    <tfoot>
+    <tr>
+        <td colspan="2">Total</td>
+        <td class="right" th:text="${currencySymbol} + ' ' + ${#numbers.formatDecimal(totalRepayable, 1, 'COMMA', 2, 'POINT')}">₹ 0.00</td>
+        <td th:text="${paidCount} + '/' + ${#lists.size(repayments)} + ' paid'">0/12 paid</td>
+    </tr>
+    </tfoot>
+</table>
+
+<table class="signatures">
+    <tr>
+        <td><div class="sign-line">Borrower Signature</div></td>
+        <td><div class="sign-line">HR Manager</div></td>
+        <td><div class="sign-line">Principal / Director</div></td>
+    </tr>
+</table>
+
+<div class="footer">
+    System-generated document. Confidential and intended for official institutional use.
+</div>
+</body>
+</html>

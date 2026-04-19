@@ -8,6 +8,7 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
+import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
@@ -20,8 +21,10 @@ public class SeatAllocationAdminController {
     private final SeatAllocationService seatAllocationService;
 
     @GetMapping("/schedule/{examScheduleId}/print")
-    public ResponseEntity<byte[]> printAllocationsForSchedule(@PathVariable Long examScheduleId) {
-        byte[] pdf = seatAllocationService.generateSeatingPlanPdf(examScheduleId);
+    public ResponseEntity<byte[]> printAllocationsForSchedule(
+            @PathVariable Long examScheduleId,
+            @RequestParam(name = "format", required = false, defaultValue = "ROOM_WISE") String format) {
+        byte[] pdf = seatAllocationService.generateSeatingPlanPdf(examScheduleId, format);
         return ResponseEntity.ok()
                 .header(HttpHeaders.CONTENT_DISPOSITION, "attachment; filename=seating-plan-" + examScheduleId + ".pdf")
                 .contentType(MediaType.APPLICATION_PDF)

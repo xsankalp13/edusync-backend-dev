@@ -38,7 +38,8 @@
     <rollingPolicy class="ch.qos.logback.core.rolling.SizeAndTimeBasedRollingPolicy">
       <fileNamePattern>${LOG_FILE}.%d{yyyy-MM-dd}.%i.log</fileNamePattern>
       <maxFileSize>25MB</maxFileSize>
-      <maxHistory>7</maxHistory>
+      <!-- Keep up to 30 days of logs by default; tune via deployment if needed -->
+      <maxHistory>30</maxHistory>
       <totalSizeCap>1GB</totalSizeCap>
     </rollingPolicy>
     <encoder>

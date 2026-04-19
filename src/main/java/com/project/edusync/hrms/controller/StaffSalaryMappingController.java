@@ -6,6 +6,7 @@ import com.project.edusync.hrms.dto.salary.StaffSalaryMappingBulkCreateDTO;
 import com.project.edusync.hrms.dto.salary.StaffSalaryMappingCreateDTO;
 import com.project.edusync.hrms.dto.salary.StaffSalaryMappingResponseDTO;
 import com.project.edusync.hrms.dto.salary.StaffSalaryMappingUpdateDTO;
+import com.project.edusync.hrms.dto.staff.UnmappedStaffDTO;
 import com.project.edusync.hrms.service.StaffSalaryMappingService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
@@ -16,12 +17,14 @@ import org.springframework.data.domain.Pageable;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
+import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 import java.util.List;
@@ -35,10 +38,29 @@ public class StaffSalaryMappingController {
     private final StaffSalaryMappingService staffSalaryMappingService;
 
     @GetMapping
-    @Operation(summary = "List staff salary mappings")
+    @Operation(summary = "List staff salary mappings with filters")
     @PreAuthorize("hasAnyAuthority('ROLE_SUPER_ADMIN','ROLE_SCHOOL_ADMIN','ROLE_ADMIN')")
-    public ResponseEntity<Page<StaffSalaryMappingResponseDTO>> listMappings(Pageable pageable) {
-        return ResponseEntity.ok(staffSalaryMappingService.listMappings(pageable));
+    public ResponseEntity<Page<StaffSalaryMappingResponseDTO>> listMappings(
+            @RequestParam(defaultValue = "CURRENT") String view,
+            @RequestParam(required = false) String gradeCode,
+            @RequestParam(required = false) String templateRef,
+            Pageable pageable) {
+        return ResponseEntity.ok(staffSalaryMappingService.listMappingsFiltered(view, gradeCode, templateRef, pageable));
+    }
+
+    @GetMapping("/unmapped-staff")
+    @Operation(summary = "List active staff with no current salary mapping")
+    @PreAuthorize("hasAnyAuthority('ROLE_SUPER_ADMIN','ROLE_SCHOOL_ADMIN','ROLE_ADMIN')")
+    public ResponseEntity<List<UnmappedStaffDTO>> listUnmappedStaff() {
+        return ResponseEntity.ok(staffSalaryMappingService.listUnmappedStaff());
+    }
+
+    @DeleteMapping("/{identifier}")
+    @Operation(summary = "Soft-delete a salary mapping")
+    @PreAuthorize("hasAnyAuthority('ROLE_SUPER_ADMIN','ROLE_SCHOOL_ADMIN','ROLE_ADMIN')")
+    public ResponseEntity<Void> delete(@PathVariable String identifier) {
+        staffSalaryMappingService.deleteByIdentifier(identifier);
+        return ResponseEntity.noContent().build();
     }
 
     @GetMapping("/staff/{staffIdentifier}")

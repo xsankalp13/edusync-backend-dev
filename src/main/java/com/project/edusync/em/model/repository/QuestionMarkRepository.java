@@ -10,11 +10,12 @@ import java.util.List;
 import java.util.Optional;
 
 public interface QuestionMarkRepository extends JpaRepository<QuestionMark, Long> {
-    List<QuestionMark> findByEvaluationResultIdOrderBySectionNameAscQuestionNumberAsc(Long evaluationResultId);
+    List<QuestionMark> findByEvaluationResultIdOrderBySectionNameAscQuestionNumberAscOptionLabelAsc(Long evaluationResultId);
 
-    Optional<QuestionMark> findByEvaluationResultIdAndSectionNameAndQuestionNumber(Long evaluationResultId,
-                                                                                   String sectionName,
-                                                                                   Integer questionNumber);
+    Optional<QuestionMark> findByEvaluationResultIdAndSectionNameAndQuestionNumberAndOptionLabel(Long evaluationResultId,
+                                                                                                 String sectionName,
+                                                                                                 Integer questionNumber,
+                                                                                                 String optionLabel);
 
     @Modifying
     @Query("DELETE FROM QuestionMark qm WHERE qm.evaluationResult.id = :resultId")

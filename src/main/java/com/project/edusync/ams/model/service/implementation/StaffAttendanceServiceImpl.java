@@ -305,6 +305,7 @@ public class StaffAttendanceServiceImpl implements StaffAttendanceService {
                     .present(0L)
                     .absent(0L)
                     .late(0L)
+                    .halfDay(0L)
                     .onLeave(0L)
                     .unmarkedCount(0L)
                     .build();
@@ -329,6 +330,7 @@ public class StaffAttendanceServiceImpl implements StaffAttendanceService {
                 .present(countsByShortCode.getOrDefault("P", 0L))
                 .absent(countsByShortCode.getOrDefault("A", 0L))
                 .late(countsByShortCode.getOrDefault("L", 0L))
+                .halfDay(countsByShortCode.getOrDefault("HD", 0L))
                 .onLeave(countsByShortCode.getOrDefault("LV", 0L))
                 .unmarkedCount(Math.max(0L, totalExpectedStaffForDate - totalMarked))
                 .build();
@@ -527,9 +529,15 @@ public class StaffAttendanceServiceImpl implements StaffAttendanceService {
         
         long elapsed = Duration.between(startTime, timeIn).toMinutes();
         if (elapsed < -720) elapsed += 1440; // If punch in before midnight for night shift
-        
-        if (elapsed > (totalMinutes / 2)) {
-            throw new AttendanceProcessingException("Check-in blocked. You have exceeded the halfway point of your shift and are marked absent. Please contact your Administrator for assistance.");
+
+        // Fixed 2-hour hard cutoff: beyond 120 minutes late, mark as Half Day instead of blocking
+        long halfDayCutoffMinutes = 120;
+
+        if (elapsed > halfDayCutoffMinutes) {
+            return attendanceTypeRepo.findByShortCodeIgnoreCase("HD")
+                .orElseGet(() -> attendanceTypeRepo.findByShortCodeIgnoreCase("L")
+                    .orElseGet(() -> attendanceTypeRepo.findByShortCodeIgnoreCase("P")
+                        .orElseThrow(() -> new AttendanceProcessingException("Missing AttendanceType P"))));
         } else if (elapsed > grace) {
             return attendanceTypeRepo.findByShortCodeIgnoreCase("L")
                 .orElseGet(() -> attendanceTypeRepo.findByShortCodeIgnoreCase("P").orElseThrow(() -> new AttendanceProcessingException("Missing AttendanceType P")));
@@ -565,8 +573,24 @@ public class StaffAttendanceServiceImpl implements StaffAttendanceService {
         }
 
         if (timeOut.isBefore(shiftEndTime)) {
+            int earlyMinutes = (int) Duration.between(timeOut, shiftEndTime).toMinutes();
             target.setEarlyLeave(true);
-            target.setEarlyOutMinutes((int) Duration.between(timeOut, shiftEndTime).toMinutes());
+            target.setEarlyOutMinutes(earlyMinutes);
+
+            // Auto-downgrade to Half Day if left more than 60 minutes early
+            if (earlyMinutes > 60) {
+                attendanceTypeRepo.findByShortCodeIgnoreCase("HD").ifPresent(hdType -> {
+                    AttendanceType currentType = target.getAttendanceType();
+                    // Only downgrade from Present or Late — don't change Absent/Leave/etc.
+                    if (currentType != null && (currentType.isPresentMark() || currentType.isLateMark())) {
+                        target.setAttendanceType(hdType);
+                        String flagNote = "AUTO: Downgraded to Half Day — left " + earlyMinutes + " min early.";
+                        target.setNotes(target.getNotes() == null || target.getNotes().isBlank()
+                                ? flagNote
+                                : target.getNotes() + " | " + flagNote);
+                    }
+                });
+            }
         }
     }
 
@@ -759,5 +783,82 @@ public class StaffAttendanceServiceImpl implements StaffAttendanceService {
 
     private boolean isNonWorkingStaffDay(LocalDate date) {
         return academicCalendarEventRepository.existsByDateAndDayTypeInAndAppliesToStaffTrueAndIsActiveTrue(date, NON_WORKING_DAY_TYPES);
+    }
+
+    /* -------------------------------------------------------------
+     * MARK ALL PRESENT / ABSENT  (admin bulk actions)
+     * ------------------------------------------------------------- */
+
+    @Override
+    @Transactional
+    public int markAllPresent(LocalDate date, boolean testMode) {
+        return markAllAs(date, "P", testMode);
+    }
+
+    @Override
+    @Transactional
+    public int markAllAbsent(LocalDate date, boolean testMode) {
+        return markAllAs(date, "A", testMode);
+    }
+
+    /**
+     * Core helper for mark-all-present / mark-all-absent.
+     * Rules:
+     *   1. Rejects future dates unless testMode is true
+     *   2. Rejects holidays / vacations
+     *   3. Skips staff with an existing attendance record for the date
+     *   4. Skips staff on approved leave for the date
+     */
+    private int markAllAs(LocalDate date, String shortCode, boolean testMode) {
+        if (!testMode && date.isAfter(LocalDate.now())) {
+            throw new IllegalArgumentException("Cannot mark attendance for a future date. Use testMode=true for testing.");
+        }
+
+        if (isNonWorkingStaffDay(date)) {
+            throw new IllegalArgumentException("Cannot mark attendance on a holiday or vacation: " + date);
+        }
+
+        AttendanceType type = attendanceTypeRepo.findByShortCodeIgnoreCase(shortCode)
+                .orElseThrow(() -> new AttendanceProcessingException("Missing AttendanceType: " + shortCode));
+
+        // All active staff expected to work on this date
+        List<Staff> activeStaff = staffRepository.findAll().stream().filter(Staff::isActive).toList();
+        List<Staff> expectedStaff = resolveExpectedStaffByDate(activeStaff, date);
+
+        // Already-marked staff IDs
+        Set<Long> alreadyMarkedIds = new HashSet<>(repo.findDistinctStaffIdsByDate(date));
+
+        int count = 0;
+        for (Staff staff : expectedStaff) {
+            Long staffId = staff.getId();
+
+            // Skip if already has a record for this date
+            if (alreadyMarkedIds.contains(staffId)) {
+                continue;
+            }
+
+            // Skip if on approved leave
+            boolean onLeave = leaveApplicationRepository.existsOverlapping(
+                    staffId, date, date,
+                    List.of(LeaveApplicationStatus.APPROVED)
+            );
+            if (onLeave) {
+                log.debug("markAllAs({}): skipping staffId {} — on approved leave", shortCode, staffId);
+                continue;
+            }
+
+            StaffDailyAttendance record = new StaffDailyAttendance();
+            record.setStaffId(staffId);
+            record.setAttendanceDate(date);
+            record.setAttendanceType(type);
+            record.setSource(AttendanceSource.MANUAL);
+            record.setNotes("Bulk marked as " + type.getTypeName() + " by admin.");
+
+            repo.save(record);
+            count++;
+        }
+
+        log.info("markAllAs({}): marked {} staff for date {}", shortCode, count, date);
+        return count;
     }
 }

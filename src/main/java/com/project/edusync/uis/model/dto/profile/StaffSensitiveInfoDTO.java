@@ -15,6 +15,7 @@ public class StaffSensitiveInfoDTO {
     private String bankName;
     private String bankAccountNumber;
     private String bankIfscCode;
+    private String accountType; // SAVINGS | CURRENT
     private String emergencyContactName;
     private String emergencyContactPhone;
     private String emergencyContactRelation;

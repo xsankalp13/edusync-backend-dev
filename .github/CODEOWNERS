@@ -1,0 +1,6 @@
+# CODEOWNERS file
+# Assign teams for areas of the repo. Replace with your organization/team handles.
+/src/main/java/** @your-org/backend-team
+/docs/** @your-org/docs-team
+/scripts/** @your-org/devops-team
+

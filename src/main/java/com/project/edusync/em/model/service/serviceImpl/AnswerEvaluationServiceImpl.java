@@ -10,6 +10,7 @@ import com.project.edusync.em.model.dto.RequestDTO.SaveQuestionMarkRequestDTO;
 import com.project.edusync.em.model.dto.ResponseDTO.*;
 import com.project.edusync.em.model.entity.*;
 import com.project.edusync.em.model.entity.snapshot.TemplateSnapshot;
+import com.project.edusync.em.model.entity.snapshot.TemplateSnapshotQuestion;
 import com.project.edusync.em.model.entity.snapshot.TemplateSnapshotSection;
 import com.project.edusync.em.model.enums.AnnotationType;
 import com.project.edusync.em.model.enums.AnswerSheetStatus;
@@ -17,6 +18,8 @@ import com.project.edusync.em.model.enums.EvaluationAssignmentRole;
 import com.project.edusync.em.model.enums.EvaluationAssignmentStatus;
 import com.project.edusync.em.model.enums.EvaluationAuditEventType;
 import com.project.edusync.em.model.enums.EvaluationResultStatus;
+import com.project.edusync.em.model.enums.TemplateQuestionType;
+import com.project.edusync.em.model.enums.TemplateSectionType;
 import com.project.edusync.em.model.enums.UploadStatus;
 import com.project.edusync.em.model.repository.*;
 import com.project.edusync.em.model.service.AnswerEvaluationService;
@@ -442,17 +445,18 @@ public class AnswerEvaluationServiceImpl implements AnswerEvaluationService {
         EvaluationResult result = evaluationResultRepository.findByAnswerSheetId(answerSheetId).orElse(null);
         Map<String, QuestionMark> existingMarkMap = new HashMap<>();
         if (result != null) {
-            questionMarkRepository.findByEvaluationResultIdOrderBySectionNameAscQuestionNumberAsc(result.getId())
-                    .forEach(mark -> existingMarkMap.put(mark.getSectionName() + "#" + mark.getQuestionNumber(), mark));
+            questionMarkRepository.findByEvaluationResultIdOrderBySectionNameAscQuestionNumberAscOptionLabelAsc(result.getId())
+                    .forEach(mark -> existingMarkMap.put(buildQuestionKey(mark.getSectionName(), mark.getQuestionNumber(), mark.getOptionLabel()), mark));
         } else {
             for (SaveQuestionMarkRequestDTO draftMark : evaluationDraftStoreService.getDraft(answerSheetId)) {
                 QuestionMark mark = QuestionMark.builder()
                         .sectionName(draftMark.getSectionName())
                         .questionNumber(draftMark.getQuestionNumber())
+                        .optionLabel(normalizeOptionLabel(draftMark.getOptionLabel()))
                         .marksObtained(draftMark.getMarksObtained())
                         .annotationType(draftMark.getAnnotationType() == null ? AnnotationType.NONE : draftMark.getAnnotationType())
                         .build();
-                existingMarkMap.put(mark.getSectionName().trim() + "#" + mark.getQuestionNumber(), mark);
+                existingMarkMap.put(buildQuestionKey(mark.getSectionName(), mark.getQuestionNumber(), mark.getOptionLabel()), mark);
             }
         }
 
@@ -466,20 +470,43 @@ public class AnswerEvaluationServiceImpl implements AnswerEvaluationService {
 
         for (TemplateSnapshotSection section : orderedSections) {
             List<AnswerEvaluationStructureResponseDTO.QuestionDTO> questions = new ArrayList<>();
-            BigDecimal max = BigDecimal.valueOf(section.getMarksPerQuestion());
-            for (int q = 1; q <= section.getQuestionCount(); q++) {
-                QuestionMark mark = existingMarkMap.get(section.getName() + "#" + q);
+            List<TemplateSnapshotQuestion> snapshotQuestions = getSnapshotQuestions(section);
+            for (TemplateSnapshotQuestion snapshotQuestion : snapshotQuestions) {
+                BigDecimal max = BigDecimal.valueOf(snapshotQuestion.getMarks());
+                String key = buildQuestionKey(section.getName(), snapshotQuestion.getQuestionNo(), "");
+                QuestionMark mark = existingMarkMap.get(key);
+                List<AnswerEvaluationStructureResponseDTO.OptionDTO> options = null;
+                if ((snapshotQuestion.getType() == null ? TemplateQuestionType.NORMAL : snapshotQuestion.getType()) == TemplateQuestionType.INTERNAL_CHOICE) {
+                    options = new ArrayList<>();
+                    for (String optionLabel : (snapshotQuestion.getOptions() == null ? List.<String>of() : snapshotQuestion.getOptions())) {
+                        QuestionMark optionMark = existingMarkMap.get(buildQuestionKey(section.getName(), snapshotQuestion.getQuestionNo(), optionLabel));
+                        options.add(AnswerEvaluationStructureResponseDTO.OptionDTO.builder()
+                                .label(optionLabel)
+                                .maxMarks(max)
+                                .marksObtained(optionMark != null ? optionMark.getMarksObtained() : null)
+                                .annotationType(optionMark != null ? optionMark.getAnnotationType() : AnnotationType.NONE)
+                                .build());
+                    }
+                }
                 questions.add(AnswerEvaluationStructureResponseDTO.QuestionDTO.builder()
-                        .questionNumber(q)
+                        .questionNumber(snapshotQuestion.getQuestionNo())
                         .maxMarks(max)
+                        .type(snapshotQuestion.getType() == null ? TemplateQuestionType.NORMAL : snapshotQuestion.getType())
+                        .options(options)
                         .marksObtained(mark != null ? mark.getMarksObtained() : null)
                         .annotationType(mark != null ? mark.getAnnotationType() : AnnotationType.NONE)
                         .build());
                 totalQuestions++;
-                totalMax = totalMax.add(max);
             }
+            totalMax = totalMax.add(resolveSectionMaxMarks(section, snapshotQuestions));
             sections.add(AnswerEvaluationStructureResponseDTO.SectionDTO.builder()
                     .sectionName(section.getName())
+                    .totalQuestions(resolveTotalQuestions(section))
+                    .attemptQuestions(resolveAttemptQuestions(section))
+                    .sectionType(resolveSectionType(section))
+                    .helperText(resolveSectionType(section) == TemplateSectionType.OPTIONAL
+                            ? "Best " + resolveAttemptQuestions(section) + " answers will be considered automatically"
+                            : null)
                     .questions(questions)
                     .build());
         }
@@ -494,7 +521,7 @@ public class AnswerEvaluationServiceImpl implements AnswerEvaluationService {
     }
 
     @Override
-    @CacheEvict(value = CacheNames.SCHEDULE_STUDENTS, allEntries = true)
+    @CacheEvict(value = {CacheNames.SCHEDULE_STUDENTS, CacheNames.STUDENT_EVALUATION_RESULTS}, allEntries = true)
     public EvaluationResultResponseDTO saveDraftMarks(Long answerSheetId, SaveEvaluationMarksRequestDTO requestDTO) {
         Object lock = draftSaveLocks.computeIfAbsent(answerSheetId, key -> new Object());
         synchronized (lock) {
@@ -530,41 +557,48 @@ public class AnswerEvaluationServiceImpl implements AnswerEvaluationService {
             }
 
             List<QuestionMark> existingMarks = questionMarkRepository
-                    .findByEvaluationResultIdOrderBySectionNameAscQuestionNumberAsc(result.getId());
+                    .findByEvaluationResultIdOrderBySectionNameAscQuestionNumberAscOptionLabelAsc(result.getId());
             Map<String, QuestionMark> existingMarkByKey = existingMarks.stream()
                     .collect(Collectors.toMap(
-                            mark -> buildQuestionKey(mark.getSectionName(), mark.getQuestionNumber()),
+                            mark -> buildQuestionKey(mark.getSectionName(), mark.getQuestionNumber(), mark.getOptionLabel()),
                             mark -> mark,
                             (left, right) -> left,
                             LinkedHashMap::new
                     ));
 
-            BigDecimal total = BigDecimal.ZERO;
             for (SaveQuestionMarkRequestDTO markRequest : normalizedMarks) {
-                String key = buildQuestionKey(markRequest.getSectionName(), markRequest.getQuestionNumber());
+                String key = buildQuestionKey(markRequest.getSectionName(), markRequest.getQuestionNumber(), markRequest.getOptionLabel());
                 BigDecimal maxMarks = maxByQuestionKey.get(key);
                 if (maxMarks == null) {
                     throw new EdusyncException("EVAL-400", "Invalid section/question combination: " + key, HttpStatus.BAD_REQUEST);
                 }
-                if (markRequest.getMarksObtained().compareTo(BigDecimal.ZERO) < 0 || markRequest.getMarksObtained().compareTo(maxMarks) > 0) {
+                BigDecimal value = markRequest.getMarksObtained() == null ? BigDecimal.ZERO : markRequest.getMarksObtained();
+                if (value.compareTo(BigDecimal.ZERO) < 0 || value.compareTo(maxMarks) > 0) {
                     throw new EdusyncException("EVAL-400", "marksObtained out of range for " + key, HttpStatus.BAD_REQUEST);
                 }
 
                 QuestionMark questionMark = existingMarkByKey.remove(key);
                 if (questionMark == null) {
                     String normalizedSection = markRequest.getSectionName().trim();
+                    String optionLabel = normalizeOptionLabel(markRequest.getOptionLabel());
                     questionMark = questionMarkRepository
-                            .findByEvaluationResultIdAndSectionNameAndQuestionNumber(result.getId(), normalizedSection, markRequest.getQuestionNumber())
+                            .findByEvaluationResultIdAndSectionNameAndQuestionNumberAndOptionLabel(
+                                    result.getId(),
+                                    normalizedSection,
+                                    markRequest.getQuestionNumber(),
+                                    optionLabel)
                             .orElse(null);
                     if (questionMark == null) {
                         questionMark = QuestionMark.builder()
                                 .evaluationResult(result)
                                 .sectionName(normalizedSection)
                                 .questionNumber(markRequest.getQuestionNumber())
+                                .optionLabel(optionLabel)
                                 .build();
                     }
                 }
-                questionMark.setMarksObtained(markRequest.getMarksObtained());
+                questionMark.setOptionLabel(normalizeOptionLabel(markRequest.getOptionLabel()));
+                questionMark.setMarksObtained(value);
                 questionMark.setMaxMarks(maxMarks);
                 questionMark.setAnnotationType(markRequest.getAnnotationType() == null ? AnnotationType.NONE : markRequest.getAnnotationType());
                 try {
@@ -572,24 +606,30 @@ public class AnswerEvaluationServiceImpl implements AnswerEvaluationService {
                 } catch (DataIntegrityViolationException ex) {
                     // Last-chance recovery for race on unique key.
                     QuestionMark recovered = questionMarkRepository
-                            .findByEvaluationResultIdAndSectionNameAndQuestionNumber(
+                            .findByEvaluationResultIdAndSectionNameAndQuestionNumberAndOptionLabel(
                                     result.getId(),
                                     markRequest.getSectionName().trim(),
-                                    markRequest.getQuestionNumber())
+                                    markRequest.getQuestionNumber(),
+                                    normalizeOptionLabel(markRequest.getOptionLabel()))
                             .orElseThrow(() -> ex);
-                    recovered.setMarksObtained(markRequest.getMarksObtained());
+                    recovered.setMarksObtained(value);
                     recovered.setMaxMarks(maxMarks);
                     recovered.setAnnotationType(markRequest.getAnnotationType() == null ? AnnotationType.NONE : markRequest.getAnnotationType());
                     questionMarkRepository.save(recovered);
                 }
-                total = total.add(markRequest.getMarksObtained());
             }
 
             if (!existingMarkByKey.isEmpty()) {
                 questionMarkRepository.deleteAllInBatch(existingMarkByKey.values());
             }
 
-            result.setTotalMarks(total);
+            EvaluationScoringCalculator.ScoreComputationResult score = EvaluationScoringCalculator.compute(
+                    answerSheet.getExamSchedule().getTemplateSnapshot(),
+                    questionMarkRepository.findByEvaluationResultIdOrderBySectionNameAscQuestionNumberAscOptionLabelAsc(result.getId())
+            );
+            result.setTotalMarks(score.totalMarks());
+            result.setSectionTotals(score.sectionTotals());
+            result.setSelectedQuestions(score.selectedQuestions());
             result.setStatus(EvaluationResultStatus.DRAFT);
             result.setEvaluatedAt(LocalDateTime.now());
             result.setApprovedAt(null);
@@ -605,14 +645,14 @@ public class AnswerEvaluationServiceImpl implements AnswerEvaluationService {
             metadata.put("questionCount", normalizedMarks.size());
             metadata.put("status", saved.getStatus().name());
             evaluationAuditService.record(EvaluationAuditEventType.DRAFT_MARKS_SAVED, teacher, null, answerSheet, saved, metadata);
-            log.info("Draft marks saved: answerSheetId={}, totalMarks={}", answerSheetId, total);
+            log.info("Draft marks saved: answerSheetId={}, totalMarks={}", answerSheetId, saved.getTotalMarks());
 
             return toEvaluationResultResponse(saved);
         }
     }
 
     @Override
-    @CacheEvict(value = CacheNames.SCHEDULE_STUDENTS, allEntries = true)
+    @CacheEvict(value = {CacheNames.SCHEDULE_STUDENTS, CacheNames.STUDENT_EVALUATION_RESULTS}, allEntries = true)
     public EvaluationResultResponseDTO submitMarks(Long answerSheetId) {
         Staff teacher = getCurrentTeacher();
         AnswerSheet answerSheet = getAnswerSheetForEvaluator(answerSheetId, teacher.getId());
@@ -659,7 +699,7 @@ public class AnswerEvaluationServiceImpl implements AnswerEvaluationService {
     }
 
     @Override
-    @CacheEvict(value = CacheNames.SCHEDULE_STUDENTS, allEntries = true)
+    @CacheEvict(value = {CacheNames.SCHEDULE_STUDENTS, CacheNames.STUDENT_EVALUATION_RESULTS}, allEntries = true)
     public EvaluationResultResponseDTO approveResult(Long resultId) {
         requireAdmin();
         EvaluationResult result = getResultForAdmin(resultId);
@@ -681,7 +721,7 @@ public class AnswerEvaluationServiceImpl implements AnswerEvaluationService {
     }
 
     @Override
-    @CacheEvict(value = CacheNames.SCHEDULE_STUDENTS, allEntries = true)
+    @CacheEvict(value = {CacheNames.SCHEDULE_STUDENTS, CacheNames.STUDENT_EVALUATION_RESULTS}, allEntries = true)
     public EvaluationResultResponseDTO rejectResult(Long resultId) {
         requireAdmin();
         EvaluationResult result = getResultForAdmin(resultId);
@@ -707,7 +747,7 @@ public class AnswerEvaluationServiceImpl implements AnswerEvaluationService {
     }
 
     @Override
-    @CacheEvict(value = CacheNames.SCHEDULE_STUDENTS, allEntries = true)
+    @CacheEvict(value = {CacheNames.SCHEDULE_STUDENTS, CacheNames.STUDENT_EVALUATION_RESULTS}, allEntries = true)
     public EvaluationResultResponseDTO publishResult(Long resultId) {
         requireAdmin();
         EvaluationResult result = getResultForAdmin(resultId);
@@ -739,6 +779,7 @@ public class AnswerEvaluationServiceImpl implements AnswerEvaluationService {
     }
 
     @Override
+    @CacheEvict(value = {CacheNames.SCHEDULE_STUDENTS, CacheNames.STUDENT_EVALUATION_RESULTS}, allEntries = true)
     public int publishResultsBulk(List<Long> resultIds) {
         requireAdmin();
         if (resultIds == null || resultIds.isEmpty()) return 0;
@@ -844,6 +885,7 @@ public class AnswerEvaluationServiceImpl implements AnswerEvaluationService {
 
     @Override
     @Transactional
+    @CacheEvict(value = {CacheNames.SCHEDULE_STUDENTS, CacheNames.STUDENT_EVALUATION_RESULTS}, allEntries = true)
     public int approveClassResults(UUID classId, UUID examId) {
         requireAdmin();
         ClassResultSummaryResponseDTO summary = getClassResultSummary(classId, examId);
@@ -874,6 +916,7 @@ public class AnswerEvaluationServiceImpl implements AnswerEvaluationService {
 
     @Override
     @Transactional
+    @CacheEvict(value = {CacheNames.SCHEDULE_STUDENTS, CacheNames.STUDENT_EVALUATION_RESULTS}, allEntries = true)
     public int publishClassResults(UUID classId, UUID examId) {
         requireAdmin();
         List<ExamSchedule> allSchedules = examScheduleRepository.findByExamUuid(examId);
@@ -923,6 +966,8 @@ public class AnswerEvaluationServiceImpl implements AnswerEvaluationService {
 
     @Override
     @Transactional(readOnly = true)
+    @Cacheable(value = CacheNames.STUDENT_EVALUATION_RESULTS,
+            key = "#resultId + ':' + T(org.springframework.security.core.context.SecurityContextHolder).getContext().getAuthentication().getName()")
     public StudentResultDetailResponseDTO getStudentPublishedResult(Long resultId) {
         return toStudentResultDetailResponse(getPublishedResultForCurrentStudent(resultId));
     }
@@ -1357,6 +1402,8 @@ public class AnswerEvaluationServiceImpl implements AnswerEvaluationService {
                 .approvedAt(result.getApprovedAt())
                 .publishedAt(result.getPublishedAt())
                 .approvedBy(result.getApprovedBy() != null ? result.getApprovedBy().getUsername() : null)
+                .sectionTotals(result.getSectionTotals())
+                .selectedQuestions(result.getSelectedQuestions())
                 .build();
     }
 
@@ -1439,28 +1486,90 @@ public class AnswerEvaluationServiceImpl implements AnswerEvaluationService {
         }
         Map<String, BigDecimal> maxByKey = new HashMap<>();
         for (TemplateSnapshotSection section : snapshot.getSections()) {
-            BigDecimal max = BigDecimal.valueOf(section.getMarksPerQuestion());
-            for (int q = 1; q <= section.getQuestionCount(); q++) {
-                maxByKey.put(buildQuestionKey(section.getName(), q), max);
+            for (TemplateSnapshotQuestion question : getSnapshotQuestions(section)) {
+                BigDecimal max = BigDecimal.valueOf(question.getMarks());
+                TemplateQuestionType type = question.getType() == null ? TemplateQuestionType.NORMAL : question.getType();
+                if (type == TemplateQuestionType.INTERNAL_CHOICE) {
+                    maxByKey.put(buildQuestionKey(section.getName(), question.getQuestionNo(), ""), max);
+                    for (String optionLabel : (question.getOptions() == null ? List.<String>of() : question.getOptions())) {
+                        maxByKey.put(buildQuestionKey(section.getName(), question.getQuestionNo(), optionLabel), max);
+                    }
+                } else {
+                    maxByKey.put(buildQuestionKey(section.getName(), question.getQuestionNo(), ""), max);
+                }
             }
         }
         return maxByKey;
     }
 
-    private String buildQuestionKey(String sectionName, Integer questionNumber) {
-        return sectionName.trim() + "#" + questionNumber;
+    private String buildQuestionKey(String sectionName, Integer questionNumber, String optionLabel) {
+        return sectionName.trim() + "#" + questionNumber + "#" + normalizeOptionLabel(optionLabel);
+    }
+
+    private String normalizeOptionLabel(String optionLabel) {
+        return optionLabel == null ? "" : optionLabel.trim().toLowerCase(Locale.ROOT);
     }
 
     private List<SaveQuestionMarkRequestDTO> normalizeQuestionMarks(List<SaveQuestionMarkRequestDTO> questionMarks) {
         Map<String, SaveQuestionMarkRequestDTO> byKey = new LinkedHashMap<>();
         for (SaveQuestionMarkRequestDTO mark : questionMarks) {
-            String key = buildQuestionKey(mark.getSectionName(), mark.getQuestionNumber());
+            String key = buildQuestionKey(mark.getSectionName(), mark.getQuestionNumber(), mark.getOptionLabel());
             if (byKey.containsKey(key)) {
-                log.warn("Duplicate mark entry detected for key={} in saveDraftMarks; last value will be used", key);
+                throw new EdusyncException("EVAL-400", "Duplicate mark entry for " + key, HttpStatus.BAD_REQUEST);
+            }
+
+            if (mark.getMarksObtained() != null && mark.getMarksObtained().compareTo(BigDecimal.ZERO) < 0) {
+                throw new EdusyncException("EVAL-400", "marksObtained cannot be negative", HttpStatus.BAD_REQUEST);
             }
             byKey.put(key, mark);
         }
         return new ArrayList<>(byKey.values());
+    }
+
+    private List<TemplateSnapshotQuestion> getSnapshotQuestions(TemplateSnapshotSection section) {
+        if (section.getQuestions() != null && !section.getQuestions().isEmpty()) {
+            return section.getQuestions().stream()
+                    .sorted(Comparator.comparing(TemplateSnapshotQuestion::getQuestionNo))
+                    .collect(Collectors.toList());
+        }
+
+        List<TemplateSnapshotQuestion> generated = new ArrayList<>();
+        int total = resolveTotalQuestions(section);
+        for (int i = 1; i <= total; i++) {
+            generated.add(TemplateSnapshotQuestion.builder()
+                    .questionNo(i)
+                    .marks(section.getMarksPerQuestion())
+                    .type(TemplateQuestionType.NORMAL)
+                    .options(List.of())
+                    .build());
+        }
+        return generated;
+    }
+
+    private int resolveTotalQuestions(TemplateSnapshotSection section) {
+        return section.getTotalQuestions() != null ? section.getTotalQuestions() : section.getQuestionCount();
+    }
+
+    private int resolveAttemptQuestions(TemplateSnapshotSection section) {
+        return section.getAttemptQuestions() != null ? section.getAttemptQuestions() : resolveTotalQuestions(section);
+    }
+
+    private TemplateSectionType resolveSectionType(TemplateSnapshotSection section) {
+        if (section.getSectionType() == null) {
+            return TemplateSectionType.FIXED;
+        }
+        return section.getSectionType();
+    }
+
+    private BigDecimal resolveSectionMaxMarks(TemplateSnapshotSection section, List<TemplateSnapshotQuestion> questions) {
+        List<Integer> marks = questions.stream()
+                .map(TemplateSnapshotQuestion::getMarks)
+                .sorted(Comparator.reverseOrder())
+                .collect(Collectors.toList());
+        if (resolveSectionType(section) == TemplateSectionType.OPTIONAL) {
+            return BigDecimal.valueOf(marks.stream().limit(resolveAttemptQuestions(section)).mapToInt(Integer::intValue).sum());
+        }
+        return BigDecimal.valueOf(marks.stream().mapToInt(Integer::intValue).sum());
     }
 
     private void markAssignmentInProgress(Long scheduleId, Long teacherId) {

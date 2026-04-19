@@ -110,7 +110,7 @@
     </style>
 </head>
 <body>
-<div class="card-shell">
+<div class="card-shell" th:each="card : ${cards}" style="page-break-after: always;">
     <table class="header-table">
         <tr th:if="${headerImageEnabled != null and headerImageEnabled}">
             <td colspan="3" style="text-align: center; padding-bottom: 8px;">
@@ -122,11 +122,11 @@
                 <img class="logo" th:if="${schoolLogoBase64 != null and !schoolLogoBase64.isEmpty()}" th:src="${schoolLogoBase64}" alt="School Logo" />
             </td>
             <td class="title-cell">
-                <div class="school-name" th:text="${schoolName}">Edusync Institution</div>
+                <div class="school-name" th:text="${schoolName ?: 'School Name'}">Edusync Institution</div>
                 <div class="dept-title" th:if="${schoolShortName != null and !schoolShortName.isEmpty()}" th:text="${schoolShortName}">ESI</div>
                 <div class="session-title" th:if="${schoolTagline != null and !schoolTagline.isEmpty()}" th:text="${schoolTagline}">School Tagline</div>
-                <div class="dept-title" th:text="${examDepartment}">Examination Department</div>
-                <div class="session-title" th:text="${examSessionTitle}">Final Examination Session</div>
+                <div class="dept-title" th:text="${examDepartment ?: 'Examination Department'}">Examination Department</div>
+                <div class="session-title" th:text="${examSessionTitle ?: 'Session Title'}">Final Examination Session</div>
                 <div class="session-title" th:if="${schoolAddress != null and !schoolAddress.isEmpty()}" th:text="${schoolAddress}">Address line</div>
                 <div class="session-title" th:if="${(schoolPhone != null and !schoolPhone.isEmpty()) or (schoolEmail != null and !schoolEmail.isEmpty())}">
                     <span th:text="${schoolPhone}">Phone</span>
@@ -136,8 +136,8 @@
             </td>
             <td class="admit-no">
                 <div class="label">Admit Card No.</div>
-                <div><strong th:text="${admitCardNumber}">AC-2026-000145</strong></div>
-                <div style="margin-top: 6px;">Issue: <span th:text="${issueDate}">09 Apr 2026, 10:00 PM</span></div>
+                <div><strong th:text="${card.admitCardNumber ?: 'N/A'}">AC-2026-000145</strong></div>
+                <div style="margin-top: 6px;">Issue: <span th:text="${card.issueDate ?: 'N/A'}">09 Apr 2026, 10:00 PM</span></div>
             </td>
         </tr>
     </table>
@@ -147,16 +147,18 @@
     <table class="identity-table">
         <tr>
             <td class="identity-left">
-                <div class="field-row"><span class="field-label">Student Name:</span> <span th:text="${studentName}">Student Name</span></div>
-                <div class="field-row"><span class="field-label">Roll Number:</span> <span th:text="${rollNumber}">24</span></div>
-                <div class="field-row"><span class="field-label">Enrollment No.:</span> <span th:text="${enrollmentNumber}">ENR20260001</span></div>
-                <div class="field-row"><span class="field-label">Class / Section:</span> <span th:text="${className + ' / ' + sectionName}">Class 10 / A</span></div>
-                <div class="field-row"><span class="field-label">Exam Type:</span> <span th:text="${examType}">FINAL</span></div>
-                <div class="field-row"><span class="field-label">Academic Year:</span> <span th:text="${academicYear}">2026-2027</span></div>
+                <div class="field-row"><span class="field-label">Student Name:</span> <span th:text="${card.student.name ?: 'N/A'}">Student Name</span></div>
+                <div class="field-row"><span class="field-label">Roll Number:</span> <span th:text="${card.student.rollNo ?: 'N/A'}">24</span></div>
+                <div class="field-row"><span class="field-label">Enrollment No.:</span> <span th:text="${card.student.enrollmentNumber ?: 'N/A'}">ENR20260001</span></div>
+                <div class="field-row"><span class="field-label">Class / Section:</span>
+                    <span th:text="${(card.student.className != null ? card.student.className : 'N/A') + ' / ' + (card.student.sectionName != null ? card.student.sectionName : 'N/A')}">Class 10 / A</span>
+                </div>
+                <div class="field-row"><span class="field-label">Exam Type:</span> <span th:text="${card.examType ?: 'N/A'}">FINAL</span></div>
+                <div class="field-row"><span class="field-label">Academic Year:</span> <span th:text="${academicYear ?: 'N/A'}">2026-2027</span></div>
             </td>
             <td class="identity-photo">
-                <img class="passport-photo" th:if="${studentPhotoBase64 != null and !studentPhotoBase64.isEmpty()}" th:src="${studentPhotoBase64}" alt="Student Photo" />
-                <div class="photo-box" th:if="${studentPhotoBase64 == null or studentPhotoBase64.isEmpty()}">Passport Photo</div>
+                <img class="passport-photo" th:if="${card.student.photoBase64 != null and !card.student.photoBase64.isEmpty()}" th:src="${card.student.photoBase64}" alt="Student Photo" />
+                <div class="photo-box" th:if="${card.student.photoBase64 == null or card.student.photoBase64.isEmpty()}">Passport Photo</div>
             </td>
         </tr>
     </table>
@@ -176,13 +178,16 @@
         </tr>
         </thead>
         <tbody>
-        <tr th:each="entry : ${entries}">
-            <td th:text="${entry.subjectName}">English</td>
-            <td th:text="${entry.examDate}">2026-05-04</td>
-            <td th:text="${entry.startTime}">10:00</td>
-            <td th:text="${entry.endTime}">11:00</td>
-            <td th:text="${entry.roomName}">R-01</td>
-            <td th:text="${entry.seatLabel}">R1-C1</td>
+        <tr th:if="${card.schedules == null or card.schedules.isEmpty()}">
+            <td colspan="7" style="text-align: center; color: #6b7280;">No schedule available</td>
+        </tr>
+        <tr th:each="entry : ${card.schedules}" th:if="${card.schedules != null and !card.schedules.isEmpty()}">
+            <td th:text="${entry.subject ?: 'N/A'}">English</td>
+            <td th:text="${entry.date ?: 'N/A'}">2026-05-04</td>
+            <td th:text="${entry.startTime ?: 'N/A'}">10:00</td>
+            <td th:text="${entry.endTime ?: 'N/A'}">11:00</td>
+            <td th:text="${entry.room ?: 'Not Allocated'}">R-01</td>
+            <td th:text="${entry.seat ?: 'Not Allocated'}">R1-C1</td>
             <td><div class="sign-slot"></div></td>
         </tr>
         </tbody>
@@ -203,21 +208,21 @@
             </td>
             <td style="width: 32%; padding-left: 8px;">
                 <div class="verify-block">
-                    <img class="qr" th:if="${qrCodeBase64 != null and !qrCodeBase64.isEmpty()}" th:src="${qrCodeBase64}" alt="QR Code" />
-                    <div th:if="${qrCodeBase64 == null or qrCodeBase64.isEmpty()}" class="qr"></div>
+                    <img class="qr" th:if="${card.qrCodeBase64 != null and !card.qrCodeBase64.isEmpty()}" th:src="${card.qrCodeBase64}" alt="QR Code" />
+                    <div th:if="${card.qrCodeBase64 == null or card.qrCodeBase64.isEmpty()}" class="qr"></div>
                     <div style="font-weight: 700; margin-bottom: 2px;">QR Verification Code</div>
-                    <div class="verify-code" th:text="${verificationCode}">uuid-code</div>
+                    <div class="verify-code" th:text="${card.verificationCode ?: 'uuid-code'}">uuid-code</div>
                 </div>
             </td>
         </tr>
         <tr>
             <td class="authority-cell">
                 <div class="authority-line"></div>
-                <div class="authority-label" th:text="${controllerTitle}">Controller of Examinations</div>
+                <div class="authority-label" th:text="${controllerTitle ?: 'Controller of Examinations'}">Controller of Examinations</div>
             </td>
             <td class="authority-cell">
                 <div class="authority-line"></div>
-                <div class="authority-label" th:text="${principalTitle}">Principal</div>
+                <div class="authority-label" th:text="${principalTitle ?: 'Principal'}">Principal</div>
             </td>
         </tr>
     </table>

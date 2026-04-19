@@ -32,6 +32,7 @@
 		<maven.compiler.release>21</maven.compiler.release>
 		<org.mapstruct.version>1.5.5.Final</org.mapstruct.version>
 		<org.projectlombok.version>1.18.38</org.projectlombok.version>
+		<jacoco.version>0.8.10</jacoco.version>
 	</properties>
 	<dependencies>
 		<dependency>
@@ -239,6 +240,13 @@
         </dependency>
 
 
+        <!-- Apache POI — XLSX report generation (Phase 4 Statutory Reports) -->
+        <dependency>
+            <groupId>org.apache.poi</groupId>
+            <artifactId>poi-ooxml</artifactId>
+            <version>5.2.5</version>
+        </dependency>
+
 <!--        Razorpay dependency-->
         <!-- https://mvnrepository.com/artifact/com.razorpay/razorpay-java -->
         <dependency>
@@ -307,6 +315,69 @@
 				<target>21</target>
 			</configuration>
 			</plugin>
+
+						<!-- Enforcer, Checkstyle and JaCoCo plugins for CI and quality checks -->
+						<plugin>
+							<groupId>org.apache.maven.plugins</groupId>
+							<artifactId>maven-enforcer-plugin</artifactId>
+							<version>3.1.0</version>
+							<executions>
+								<execution>
+									<id>enforce</id>
+									<goals>
+										<goal>enforce</goal>
+									</goals>
+																					<configuration>
+																						<rules>
+																							<requireJavaVersion>
+																								<version>[21,)</version>
+																							</requireJavaVersion>
+																						</rules>
+																					</configuration>
+								</execution>
+							</executions>
+						</plugin>
+
+						<plugin>
+							<groupId>org.apache.maven.plugins</groupId>
+							<artifactId>maven-checkstyle-plugin</artifactId>
+							<version>3.2.2</version>
+							<configuration>
+								<configLocation>config/checkstyle/checkstyle.xml</configLocation>
+								<encoding>UTF-8</encoding>
+								<consoleOutput>true</consoleOutput>
+							</configuration>
+							<executions>
+								<execution>
+									<phase>validate</phase>
+									<goals>
+										<goal>check</goal>
+									</goals>
+								</execution>
+							</executions>
+						</plugin>
+
+						<plugin>
+							<groupId>org.jacoco</groupId>
+							<artifactId>jacoco-maven-plugin</artifactId>
+							<version>${jacoco.version}</version>
+							<executions>
+								<execution>
+									<id>prepare-agent</id>
+									<goals>
+										<goal>prepare-agent</goal>
+									</goals>
+									<phase>initialize</phase>
+								</execution>
+								<execution>
+									<id>report</id>
+									<phase>verify</phase>
+									<goals>
+										<goal>report</goal>
+									</goals>
+								</execution>
+							</executions>
+						</plugin>
 			<plugin>
 				<groupId>org.springframework.boot</groupId>
 				<artifactId>spring-boot-maven-plugin</artifactId>

@@ -138,7 +138,13 @@ public class AdmitCardServiceImpl implements AdmitCardService {
                 studentsById.values()
         );
 
+        // Build a map: studentId → class/section name from the first schedule they appear in
+        Map<Long, String[]> studentClassInfo = new HashMap<>();
+
         Map<Long, AdmitCardData> admitCardDataByStudentId = new LinkedHashMap<>();
+        // Intermediate map to collect schedules before building immutable AdmitCardData
+        Map<Long, List<ScheduleDTO>> schedulesPerStudent = new LinkedHashMap<>();
+
         List<ExamScheduleRepository.AdmitCardScheduleProjection> orderedSchedules = schedules.stream()
                 .sorted(Comparator.comparing(ExamScheduleRepository.AdmitCardScheduleProjection::getExamDate)
                         .thenComparing(ExamScheduleRepository.AdmitCardScheduleProjection::getStartTime))
@@ -147,22 +153,57 @@ public class AdmitCardServiceImpl implements AdmitCardService {
         for (ExamScheduleRepository.AdmitCardScheduleProjection schedule : orderedSchedules) {
             String subjectName = subjectNameById.getOrDefault(schedule.getSubjectId(), schedule.getSubjectName());
             for (StudentRepository.AdmitCardStudentProjection student : studentsBySchedule.getOrDefault(schedule.getId(), List.of())) {
-                AdmitCardData cardData = admitCardDataByStudentId.computeIfAbsent(student.getId(), ignored ->
-                        AdmitCardData.builder()
-                                .student(toStudentDTO(student))
-                                .schedules(new ArrayList<>())
-                                .build());
+                // Remember class/section from first schedule the student appears in
+                studentClassInfo.putIfAbsent(student.getId(), new String[]{
+                        schedule.getAcademicClassName() != null ? schedule.getAcademicClassName() : "N/A",
+                        schedule.getSectionName() != null ? schedule.getSectionName() : "N/A"
+                });
+
+                schedulesPerStudent.computeIfAbsent(student.getId(), k -> new ArrayList<>());
 
                 SeatDTO seat = seatByScheduleAndStudent.get(allocationKey(schedule.getId(), student.getId()));
-                cardData.getSchedules().add(ScheduleDTO.builder()
-                        .subject(subjectName)
+                schedulesPerStudent.get(student.getId()).add(ScheduleDTO.builder()
+                        .subject(subjectName != null ? subjectName : "N/A")
                         .date(schedule.getExamDate())
                         .startTime(schedule.getStartTime())
                         .endTime(schedule.getEndTime())
-                        .seat(seat != null ? seat.getSeat() : "TBA")
-                        .room(seat != null ? seat.getRoom() : "TBA")
+                        .seat(seat != null && seat.getSeat() != null ? seat.getSeat() : "Not Allocated")
+                        .room(seat != null && seat.getRoom() != null ? seat.getRoom() : "Not Allocated")
                         .build());
             }
+        }
+
+        // Build final card data with all per-card metadata
+        String examTypeName = exam.getExamType() != null ? exam.getExamType().name() : "";
+        String issueDateStr = LocalDateTime.now().format(ISSUE_DATE_TIME_FMT);
+
+        for (Map.Entry<Long, List<ScheduleDTO>> entry : schedulesPerStudent.entrySet()) {
+            Long studentId = entry.getKey();
+            StudentRepository.AdmitCardStudentProjection studentProj = studentsById.get(studentId);
+            if (studentProj == null) continue;
+
+            String[] classInfo = studentClassInfo.getOrDefault(studentId, new String[]{"N/A", "N/A"});
+            StudentDTO studentDTO = toStudentDTO(studentProj, classInfo[0], classInfo[1]);
+
+            String admitCardNumber = "AC-" + exam.getId() + "-" + studentId;
+            String verificationCode = admitCardNumber;
+            String qrCodeBase64;
+            String qrText = admitCardNumber + "|" + studentId + "|" + exam.getId();
+            try {
+                qrCodeBase64 = pdfGenerationService.generateQrCodeBase64(qrText, 100);
+            } catch (Exception e) {
+                qrCodeBase64 = "";
+            }
+
+            admitCardDataByStudentId.put(studentId, AdmitCardData.builder()
+                    .student(studentDTO)
+                    .schedules(entry.getValue())
+                    .admitCardNumber(admitCardNumber)
+                    .qrCodeBase64(qrCodeBase64)
+                    .verificationCode(verificationCode)
+                    .examType(examTypeName)
+                    .issueDate(issueDateStr)
+                    .build());
         }
 
         List<AdmitCardData> cards = admitCardDataByStudentId.values().stream()
@@ -170,12 +211,17 @@ public class AdmitCardServiceImpl implements AdmitCardService {
                         .thenComparing(card -> card.getStudent().getName(), Comparator.nullsLast(String::compareTo)))
                 .toList();
 
+        if (cards.isEmpty()) {
+            throw new EdusyncException("EM-400", "No admit card data could be assembled — no students matched schedules", HttpStatus.BAD_REQUEST);
+        }
+
         Map<String, Object> templateData = new HashMap<>();
         populateSchoolBrandingData(templateData);
         templateData.put("examName", exam.getName());
         templateData.put("academicYear", exam.getAcademicYear());
+        templateData.put("examType", examTypeName);
         templateData.put("examSessionTitle", exam.getName() + " (" + exam.getAcademicYear() + ")");
-        templateData.put("generatedAt", LocalDateTime.now().format(ISSUE_DATE_TIME_FMT));
+        templateData.put("generatedAt", issueDateStr);
         templateData.put("cards", cards);
 
         return pdfGenerationService.generatePdfFromHtml("em/admit-card-batch", templateData);
@@ -463,11 +509,19 @@ public class AdmitCardServiceImpl implements AdmitCardService {
         return studentsBySchedule;
     }
 
-    private StudentDTO toStudentDTO(StudentRepository.AdmitCardStudentProjection projection) {
+    private StudentDTO toStudentDTO(StudentRepository.AdmitCardStudentProjection projection,
+                                     String className, String sectionName) {
+        String firstName = projection.getFirstName() != null ? projection.getFirstName() : "";
+        String lastName = projection.getLastName() != null ? projection.getLastName() : "";
+        String fullName = (firstName + " " + lastName).trim();
         return StudentDTO.builder()
                 .id(projection.getId())
-                .name((projection.getFirstName() + " " + projection.getLastName()).trim())
+                .name(fullName.isEmpty() ? "N/A" : fullName)
                 .rollNo(projection.getRollNo())
+                .enrollmentNumber(projection.getEnrollmentNumber() != null ? projection.getEnrollmentNumber() : "")
+                .className(className != null ? className : "N/A")
+                .sectionName(sectionName != null ? sectionName : "N/A")
+                .photoBase64(null)
                 .build();
     }
 

@@ -1,0 +1,241 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org">
+<head>
+    <meta charset="UTF-8"/>
+    <title>Bank Salary Advice</title>
+    <style>
+        @page { size: A4 landscape; margin: 14mm 12mm; }
+        * { box-sizing: border-box; }
+        body { font-family: 'Noto Sans', Arial, sans-serif; font-size: 11px; color: #1f2937; margin: 0; }
+
+        /* ── Header ─────────────────────────────────────────── */
+        .page-header { width: 100%; border-bottom: 2px solid #1d4ed8; padding-bottom: 8px; margin-bottom: 10px; }
+        .page-header table { width: 100%; border-collapse: collapse; }
+        .logo-cell { width: 60px; vertical-align: middle; }
+        .logo-cell img { height: 48px; }
+        .title-cell { vertical-align: middle; padding-left: 10px; }
+        .doc-title { font-size: 16px; font-weight: 700; color: #1d4ed8; margin: 0; }
+        .institution { font-size: 12px; font-weight: 600; margin: 2px 0 0; }
+        .meta-cell { vertical-align: top; text-align: right; }
+        .meta-cell p { margin: 1px 0; color: #4b5563; }
+        .meta-cell strong { color: #1f2937; }
+        .badge { display: inline-block; background: #dbeafe; color: #1e40af; border-radius: 3px;
+                 padding: 1px 6px; font-size: 10px; font-weight: 700; margin-top: 4px; }
+
+        /* ── Summary cards ──────────────────────────────────── */
+        .summary-row { width: 100%; border-collapse: collapse; margin-bottom: 12px; }
+        .summary-row td { padding: 0 4px; vertical-align: top; }
+        .card { border: 1px solid #e5e7eb; border-radius: 4px; padding: 8px 10px; background: #f9fafb; }
+        .card .label { font-size: 9px; color: #6b7280; text-transform: uppercase; letter-spacing: .05em; }
+        .card .amount { font-size: 14px; font-weight: 700; color: #1f2937; margin-top: 2px; }
+        .card.highlight .amount { color: #15803d; }
+
+        /* ── Section headings ───────────────────────────────── */
+        .section-title { font-size: 11px; font-weight: 700; color: #1d4ed8;
+                         border-bottom: 1px solid #bfdbfe; padding-bottom: 3px; margin: 12px 0 6px; }
+
+        /* ── Tables ─────────────────────────────────────────── */
+        .grid { width: 100%; border-collapse: collapse; font-size: 10px; }
+        .grid th { background: #1d4ed8; color: #ffffff; padding: 5px 6px; text-align: left; font-weight: 600; }
+        .grid th.right, .grid td.right { text-align: right; }
+        .grid th.center { text-align: center; }
+        .grid td { padding: 4px 6px; border-bottom: 1px solid #e5e7eb; vertical-align: top; }
+        .grid tr:nth-child(even) td { background: #f0f4ff; }
+        .grid tr.total-row td { background: #dbeafe; font-weight: 700; border-top: 2px solid #1d4ed8; }
+        .grid tr.total-row td.right { color: #15803d; }
+        .missing { color: #dc2626; font-style: italic; }
+
+        /* ── Deduction annexure ─────────────────────────────── */
+        .annexure-grid { width: 100%; border-collapse: collapse; font-size: 10px; }
+        .annexure-grid th { background: #374151; color: #fff; padding: 4px 6px; text-align: left; }
+        .annexure-grid th.right { text-align: right; }
+        .annexure-grid td { padding: 4px 6px; border-bottom: 1px solid #e5e7eb; }
+        .annexure-grid td.right { text-align: right; }
+        .annexure-grid tr:nth-child(even) td { background: #f9fafb; }
+        .annexure-grid tr.total-row td { font-weight: 700; background: #f3f4f6; border-top: 2px solid #374151; }
+
+        /* ── Footer ─────────────────────────────────────────── */
+        .page-footer { margin-top: 16px; padding-top: 8px; border-top: 1px solid #d1d5db;
+                       font-size: 9px; color: #9ca3af; text-align: center; }
+        .signatory-row { width: 100%; border-collapse: collapse; margin-top: 24px; }
+        .signatory-row td { vertical-align: bottom; text-align: center; padding: 0 8px; font-size: 10px; }
+        .sign-line { border-top: 1px solid #1f2937; margin-top: 28px; padding-top: 4px; }
+    </style>
+</head>
+<body>
+
+<!-- ═══════════════════════════════════════════════════════ PAGE HEADER -->
+<div class="page-header">
+    <table>
+        <tr>
+            <td class="logo-cell">
+                <img th:if="${schoolLogoBase64 != null and !schoolLogoBase64.isEmpty()}"
+                     th:src="${schoolLogoBase64}" alt="Logo"/>
+            </td>
+            <td class="title-cell">
+                <p class="doc-title">SALARY DISBURSEMENT STATEMENT</p>
+                <p class="institution" th:text="${advice.institutionName()}">Institution Name</p>
+                <span class="badge">BANK SALARY ADVICE</span>
+            </td>
+            <td class="meta-cell">
+                <p><strong>Pay Period:</strong> <span th:text="${advice.payPeriodLabel()}">Month Year</span></p>
+                <p><strong>Run Ref:</strong> <span th:text="${advice.runIdentifier()}">REF</span></p>
+                <p><strong>Generated:</strong>
+                    <span th:text="${#temporals.format(advice.generatedAt(), 'dd-MMM-yyyy HH:mm')}">date</span></p>
+                <p><strong>Total Staff:</strong> <span th:text="${advice.totalStaff()}">0</span></p>
+            </td>
+        </tr>
+    </table>
+</div>
+
+<!-- ═══════════════════════════════════════════════════════ SUMMARY CARDS -->
+<table class="summary-row">
+    <tr>
+        <td style="width:25%">
+            <div class="card">
+                <div class="label">Total Gross Pay</div>
+                <div class="amount"
+                     th:text="${currencySymbol} + ' ' + ${#numbers.formatDecimal(advice.totalGross(), 1, 'COMMA', 2, 'POINT')}">0.00</div>
+            </div>
+        </td>
+        <td style="width:25%">
+            <div class="card">
+                <div class="label">Total Deductions</div>
+                <div class="amount"
+                     th:text="${currencySymbol} + ' ' + ${#numbers.formatDecimal(advice.totalDeductions(), 1, 'COMMA', 2, 'POINT')}">0.00</div>
+            </div>
+        </td>
+        <td style="width:25%">
+            <div class="card highlight">
+                <div class="label">Net Disbursable</div>
+                <div class="amount"
+                     th:text="${currencySymbol} + ' ' + ${#numbers.formatDecimal(advice.totalNetDisbursable(), 1, 'COMMA', 2, 'POINT')}">0.00</div>
+            </div>
+        </td>
+        <td style="width:25%">
+            <div class="card">
+                <div class="label">Number of Transfers</div>
+                <div class="amount" th:text="${advice.totalStaff()}">0</div>
+            </div>
+        </td>
+    </tr>
+</table>
+
+<!-- ═══════════════════════════════════════════════════════ STAFF-WISE TABLE -->
+<p class="section-title">SECTION A — Staff-Wise Salary &amp; Bank Details</p>
+
+<table class="grid">
+    <thead>
+    <tr>
+        <th class="center" style="width:28px">#</th>
+        <th style="width:60px">Emp ID</th>
+        <th style="width:130px">Staff Name</th>
+        <th style="width:110px">Designation</th>
+        <th style="width:90px">Bank Name</th>
+        <th style="width:110px">Account No.</th>
+        <th style="width:80px">IFSC Code</th>
+        <th class="right" style="width:75px">Gross Pay</th>
+        <th class="right" style="width:75px">Deductions</th>
+        <th class="right" style="width:75px">Net Pay</th>
+    </tr>
+    </thead>
+    <tbody>
+    <tr th:each="entry : ${advice.staffEntries()}">
+        <td class="center" th:text="${entry.serialNo()}">1</td>
+        <td th:text="${entry.employeeId()}">EMP001</td>
+        <td th:text="${entry.staffName()}">Name</td>
+        <td th:text="${entry.designation() != null ? entry.designation() : '-'}">Designation</td>
+        <td th:text="${entry.bankName() != null ? entry.bankName() : ''}"
+            th:classappend="${entry.bankName() == null ? 'missing' : ''}">Bank</td>
+        <td th:text="${entry.bankAccountNumber() != null ? entry.bankAccountNumber() : 'MISSING'}"
+            th:classappend="${entry.bankAccountNumber() == null ? 'missing' : ''}">Account</td>
+        <td th:text="${entry.bankIfscCode() != null ? entry.bankIfscCode() : 'MISSING'}"
+            th:classappend="${entry.bankIfscCode() == null ? 'missing' : ''}">IFSC</td>
+        <td class="right"
+            th:text="${currencySymbol} + ' ' + ${#numbers.formatDecimal(entry.grossPay(), 1, 'COMMA', 2, 'POINT')}">0.00</td>
+        <td class="right"
+            th:text="${currencySymbol} + ' ' + ${#numbers.formatDecimal(entry.totalDeductions(), 1, 'COMMA', 2, 'POINT')}">0.00</td>
+        <td class="right"
+            th:text="${currencySymbol} + ' ' + ${#numbers.formatDecimal(entry.netPay(), 1, 'COMMA', 2, 'POINT')}">0.00</td>
+    </tr>
+    </tbody>
+    <tfoot>
+    <tr class="total-row">
+        <td colspan="7" style="text-align:right;font-weight:700;">TOTAL</td>
+        <td class="right"
+            th:text="${currencySymbol} + ' ' + ${#numbers.formatDecimal(advice.totalGross(), 1, 'COMMA', 2, 'POINT')}">0.00</td>
+        <td class="right"
+            th:text="${currencySymbol} + ' ' + ${#numbers.formatDecimal(advice.totalDeductions(), 1, 'COMMA', 2, 'POINT')}">0.00</td>
+        <td class="right"
+            th:text="${currencySymbol} + ' ' + ${#numbers.formatDecimal(advice.totalNetDisbursable(), 1, 'COMMA', 2, 'POINT')}">0.00</td>
+    </tr>
+    </tfoot>
+</table>
+
+<!-- ═══════════════════════════════════════════════════════ DEDUCTION ANNEXURE -->
+<p class="section-title" style="margin-top:20px;">SECTION B — Deduction Annexure (Component-Wise per Staff)</p>
+
+<table class="grid" style="font-size:9.5px;">
+    <thead>
+    <tr>
+        <th class="center" style="width:28px">#</th>
+        <th style="width:60px">Emp ID</th>
+        <th style="width:130px">Staff Name</th>
+        <th th:each="agg : ${advice.deductionAggregates()}"
+            class="right"
+            th:text="${agg.componentName()}"
+            style="min-width:70px;">Component</th>
+        <th class="right" style="width:80px">Total Dedns</th>
+    </tr>
+    </thead>
+    <tbody>
+    <tr th:each="entry : ${advice.staffEntries()}">
+        <td class="center" th:text="${entry.serialNo()}">1</td>
+        <td th:text="${entry.employeeId()}">EMP001</td>
+        <td th:text="${entry.staffName()}">Name</td>
+        <td th:each="agg : ${advice.deductionAggregates()}" class="right">
+            <span th:with="amount=${entry.deductionMap()[agg.componentCode()]}">
+                <span th:if="${amount != null}"
+                      th:text="${currencySymbol} + ' ' + ${#numbers.formatDecimal(amount, 1, 'COMMA', 2, 'POINT')}">0.00</span>
+                <span th:if="${amount == null}">—</span>
+            </span>
+        </td>
+        <td class="right"
+            th:text="${currencySymbol} + ' ' + ${#numbers.formatDecimal(entry.totalDeductions(), 1, 'COMMA', 2, 'POINT')}">0.00</td>
+    </tr>
+    </tbody>
+    <tfoot>
+    <tr class="total-row">
+        <td colspan="3" style="text-align:right;font-weight:700;">COMPONENT TOTAL</td>
+        <td th:each="agg : ${advice.deductionAggregates()}" class="right"
+            th:text="${currencySymbol} + ' ' + ${#numbers.formatDecimal(agg.total(), 1, 'COMMA', 2, 'POINT')}">0.00</td>
+        <td class="right"
+            th:text="${currencySymbol} + ' ' + ${#numbers.formatDecimal(advice.totalDeductions(), 1, 'COMMA', 2, 'POINT')}">0.00</td>
+    </tr>
+    </tfoot>
+</table>
+
+<!-- ═══════════════════════════════════════════════════════ SIGNATORY BLOCK -->
+<table class="signatory-row">
+    <tr>
+        <td style="width:33%">
+            <div class="sign-line">Prepared By</div>
+        </td>
+        <td style="width:33%">
+            <div class="sign-line">Verified By (Accounts)</div>
+        </td>
+        <td style="width:33%">
+            <div class="sign-line">Authorised Signatory</div>
+        </td>
+    </tr>
+</table>
+
+<!-- ═══════════════════════════════════════════════════════ FOOTER -->
+<div class="page-footer">
+    This is a system-generated document. Confidential — for bank submission purposes only.
+    Any unauthorised disclosure is prohibited. &nbsp;|&nbsp;
+    Generated: <span th:text="${#temporals.format(advice.generatedAt(), 'dd-MMM-yyyy HH:mm:ss')}">timestamp</span>
+</div>
+
+</body>
+</html>

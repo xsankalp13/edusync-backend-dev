@@ -100,7 +100,7 @@ public class BulkImportServiceImpl implements BulkImportService {
     private static final List<String> STAFF_HEADER = Arrays.asList(
             // Common Staff (0-11)
             "firstName", "lastName", "middleName", "email", "dateOfBirth",
-            "gender", "employeeId", "joiningDate", "jobTitle", "department", "staffType", "staffCategory",
+            "gender", "employeeId", "joiningDate", "designationCode", "department", "staffType", "staffCategory",
             // Teacher (12-16)
             "certifications", "specializations", "yearsOfExperience", "educationLevel", "stateLicenseNumber",
             // Principal (17-18)
@@ -1100,7 +1100,7 @@ public class BulkImportServiceImpl implements BulkImportService {
         Gender gender = validationHelper.parseEnum(Gender.class, row[5], "gender");
         String employeeId = validationHelper.validateString(row[6], "employeeId");
         LocalDate joiningDate = validationHelper.parseDate(row[7], "joiningDate");
-        String jobTitle = validationHelper.validateString(row[8], "jobTitle");
+        String designationCode = validationHelper.validateString(row[8], "designationCode");
         Department department = validationHelper.parseEnum(Department.class, row[9], "department");
         StaffCategory staffCategory = validationHelper.parseEnum(StaffCategory.class, row[11], "staffCategory");
 
@@ -1127,7 +1127,7 @@ public class BulkImportServiceImpl implements BulkImportService {
 
         // 4. --- Delegate creation to the (refactored) helper ---
         registerUserByRole.RegisterStaff(email, employeeId, DEFAULT_PASSWORD, staffRole,
-                firstName, lastName, middleName, dob, gender, joiningDate, jobTitle,
+                firstName, lastName, middleName, dob, gender, joiningDate, designationCode,
                 department, StaffType.TEACHER, staffCategory, row);
     }
 
@@ -1144,7 +1144,7 @@ public class BulkImportServiceImpl implements BulkImportService {
         Gender gender = validationHelper.parseEnum(Gender.class, row[5], "gender");
         String employeeId = validationHelper.validateString(row[6], "employeeId");
         LocalDate joiningDate = validationHelper.parseDate(row[7], "joiningDate");
-        String jobTitle = validationHelper.validateString(row[8], "jobTitle");
+        String designationCode = validationHelper.validateString(row[8], "designationCode");
         Department department = validationHelper.parseEnum(Department.class, row[9], "department");
         StaffCategory staffCategory = validationHelper.parseEnum(StaffCategory.class, row[11], "staffCategory");
 
@@ -1168,7 +1168,7 @@ public class BulkImportServiceImpl implements BulkImportService {
 
         // 4. --- Delegate creation to the (refactored) helper ---
         registerUserByRole.RegisterStaff(email, employeeId, DEFAULT_PASSWORD, staffRole,
-                firstName, lastName, middleName, dob, gender, joiningDate, jobTitle,
+                firstName, lastName, middleName, dob, gender, joiningDate, designationCode,
                 department, StaffType.PRINCIPAL, staffCategory, row);
     }
 
@@ -1185,7 +1185,7 @@ public class BulkImportServiceImpl implements BulkImportService {
         Gender gender = validationHelper.parseEnum(Gender.class, row[5], "gender");
         String employeeId = validationHelper.validateString(row[6], "employeeId");
         LocalDate joiningDate = validationHelper.parseDate(row[7], "joiningDate");
-        String jobTitle = validationHelper.validateString(row[8], "jobTitle");
+        String designationCode = validationHelper.validateString(row[8], "designationCode");
         Department department = validationHelper.parseEnum(Department.class, row[9], "department");
         StaffCategory staffCategory = validationHelper.parseEnum(StaffCategory.class, row[11], "staffCategory");
 
@@ -1204,7 +1204,7 @@ public class BulkImportServiceImpl implements BulkImportService {
 
         // 4. --- Delegate creation to the (refactored) helper ---
         registerUserByRole.RegisterStaff(email, employeeId, DEFAULT_PASSWORD, staffRole,
-                firstName, lastName, middleName, dob, gender, joiningDate, jobTitle,
+                firstName, lastName, middleName, dob, gender, joiningDate, designationCode,
                 department, StaffType.LIBRARIAN, staffCategory, row);
     }
 }

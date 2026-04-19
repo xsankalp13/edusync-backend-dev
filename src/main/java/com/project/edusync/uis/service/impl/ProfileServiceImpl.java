@@ -151,7 +151,17 @@ public class ProfileServiceImpl implements ProfileService {
         // -- Check: Is this user a Student? --
         studentRepository.findByUserProfile(profile).ifPresent(student -> {
             log.info("Role Detected: User [ID: {}] is a STUDENT. Student ID: {}", userId, student.getId());
-            response.setStudentDetails(studentMapper.toDto(student));
+            // Map basic student details
+            var studentDto = studentMapper.toDto(student);
+
+                    // Ensure medical record is eagerly resolved and attached to the DTO if present.
+                    // The Student entity does not eagerly fetch medicalRecord by default, so we query the repository.
+                    studentMedicalRecordRepository.findByStudent_Id(student.getId()).ifPresent(record -> {
+                        log.debug("Attaching medical record for Student ID: {} to profile DTO", student.getId());
+                        studentDto.setMedicalRecord(toMedicalRecordDto(record));
+                    });
+
+            response.setStudentDetails(studentDto);
         });
 
         // -- Check: Is this user Staff? --
@@ -397,9 +407,12 @@ public class ProfileServiceImpl implements ProfileService {
         record.setPhysicianPhone(request.getPhysicianPhone());
         record.setInsuranceProvider(request.getInsuranceProvider());
         record.setInsurancePolicyNumber(request.getInsurancePolicyNumber());
+        // persist emergency contact fields as well (if provided)
+        record.setEmergencyContactName(request.getEmergencyContactName());
+        record.setEmergencyContactPhone(request.getEmergencyContactPhone());
         StudentMedicalRecord saved = studentMedicalRecordRepository.save(record);
 
-        return toMedicalRecordDto(saved, request.getEmergencyContactName(), request.getEmergencyContactPhone());
+        return toMedicalRecordDto(saved);
     }
 
     @Override
@@ -410,7 +423,7 @@ public class ProfileServiceImpl implements ProfileService {
         StudentMedicalRecord record = studentMedicalRecordRepository.findByStudent_Id(student.getId())
                 .orElseThrow(() -> new ResourceNotFoundException("StudentMedicalRecord", "studentId", student.getId()));
 
-        return toMedicalRecordDto(record, null, null);
+        return toMedicalRecordDto(record);
     }
 
     @Override
@@ -425,9 +438,12 @@ public class ProfileServiceImpl implements ProfileService {
         record.setPhysicianPhone(request.getPhysicianPhone());
         record.setInsuranceProvider(request.getInsuranceProvider());
         record.setInsurancePolicyNumber(request.getInsurancePolicyNumber());
+        // persist emergency contact fields
+        record.setEmergencyContactName(request.getEmergencyContactName());
+        record.setEmergencyContactPhone(request.getEmergencyContactPhone());
         StudentMedicalRecord saved = studentMedicalRecordRepository.save(record);
 
-        return toMedicalRecordDto(saved, request.getEmergencyContactName(), request.getEmergencyContactPhone());
+        return toMedicalRecordDto(saved);
     }
 
     @Override
@@ -508,7 +524,7 @@ public class ProfileServiceImpl implements ProfileService {
                 .orElseThrow(() -> new ResourceNotFoundException("Student", "userId", userId));
     }
 
-    private StudentMedicalRecordDTO toMedicalRecordDto(StudentMedicalRecord record, String emergencyContactName, String emergencyContactPhone) {
+    private StudentMedicalRecordDTO toMedicalRecordDto(StudentMedicalRecord record) {
         List<StudentMedicalAllergyDTO> allergies = record.getAllergies().stream()
                 .map(this::toAllergyDto)
                 .toList();
@@ -519,8 +535,8 @@ public class ProfileServiceImpl implements ProfileService {
                 record.getPhysicianPhone(),
                 record.getInsuranceProvider(),
                 record.getInsurancePolicyNumber(),
-                emergencyContactName,
-                emergencyContactPhone,
+                record.getEmergencyContactName(),
+                record.getEmergencyContactPhone(),
                 allergies,
                 List.of()
         );

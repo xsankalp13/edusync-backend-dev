@@ -9,6 +9,14 @@ import com.project.edusync.hrms.model.enums.TeachingWing;
 import com.project.edusync.hrms.repository.LeaveTypeConfigRepository;
 import com.project.edusync.hrms.repository.StaffGradeRepository;
 import com.project.edusync.hrms.repository.SalaryComponentRepository;
+import com.project.edusync.hrms.repository.StaffDesignationRepository;
+import com.project.edusync.hrms.model.entity.StaffDesignation;
+import com.project.edusync.hrms.model.entity.OnboardingTemplate;
+import com.project.edusync.hrms.model.entity.OnboardingTemplateTask;
+import com.project.edusync.hrms.model.enums.AssignedParty;
+import com.project.edusync.hrms.repository.OnboardingTemplateRepository;
+import com.project.edusync.hrms.repository.OnboardingTemplateTaskRepository;
+import com.project.edusync.uis.model.enums.StaffCategory;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.boot.ApplicationArguments;
@@ -27,6 +35,9 @@ public class HrmsDataSeeder implements ApplicationRunner {
     private final LeaveTypeConfigRepository leaveTypeConfigRepository;
     private final StaffGradeRepository staffGradeRepository;
     private final SalaryComponentRepository salaryComponentRepository;
+    private final StaffDesignationRepository staffDesignationRepository;
+    private final OnboardingTemplateRepository onboardingTemplateRepository;
+    private final OnboardingTemplateTaskRepository onboardingTemplateTaskRepository;
 
     @Override
     @Transactional
@@ -34,6 +45,8 @@ public class HrmsDataSeeder implements ApplicationRunner {
         seedDefaultLeaveTypes();
         seedDefaultStaffGrades();
         seedDefaultSalaryComponents();
+        seedDefaultDesignations();
+        seedDefaultOnboardingTemplates();
     }
 
     private void seedDefaultLeaveTypes() {
@@ -144,6 +157,45 @@ public class HrmsDataSeeder implements ApplicationRunner {
         }
     }
 
+    private void seedDefaultDesignations() {
+        List<StaffDesignationSeed> seeds = List.of(
+                new StaffDesignationSeed("TGT", "Trained Graduate Teacher", StaffCategory.TEACHING, 1),
+                new StaffDesignationSeed("PGT", "Post Graduate Teacher", StaffCategory.TEACHING, 2),
+                new StaffDesignationSeed("RPGT", "Retrained PG Teacher", StaffCategory.TEACHING, 3),
+                new StaffDesignationSeed("PRT", "Primary Teacher", StaffCategory.TEACHING, 4),
+                new StaffDesignationSeed("HM", "Head Master", StaffCategory.TEACHING, 5),
+                new StaffDesignationSeed("VICE_P", "Vice Principal", StaffCategory.NON_TEACHING_ADMIN, 6),
+                new StaffDesignationSeed("LAB_ASST", "Laboratory Assistant", StaffCategory.NON_TEACHING_SUPPORT, 7),
+                new StaffDesignationSeed("LIBRARIAN", "Librarian", StaffCategory.NON_TEACHING_SUPPORT, 8),
+                new StaffDesignationSeed("CLERK", "Office Clerk", StaffCategory.NON_TEACHING_ADMIN, 9),
+                new StaffDesignationSeed("ACCOUNTANT", "Accountant", StaffCategory.NON_TEACHING_ADMIN, 10),
+                new StaffDesignationSeed("PEON", "Peon / Office Attendant", StaffCategory.NON_TEACHING_SUPPORT, 11),
+                new StaffDesignationSeed("SECURITY", "Security Guard", StaffCategory.NON_TEACHING_SUPPORT, 12),
+                new StaffDesignationSeed("IT_ADMIN", "IT Administrator", StaffCategory.NON_TEACHING_ADMIN, 13),
+                new StaffDesignationSeed("COUNSELOR", "Student Counselor", StaffCategory.TEACHING, 14)
+        );
+
+        int inserted = 0;
+        for (StaffDesignationSeed seed : seeds) {
+            if (staffDesignationRepository.findByDesignationCodeIgnoreCase(seed.code()).isPresent()) {
+                continue;
+            }
+
+            StaffDesignation designation = new StaffDesignation();
+            designation.setDesignationCode(seed.code());
+            designation.setDesignationName(seed.name());
+            designation.setCategory(seed.category());
+            designation.setSortOrder(seed.sortOrder());
+            designation.setActive(true);
+            staffDesignationRepository.save(designation);
+            inserted++;
+        }
+
+        if (inserted > 0) {
+            log.info("HRMS seeder inserted {} default staff designations.", inserted);
+        }
+    }
+
     private record LeaveTypeSeed(
             String code,
             String displayName,
@@ -177,6 +229,107 @@ public class HrmsDataSeeder implements ApplicationRunner {
             boolean taxable,
             boolean statutory,
             int sortOrder
+    ) {
+    }
+
+    private record StaffDesignationSeed(
+            String code,
+            String name,
+            StaffCategory category,
+            int sortOrder
+    ) {
+    }
+
+    private void seedDefaultOnboardingTemplates() {
+        int inserted = 0;
+
+        // 1. Teaching Staff Template
+        if (!onboardingTemplateRepository.existsByTemplateName("Standard Teaching Staff Onboarding")) {
+            OnboardingTemplate teachingTemplate = new OnboardingTemplate();
+            teachingTemplate.setTemplateName("Standard Teaching Staff Onboarding");
+            teachingTemplate.setDescription("Standard 20-step onboarding process for all teaching staff including academic induction.");
+            teachingTemplate.setActive(true);
+            teachingTemplate = onboardingTemplateRepository.save(teachingTemplate);
+
+            List<OnboardingTaskSeed> teachingTasks = List.of(
+                    new OnboardingTaskSeed("Collect signed Appointment Letter", "Ensure the final signed copy is placed in the employee file.", 0, AssignedParty.HR),
+                    new OnboardingTaskSeed("Collect educational certificates", "Originals for verification and copies for records.", 0, AssignedParty.STAFF),
+                    new OnboardingTaskSeed("Collect Aadhaar card & PAN card copies", "Required for payroll and identity verification.", 0, AssignedParty.STAFF),
+                    new OnboardingTaskSeed("Collect passport-size photographs", "Require 4 copies for ID and records.", 0, AssignedParty.STAFF),
+                    new OnboardingTaskSeed("Collect experience / relieving letter", "From previous employer, if applicable.", 1, AssignedParty.STAFF),
+                    new OnboardingTaskSeed("Collect medical fitness certificate", "Must be from a registered medical practitioner.", 3, AssignedParty.STAFF),
+                    new OnboardingTaskSeed("Complete staff registration in ERP", "Create the profile in Shiksha Intelligence.", 0, AssignedParty.HR),
+                    new OnboardingTaskSeed("Create school email account", "e.g., firstname.lastname@school.edu", 1, AssignedParty.HR),
+                    new OnboardingTaskSeed("Enroll in biometric / attendance system", "Register fingerprints or facial recognition.", 1, AssignedParty.HR),
+                    new OnboardingTaskSeed("Issue ID card", "Print and hand over the permanent ID card.", 3, AssignedParty.HR),
+                    new OnboardingTaskSeed("Conduct campus & facilities tour", "Familiarize staff with academic blocks, staff room, cafeteria, etc.", 1, AssignedParty.HR),
+                    new OnboardingTaskSeed("Introduce to department team & Principal", "Brief introductory meeting.", 1, AssignedParty.BOTH),
+                    new OnboardingTaskSeed("Share school policies handbook", "Include leave, attendance, and code of conduct.", 2, AssignedParty.HR),
+                    new OnboardingTaskSeed("Conduct child protection & POCSO session", "Mandatory awareness and compliance session.", 7, AssignedParty.HR),
+                    new OnboardingTaskSeed("Share class/subject assignment & timetable", "Provide the academic schedule.", 3, AssignedParty.HR),
+                    new OnboardingTaskSeed("Assign mentor teacher / buddy", "For academic guidance during probation.", 3, AssignedParty.HR),
+                    new OnboardingTaskSeed("Complete ERP/LMS training session", "Training on grading, attendance, and lesson planning modules.", 7, AssignedParty.BOTH),
+                    new OnboardingTaskSeed("Initiate background verification (BGV)", "Start the third-party BGV process.", 7, AssignedParty.HR),
+                    new OnboardingTaskSeed("30-day probation check-in review", "First feedback session.", 30, AssignedParty.BOTH),
+                    new OnboardingTaskSeed("90-day probation final review", "Final appraisal for confirmation.", 90, AssignedParty.HR)
+            );
+            saveTasks(teachingTemplate, teachingTasks);
+            inserted++;
+        }
+
+        // 2. Non-Teaching Staff Template
+        if (!onboardingTemplateRepository.existsByTemplateName("Standard Administrative Staff Onboarding")) {
+            OnboardingTemplate supportTemplate = new OnboardingTemplate();
+            supportTemplate.setTemplateName("Standard Administrative Staff Onboarding");
+            supportTemplate.setDescription("Standard onboarding process for admin and support staff.");
+            supportTemplate.setActive(true);
+            supportTemplate = onboardingTemplateRepository.save(supportTemplate);
+
+            List<OnboardingTaskSeed> supportTasks = List.of(
+                    new OnboardingTaskSeed("Collect signed Appointment Letter", "Ensure the final signed copy is placed in the employee file.", 0, AssignedParty.HR),
+                    new OnboardingTaskSeed("Collect ID & Address proof", "Aadhaar card & PAN card copies.", 0, AssignedParty.STAFF),
+                    new OnboardingTaskSeed("Collect passport-size photographs", "Require 4 copies for ID and records.", 0, AssignedParty.STAFF),
+                    new OnboardingTaskSeed("Collect experience / relieving letter", "From previous employer, if applicable.", 1, AssignedParty.STAFF),
+                    new OnboardingTaskSeed("Complete staff registration in ERP", "Create the profile in Shiksha Intelligence.", 0, AssignedParty.HR),
+                    new OnboardingTaskSeed("Create school email account", "If applicable for the role.", 1, AssignedParty.HR),
+                    new OnboardingTaskSeed("Enroll in biometric / attendance system", "Register fingerprints or facial recognition.", 1, AssignedParty.HR),
+                    new OnboardingTaskSeed("Issue ID card", "Print and hand over the permanent ID card.", 3, AssignedParty.HR),
+                    new OnboardingTaskSeed("Conduct campus & facilities tour", "Familiarize staff with relevant workspaces.", 1, AssignedParty.HR),
+                    new OnboardingTaskSeed("Introduce to reporting manager", "Brief introductory meeting.", 1, AssignedParty.BOTH),
+                    new OnboardingTaskSeed("Share school policies handbook", "Include leave, attendance, and code of conduct.", 2, AssignedParty.HR),
+                    new OnboardingTaskSeed("Job-specific software/tool training", "Training on accounting, inventory, or relevant tools.", 7, AssignedParty.BOTH),
+                    new OnboardingTaskSeed("30-day probation check-in review", "First feedback session.", 30, AssignedParty.BOTH),
+                    new OnboardingTaskSeed("90-day probation final review", "Final appraisal for confirmation.", 90, AssignedParty.HR)
+            );
+            saveTasks(supportTemplate, supportTasks);
+            inserted++;
+        }
+
+        if (inserted > 0) {
+            log.info("HRMS seeder inserted {} default onboarding templates with tasks.", inserted);
+        }
+    }
+
+    private void saveTasks(OnboardingTemplate template, List<OnboardingTaskSeed> tasks) {
+        int order = 1;
+        for (OnboardingTaskSeed seed : tasks) {
+            OnboardingTemplateTask task = new OnboardingTemplateTask();
+            task.setTemplate(template);
+            task.setTaskOrder(order++);
+            task.setTaskTitle(seed.title());
+            task.setDescription(seed.description());
+            task.setDueAfterDays(seed.dueAfterDays());
+            task.setAssignedParty(seed.party());
+            task.setActive(true);
+            onboardingTemplateTaskRepository.save(task);
+        }
+    }
+
+    private record OnboardingTaskSeed(
+            String title,
+            String description,
+            int dueAfterDays,
+            AssignedParty party
     ) {
     }
 }

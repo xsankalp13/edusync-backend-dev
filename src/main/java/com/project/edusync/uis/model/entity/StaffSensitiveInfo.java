@@ -43,6 +43,9 @@ public class StaffSensitiveInfo {
     @Column(name = "apaar_id", length = 30)
     private String apaarId;
 
+    @Column(name = "bank_account_holder_name", length = 100)
+    private String accountHolderName;
+
     @Column(name = "bank_name", length = 100)
     private String bankName;
 
@@ -52,6 +55,10 @@ public class StaffSensitiveInfo {
 
     @Column(name = "bank_ifsc_code", length = 20)
     private String bankIfscCode;
+
+    @Column(name = "bank_account_type", length = 20)
+    private String bankAccountType; // SAVINGS | CURRENT
+
 
     @Column(name = "emergency_contact_name", length = 100)
     private String emergencyContactName;

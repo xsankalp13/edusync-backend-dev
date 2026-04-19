@@ -39,4 +39,22 @@ public interface StaffAttendanceService {
     AttendanceCompletionDTO getAttendanceCompletion(int month, int year);
 
     List<StaffSummaryDTO> getUnmarkedStaff(LocalDate date, Optional<StaffCategory> category);
+
+    /**
+     * Mark all scheduled (and not-yet-marked) staff as Present for a given date.
+     * Skips staff on approved leave.
+     * @param date       the target date
+     * @param testMode   if true, allows future dates (for testing purposes)
+     * @return number of records created
+     */
+    int markAllPresent(LocalDate date, boolean testMode);
+
+    /**
+     * Mark all scheduled (and not-yet-marked) staff as Absent for a given date.
+     * Skips staff on approved leave.
+     * @param date       the target date
+     * @param testMode   if true, allows future dates (for testing purposes)
+     * @return number of records created
+     */
+    int markAllAbsent(LocalDate date, boolean testMode);
 }

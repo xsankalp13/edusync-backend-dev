@@ -5,9 +5,13 @@ import com.project.edusync.em.model.enums.EvaluationResultStatus;
 import com.project.edusync.iam.model.entity.User;
 import jakarta.persistence.*;
 import lombok.*;
+import org.hibernate.annotations.JdbcTypeCode;
+import org.hibernate.type.SqlTypes;
 
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
+import java.util.List;
+import java.util.Map;
 
 @Entity
 @Table(name = "evaluation_results")
@@ -41,6 +45,14 @@ public class EvaluationResult extends AuditableEntity {
 
     @Column(name = "published_at")
     private LocalDateTime publishedAt;
+
+    @JdbcTypeCode(SqlTypes.JSON)
+    @Column(name = "section_totals", columnDefinition = "jsonb")
+    private Map<String, BigDecimal> sectionTotals;
+
+    @JdbcTypeCode(SqlTypes.JSON)
+    @Column(name = "selected_questions", columnDefinition = "jsonb")
+    private Map<String, List<String>> selectedQuestions;
 
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "approved_by")

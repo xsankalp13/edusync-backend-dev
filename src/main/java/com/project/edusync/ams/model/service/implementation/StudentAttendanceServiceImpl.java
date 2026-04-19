@@ -163,7 +163,10 @@ public class StudentAttendanceServiceImpl implements StudentAttendanceService {
                                                               Optional<UUID> takenByStaffUuid,
                                                               Optional<String> fromDateIso,
                                                               Optional<String> toDateIso,
-                                                              Optional<String> attendanceTypeShortCode) {
+                                                              Optional<String> attendanceTypeShortCode,
+                                                              Optional<UUID> classUuid,
+                                                              Optional<UUID> sectionUuid,
+                                                              Optional<String> search) {
 
         Optional<Long> studentId = studentUuid.map(this::resolveStudentIdFromUuid);
         Optional<Long> takenByStaffId = takenByStaffUuid.map(this::resolveStaffIdFromUuid);
@@ -179,6 +182,25 @@ public class StudentAttendanceServiceImpl implements StudentAttendanceService {
         if (studentId.isPresent()) {
             Long id = studentId.get();
             spec = spec.and((root, query, cb) -> cb.equal(root.get("studentId"), id));
+        } else if (classUuid.isPresent() || sectionUuid.isPresent() || (search.isPresent() && !search.get().trim().isEmpty())) {
+            List<Long> matchedStudentIds = new ArrayList<>();
+            // Assuming studentRepository can filter, or we fetch matching from section
+            if (sectionUuid.isPresent()) {
+                sectionRepository.findByUuid(sectionUuid.get())
+                        .ifPresent(sec -> matchedStudentIds.addAll(studentRepository.findBySectionId(sec.getId()).stream().map(s -> s.getId()).toList()));
+            } else if (classUuid.isPresent()) {
+                academicClassRepository.findById(classUuid.get())
+                        .ifPresent(cls -> matchedStudentIds.addAll(studentRepository.findBySection_AcademicClass_Id(cls.getId()).stream().map(s -> s.getId()).toList()));
+            } else {
+                // If only search is given, maybe just fetch all or fail (ignoring for now as search is broad)
+            }
+            // If there's a list, filter it. If no students match, force an empty result safely:
+            if (!matchedStudentIds.isEmpty()) {
+                spec = spec.and((root, query, cb) -> root.get("studentId").in(matchedStudentIds));
+            } else if (classUuid.isPresent() || sectionUuid.isPresent()) {
+                // filter requested but no students matched
+                spec = spec.and((root, query, cb) -> cb.disjunction()); 
+            }
         }
 
         if (takenByStaffId.isPresent()) {
@@ -349,22 +371,32 @@ public class StudentAttendanceServiceImpl implements StudentAttendanceService {
             );
         }
 
-        // studentFullName and takenByStaffName are not part of the entity and require external lookup (UIS).
+        // Resolve student full name and staff full name using UserProfile where available
         String studentFullName = null;
         String takenByStaffName = null;
 
         String studentUuid = null;
         if (e.getStudentId() != null) {
-            studentUuid = studentRepository.findById(e.getStudentId())
-                    .map(s -> s.getUuid() == null ? null : s.getUuid().toString())
-                    .orElse(null);
+            var studentOpt = studentRepository.findById(e.getStudentId());
+            if (studentOpt.isPresent()) {
+                var s = studentOpt.get();
+                studentUuid = s.getUuid() == null ? null : s.getUuid().toString();
+                if (s.getUserProfile() != null) {
+                    studentFullName = (s.getUserProfile().getFirstName() + " " + s.getUserProfile().getLastName()).trim();
+                }
+            }
         }
 
         String takenByStaffUuid = null;
         if (e.getTakenByStaffId() != null) {
-            takenByStaffUuid = staffRepository.findById(e.getTakenByStaffId())
-                    .map(s -> s.getUuid() == null ? null : s.getUuid().toString())
-                    .orElse(null);
+            var staffOpt = staffRepository.findById(e.getTakenByStaffId());
+            if (staffOpt.isPresent()) {
+                var s = staffOpt.get();
+                takenByStaffUuid = s.getUuid() == null ? null : s.getUuid().toString();
+                if (s.getUserProfile() != null) {
+                    takenByStaffName = (s.getUserProfile().getFirstName() + " " + s.getUserProfile().getLastName()).trim();
+                }
+            }
         }
 
         // IMPORTANT: convert UUID to String to match DTO constructor signature

@@ -7,6 +7,7 @@ import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
 
+import java.util.Collection;
 import java.util.List;
 
 @Repository
@@ -16,6 +17,11 @@ public interface SeatRepository extends JpaRepository<Seat, Long> {
      * All seats for a room, ordered row-wise then column-wise.
      */
     List<Seat> findByRoomIdOrderByRowNumberAscColumnNumberAsc(Long roomId);
+
+    /**
+     * All seats for multiple rooms, ordered row-wise then column-wise.
+     */
+    List<Seat> findByRoomIdInOrderByRowNumberAscColumnNumberAsc(Collection<Long> roomIds);
 
     /**
      * Total physical seats in a room.

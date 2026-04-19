@@ -1,8 +1,12 @@
 package com.project.edusync.em.model.entity;
 
 import com.project.edusync.common.model.AuditableEntity;
+import com.project.edusync.em.model.enums.TemplateSectionType;
 import jakarta.persistence.*;
 import lombok.*;
+
+import java.util.ArrayList;
+import java.util.List;
 
 @Entity
 @Table(name = "template_section")
@@ -30,10 +34,27 @@ public class TemplateSection extends AuditableEntity {
     @Column(name = "marks_per_question", nullable = false)
     private Integer marksPerQuestion;
 
+    @Column(name = "total_questions")
+    private Integer totalQuestions;
+
+    @Column(name = "attempt_questions")
+    private Integer attemptQuestions;
+
+    @Enumerated(EnumType.STRING)
+    @Column(name = "section_type", length = 20)
+    private TemplateSectionType sectionType;
+
+    @Column(name = "internal_choice_enabled")
+    private Boolean internalChoiceEnabled;
+
     @Column(name = "is_objective")
     private Boolean isObjective;
 
     @Column(name = "is_subjective")
     private Boolean isSubjective;
+
+    @OneToMany(mappedBy = "section", cascade = CascadeType.ALL, orphanRemoval = true)
+    @Builder.Default
+    private List<com.project.edusync.em.model.entity.TemplateQuestion> questions = new ArrayList<>();
 }
 

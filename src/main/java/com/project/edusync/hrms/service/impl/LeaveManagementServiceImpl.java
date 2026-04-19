@@ -22,6 +22,9 @@ import com.project.edusync.hrms.repository.AcademicCalendarEventRepository;
 import com.project.edusync.hrms.repository.LeaveApplicationRepository;
 import com.project.edusync.hrms.repository.LeaveBalanceRepository;
 import com.project.edusync.hrms.repository.LeaveTypeConfigRepository;
+import com.project.edusync.hrms.repository.StaffLeaveTemplateMappingRepository;
+import com.project.edusync.hrms.model.entity.StaffLeaveTemplateMapping;
+import com.project.edusync.hrms.model.entity.LeaveTemplateItem;
 import com.project.edusync.hrms.service.LeaveManagementService;
 import com.project.edusync.dashboard.model.DashboardEvent;
 import com.project.edusync.dashboard.service.DashboardEventService;
@@ -43,6 +46,7 @@ import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
+import java.util.Optional;
 import java.util.Set;
 
 @Service
@@ -59,6 +63,7 @@ public class LeaveManagementServiceImpl implements LeaveManagementService {
     private final LeaveTypeConfigRepository leaveTypeConfigRepository;
     private final AcademicCalendarEventRepository academicCalendarEventRepository;
     private final StaffRepository staffRepository;
+    private final StaffLeaveTemplateMappingRepository staffLeaveTemplateMappingRepository;
     private final DashboardEventService dashboardEventService;
     private final AuthUtil authUtil;
 
@@ -295,20 +300,34 @@ public class LeaveManagementServiceImpl implements LeaveManagementService {
     }
 
     @Override
-    @Transactional(readOnly = true)
+    @Transactional
     public List<LeaveBalanceResponseDTO> getBalanceForStaff(Long staffId, String academicYear) {
         Staff staff = staffRepository.findById(staffId)
                 .orElseThrow(() -> new LeaveNotFoundException("Staff not found with id: " + staffId));
 
         String year = normalizeAcademicYear(academicYear);
-        return leaveBalanceRepository.findByStaff_IdAndAcademicYearAndActiveTrueOrderByLeaveType_LeaveCodeAsc(staffId, year)
-                .stream()
+        List<LeaveBalance> existing = leaveBalanceRepository
+                .findByStaff_IdAndAcademicYearAndActiveTrueOrderByLeaveType_LeaveCodeAsc(staffId, year);
+
+        if (existing.isEmpty()) {
+            List<LeaveTypeConfig> activeTypes = leaveTypeConfigRepository
+                    .findByActiveTrueOrderBySortOrderAscLeaveCodeAsc();
+            for (LeaveTypeConfig lt : activeTypes) {
+                if (isLeaveTypeApplicableToCategory(lt, staff.getCategory())) {
+                    getOrInitializeBalance(staff, lt, year);
+                }
+            }
+            existing = leaveBalanceRepository
+                    .findByStaff_IdAndAcademicYearAndActiveTrueOrderByLeaveType_LeaveCodeAsc(staffId, year);
+        }
+
+        return existing.stream()
                 .map(balance -> toBalanceResponse(balance, staff))
                 .toList();
     }
 
     @Override
-    @Transactional(readOnly = true)
+    @Transactional
     public List<LeaveBalanceResponseDTO> getBalanceForStaffIdentifier(String staffIdentifier, String academicYear) {
         Staff staff = findActiveStaffByIdentifier(staffIdentifier);
         return getBalanceForStaff(staff.getId(), academicYear);
@@ -355,7 +374,7 @@ public class LeaveManagementServiceImpl implements LeaveManagementService {
                     balance.setLeaveType(leaveType);
                     balance.setAcademicYear(academicYear);
 
-                    BigDecimal annualQuota = BigDecimal.valueOf(leaveType.getAnnualQuota());
+                    BigDecimal annualQuota = getAnnualQuotaForStaff(staff, leaveType, academicYear);
                     BigDecimal carriedForward = BigDecimal.ZERO;
 
                     if (carryForwardYear != null && leaveType.isCarryForwardAllowed()) {
@@ -579,15 +598,34 @@ public class LeaveManagementServiceImpl implements LeaveManagementService {
     private LeaveBalance getOrInitializeBalance(Staff staff, LeaveTypeConfig leaveType, String academicYear) {
         return leaveBalanceRepository.findByStaff_IdAndLeaveType_IdAndAcademicYearAndActiveTrue(staff.getId(), leaveType.getId(), academicYear)
                 .orElseGet(() -> {
+                    BigDecimal annualQuota = getAnnualQuotaForStaff(staff, leaveType, academicYear);
+
                     LeaveBalance balance = new LeaveBalance();
                     balance.setStaff(staff);
                     balance.setLeaveType(leaveType);
                     balance.setAcademicYear(academicYear);
                     balance.setCarriedForward(BigDecimal.ZERO);
                     balance.setUsed(BigDecimal.ZERO);
-                    balance.setTotalQuota(BigDecimal.valueOf(leaveType.getAnnualQuota()));
+                    balance.setTotalQuota(annualQuota);
                     return leaveBalanceRepository.save(balance);
                 });
+    }
+
+    private BigDecimal getAnnualQuotaForStaff(Staff staff, LeaveTypeConfig leaveType, String academicYear) {
+        BigDecimal quota = BigDecimal.valueOf(leaveType.getAnnualQuota());
+        Optional<StaffLeaveTemplateMapping> mappingOpt = staffLeaveTemplateMappingRepository
+                .findByStaffIdAndAcademicYearAndActiveTrue(staff.getId(), academicYear);
+
+        if (mappingOpt.isPresent()) {
+            Optional<LeaveTemplateItem> itemOpt = mappingOpt.get().getTemplate().getItems().stream()
+                    .filter(item -> item.getLeaveType().getId().equals(leaveType.getId()) && item.isActive())
+                    .findFirst();
+
+            if (itemOpt.isPresent() && itemOpt.get().getCustomQuota() != null) {
+                quota = BigDecimal.valueOf(itemOpt.get().getCustomQuota());
+            }
+        }
+        return quota;
     }
 
     private String academicYearForDate(LocalDate date) {

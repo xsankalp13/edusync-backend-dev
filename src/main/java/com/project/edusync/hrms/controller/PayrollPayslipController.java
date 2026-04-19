@@ -1,5 +1,6 @@
 package com.project.edusync.hrms.controller;
 
+import com.project.edusync.hrms.dto.payroll.BankSalaryAdviceDTO;
 import com.project.edusync.hrms.dto.payroll.PayslipDetailDTO;
 import com.project.edusync.hrms.dto.payroll.PayrollPreflightDTO;
 import com.project.edusync.hrms.dto.payroll.StaffAttendanceSummaryDTO;
@@ -16,9 +17,13 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
+import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
+
+import java.util.Map;
 
 import java.time.LocalDate;
 
@@ -107,6 +112,55 @@ public class PayrollPayslipController {
             @RequestParam Integer month
     ) {
         return ResponseEntity.ok(payrollService.getPayrollPreflight(year, month));
+    }
+
+    // ── Bank Salary Advice ────────────────────────────────────────────────────
+
+    @GetMapping("/runs/{identifier}/bank-advice")
+    @Operation(summary = "Download Bank Salary Advice PDF for a payroll run")
+    @PreAuthorize("hasAnyAuthority('ROLE_SUPER_ADMIN','ROLE_SCHOOL_ADMIN','ROLE_ADMIN')")
+    public ResponseEntity<byte[]> getBankSalaryAdvicePdf(@PathVariable String identifier) {
+        byte[] pdf = payrollService.getBankSalaryAdvicePdf(identifier);
+        String filename = "bank-salary-advice-" + identifier + ".pdf";
+        return ResponseEntity.ok()
+                .header(HttpHeaders.CONTENT_TYPE, MediaType.APPLICATION_PDF_VALUE)
+                .header(HttpHeaders.CONTENT_DISPOSITION, "attachment; filename=\"" + filename + "\"")
+                .body(pdf);
+    }
+
+    @GetMapping("/runs/{identifier}/bank-advice/data")
+    @Operation(summary = "Get Bank Salary Advice data as JSON (for preview)")
+    @PreAuthorize("hasAnyAuthority('ROLE_SUPER_ADMIN','ROLE_SCHOOL_ADMIN','ROLE_ADMIN')")
+    public ResponseEntity<BankSalaryAdviceDTO> getBankSalaryAdviceData(@PathVariable String identifier) {
+        return ResponseEntity.ok(payrollService.getBankSalaryAdvice(identifier));
+    }
+
+    @PostMapping("/preflight/mark-absent")
+    @Operation(summary = "Bulk-mark all unmarked staff as absent for the pay period")
+    @PreAuthorize("hasAnyAuthority('ROLE_SUPER_ADMIN','ROLE_SCHOOL_ADMIN','ROLE_ADMIN')")
+    public ResponseEntity<Map<String, Object>> markAllAbsent(
+            @RequestParam int year,
+            @RequestParam int month) {
+        int count = payrollService.markAllAbsentForPeriod(year, month);
+        return ResponseEntity.ok(Map.of("markedAbsent", count, "month", month, "year", year));
+    }
+
+    @PostMapping("/preflight/mark-present")
+    @Operation(summary = "Bulk-mark all unmarked staff as present for the pay period")
+    @PreAuthorize("hasAnyAuthority('ROLE_SUPER_ADMIN','ROLE_SCHOOL_ADMIN','ROLE_ADMIN')")
+    public ResponseEntity<Map<String, Object>> markAllPresent(
+            @RequestParam int year,
+            @RequestParam int month) {
+        int count = payrollService.markAllPresentForPeriod(year, month);
+        return ResponseEntity.ok(Map.of("markedPresent", count, "month", month, "year", year));
+    }
+
+    @DeleteMapping("/runs/{identifier}/void")
+    @Operation(summary = "Void a payroll run — reverses loan EMIs, overtime conversions, and deletes payslips. Not allowed after DISBURSED.")
+    @PreAuthorize("hasAnyAuthority('ROLE_SUPER_ADMIN','ROLE_SCHOOL_ADMIN','ROLE_ADMIN')")
+    public ResponseEntity<com.project.edusync.hrms.dto.payroll.PayrollRunResponseDTO> voidRun(
+            @PathVariable String identifier) {
+        return ResponseEntity.ok(payrollService.voidRun(identifier));
     }
 }
 

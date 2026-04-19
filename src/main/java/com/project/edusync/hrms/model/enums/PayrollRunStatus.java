@@ -6,7 +6,8 @@ public enum PayrollRunStatus {
     PROCESSED,
     APPROVED,
     DISBURSED,
-    FAILED
+    FAILED,
+    VOIDED
 }
 
 

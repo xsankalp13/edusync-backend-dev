@@ -21,7 +21,12 @@ public class SeatAllocationResponseDTO {
     private String enrollmentNumber;
     private Integer rollNo;
     private String seatLabel;
-    private String position;
+
+    /** 0-based position index: 0=LEFT, 1=MIDDLE, 2=RIGHT */
+    private Integer positionIndex;
+    /** Human-readable position label: "LEFT", "MIDDLE", "RIGHT", or "" for single */
+    private String positionLabel;
+
     private Long seatId;
     private java.util.UUID studentId;
     private String roomName;
@@ -29,4 +34,9 @@ public class SeatAllocationResponseDTO {
     private int columnNumber;
     private LocalDateTime startTime;
     private LocalDateTime endTime;
+
+    /** Subject name for this allocation's schedule */
+    private String subjectName;
+    /** Class name for this allocation's schedule */
+    private String className;
 }

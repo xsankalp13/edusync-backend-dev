@@ -54,4 +54,11 @@ public class StudentMedicalRecord extends AuditableEntity {
      */
     @OneToMany(mappedBy = "medicalRecord", cascade = CascadeType.ALL, orphanRemoval = true)
     private Set<StudentMedicalMedication> medications = new HashSet<>();
+
+    // --- Emergency Contact (added to persist guardian-provided contact details) ---
+    @Column(name = "emergency_contact_name", length = 120)
+    private String emergencyContactName;
+
+    @Column(name = "emergency_contact_phone", length = 30)
+    private String emergencyContactPhone;
 }
