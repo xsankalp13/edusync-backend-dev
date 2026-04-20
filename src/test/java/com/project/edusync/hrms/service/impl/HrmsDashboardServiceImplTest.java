@@ -75,19 +75,19 @@ class HrmsDashboardServiceImplTest {
 
         HrmsDashboardSummaryDTO result = service.getSummary();
 
-        assertEquals(10, result.totalActiveStaff());
-        assertEquals(7, result.staffWithSalaryMapping());
-        assertEquals(3, result.staffWithoutSalaryMapping());
-        assertEquals(3, result.pendingLeaveApplications());
-        assertEquals(2, result.todayOnLeave());
-        assertEquals(6, result.todayPresent());
-        assertEquals(1, result.todayAbsent());
-        assertEquals(2, result.gradeDistribution().size());
-        assertEquals(6, result.payrollTrend().size());
-        assertEquals(4, result.totalTeachingStaff());
-        assertEquals(3, result.totalNonTeachingAdmin());
-        assertEquals(3, result.totalNonTeachingSupport());
-        assertEquals(3, result.categoryAttendance().size());
+        assertEquals(10, result.getTotalActiveStaff());
+        assertEquals(7, result.getStaffWithSalaryMapping());
+        assertEquals(3, result.getStaffWithoutSalaryMapping());
+        assertEquals(3, result.getPendingLeaveApplications());
+        assertEquals(2, result.getTodayOnLeave());
+        assertEquals(6, result.getTodayPresent());
+        assertEquals(1, result.getTodayAbsent());
+        assertEquals(2, result.getGradeDistribution().size());
+        assertEquals(6, result.getPayrollTrend().size());
+        assertEquals(4, result.getTotalTeachingStaff());
+        assertEquals(3, result.getTotalNonTeachingAdmin());
+        assertEquals(3, result.getTotalNonTeachingSupport());
+        assertEquals(3, result.getCategoryAttendance().size());
     }
 }
 

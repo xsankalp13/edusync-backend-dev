@@ -118,7 +118,9 @@ class StaffDesignationControllerSecurityTest {
                 "Primary Teacher",
                 StaffCategory.TEACHING,
                 null,
-                10
+                10,
+                null,
+                null
         );
 
         when(staffDesignationService.create(any())).thenReturn(new StaffDesignationResponseDTO(
@@ -130,6 +132,11 @@ class StaffDesignationControllerSecurityTest {
                 null,
                 10,
                 true,
+                null,
+                null,
+                null,
+                null,
+                null,
                 null,
                 null
         ));
