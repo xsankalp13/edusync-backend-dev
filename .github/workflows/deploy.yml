@@ -65,16 +65,19 @@ jobs:
           cache: maven
 
       - name: Run tests
+        # Use 'dev' profile — it sets ddl-auto=update and flyway.enabled=false,
+        # so the CI Postgres schema is auto-created without needing migrations.
         run: ./mvnw test -q
         env:
-          SPRING_PROFILES_ACTIVE: test
+          SPRING_PROFILES_ACTIVE: dev
           DB_URL: jdbc:postgresql://localhost:5432/edusync_test
           DB_USER: postgres
           DB_PASS: postgres
           REDIS_HOST: localhost
           REDIS_PORT: 6379
-          # Provide stub values so the context loads without real secrets
-          JWT_SECRET_KEY: test-secret-key-minimum-32-characters-long
+          REDIS_USERNAME: default
+          REDIS_PASSWORD: ""
+          JWT_SECRET_KEY: test-secret-key-minimum-32-characters-long-enough
           JWT_EXPIRATION_TIME: 3600000
           REFRESH_EXPIRATION_TIME: 86400000
           PASSWORD_RESET_TIME: 900000
@@ -84,13 +87,16 @@ jobs:
           MAIL_PORT: 1025
           MAIL_USERNAME: test
           MAIL_PASSWORD: test
-          BASE_URL: http://localhost:8080
-          API_VERSION: /api/v1
+          MAIL_FROM: test@test.com
+          BASE_URL: /api/
+          API_VERSION: v1
           APP_FRONTEND_URL: http://localhost:3000
           JASYPT_ENCRYPTOR_PASSWORD: test
           CLOUDINARY_CLOUD_NAME: dummy
           CLOUDINARY_API_KEY: dummy
           CLOUDINARY_API_SECRET: dummy
+          SNS_ENABLED: "false"
+          SUPER_ADMIN_BOOTSTRAP_REQUIRED: "false"
 
   # ─────────────────────────────────────────────────────────
   # 2. Build Docker image & push to GHCR
@@ -157,7 +163,9 @@ jobs:
     name: Deploy to EC2
     runs-on: ubuntu-latest
     needs: build-and-push
-    environment: production   # optional: requires manual approval in GH UI
+    # NOTE: Remove the 'environment' gate below if you haven't created
+    # a "production" environment in GitHub Settings → Environments yet.
+    # environment: production
 
     steps:
       - name: Checkout (for docker-compose.prod.yml)

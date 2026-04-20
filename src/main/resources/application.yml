@@ -265,7 +265,6 @@ app:
     super-admin:
       fail-on-missing-credentials: ${SUPER_ADMIN_BOOTSTRAP_REQUIRED:true}
 
-# SECURITY: Enforce HTTPS in production.
-server:
-  ssl:
-    enabled: true
+# SSL is terminated at the load balancer / Nginx reverse proxy level.
+# Spring Boot itself listens on plain HTTP inside the container.
+# server.ssl.enabled is intentionally NOT set here.
