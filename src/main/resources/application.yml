@@ -188,7 +188,7 @@ spring:
 
   datasource:
     driver-class-name: org.postgresql.Driver
-    url: ${DB_URL}?prepareThreshold=0
+    url: ${DB_URL}
     username: ${DB_USER}
     password: ${DB_PASS}
     type: com.zaxxer.hikari.HikariDataSource
@@ -200,6 +200,8 @@ spring:
       max-lifetime: 1800000
       keepalive-time: 30000
       auto-commit: false
+      data-source-properties:
+        prepareThreshold: 0
 
   jpa:
     # Migration-first mode: validate schema against entities.
@@ -238,7 +240,7 @@ spring:
 
   datasource:
     driver-class-name: org.postgresql.Driver
-    url: ${DB_URL}?prepareThreshold=0
+    url: ${DB_URL}
     username: ${DB_USER}
     password: ${DB_PASS}
     type: com.zaxxer.hikari.HikariDataSource
@@ -250,6 +252,8 @@ spring:
       max-lifetime: 1800000
       keepalive-time: 30000
       auto-commit: false
+      data-source-properties:
+        prepareThreshold: 0
 
   jpa:
     # SECURITY: 'validate' ensures schema matches entities without altering it.
