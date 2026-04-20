@@ -7,3 +7,4 @@ SET malpractice_reported = TRUE,
     status = 'PRESENT'
 WHERE status = 'MALPRACTICE';
 
+

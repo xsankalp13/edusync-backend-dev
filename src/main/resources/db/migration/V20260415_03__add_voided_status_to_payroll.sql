@@ -49,3 +49,4 @@ ALTER TABLE hrms_payroll_runs
 ALTER TABLE hrms_payslips
     ADD CONSTRAINT ck_hrms_payslips_status
     CHECK (status IN ('DRAFT','PROCESSING','PROCESSED','APPROVED','DISBURSED','FAILED','VOIDED'));
+
