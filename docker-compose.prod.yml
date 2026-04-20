@@ -64,7 +64,7 @@ services:
       JASYPT_ENCRYPTOR_PASSWORD:  ${JASYPT_ENCRYPTOR_PASSWORD}
       SNS_ENABLED: "false"   # No LocalStack in prod; SNS disabled
       SUPER_ADMIN_BOOTSTRAP_REQUIRED: ${SUPER_ADMIN_BOOTSTRAP_REQUIRED:-true}
-      LOG_FILE_NAME: logs/edusync.log
+      LOG_FILE_NAME: ${LOG_FILE_NAME:-/app/logs/edusync.log}
 
       # ── Flyway (prod: never auto-baseline) ───────────────────
       FLYWAY_BASELINE_ON_MIGRATE: "false"

@@ -171,14 +171,42 @@ jobs:
       - name: Checkout (for docker-compose.prod.yml)
         uses: actions/checkout@v4
 
-      - name: Write SSH key
+      - name: Validate deploy secrets
         run: |
           set -euo pipefail
 
-          # Fail fast with a clear message when secrets are missing.
-          [ -n "${{ secrets.EC2_HOST }}" ] || (echo "EC2_HOST secret is empty" && exit 1)
-          [ -n "${{ secrets.EC2_USER }}" ] || (echo "EC2_USER secret is empty" && exit 1)
-          [ -n "${{ secrets.EC2_SSH_KEY }}" ] || (echo "EC2_SSH_KEY secret is empty" && exit 1)
+          HOST='${{ secrets.EC2_HOST }}'
+          USER='${{ secrets.EC2_USER }}'
+          KEY='${{ secrets.EC2_SSH_KEY }}'
+          GHCR='${{ secrets.GHCR_TOKEN }}'
+
+          # Required values must be present.
+          [ -n "$HOST" ] || (echo "EC2_HOST secret is empty" && exit 1)
+          [ -n "$USER" ] || (echo "EC2_USER secret is empty" && exit 1)
+          [ -n "$KEY" ] || (echo "EC2_SSH_KEY secret is empty" && exit 1)
+          [ -n "$GHCR" ] || (echo "GHCR_TOKEN secret is empty" && exit 1)
+
+          # EC2_USER must be a single Linux username, not a key block.
+          [[ "$USER" != *$'\n'* && "$USER" != *$'\r'* ]] || (echo "EC2_USER must be single-line (example: ubuntu). It currently contains newlines." && exit 1)
+          [[ ! "$USER" =~ BEGIN[[:space:]].*PRIVATE[[:space:]]KEY ]] || (echo "EC2_USER appears to contain a private key. Set EC2_USER to ubuntu (or ec2-user)." && exit 1)
+          [[ "$USER" =~ ^[A-Za-z0-9._-]{1,32}$ ]] || (echo "EC2_USER contains invalid characters. Expected Linux username like ubuntu or ec2-user." && exit 1)
+
+          # EC2_HOST should be a public host/ip and single-line.
+          [[ "$HOST" != *$'\n'* && "$HOST" != *$'\r'* ]] || (echo "EC2_HOST must be single-line (public IPv4 or DNS)." && exit 1)
+          [[ ! "$HOST" =~ BEGIN[[:space:]].*PRIVATE[[:space:]]KEY ]] || (echo "EC2_HOST appears to contain key content. Set it to instance public IPv4/DNS." && exit 1)
+          if [[ "$HOST" =~ ^10\..* ]] || [[ "$HOST" =~ ^192\.168\..* ]] || [[ "$HOST" =~ ^172\.(1[6-9]|2[0-9]|3[0-1])\..* ]]; then
+            echo "EC2_HOST appears to be a private IP ($HOST). Use the instance Public IPv4/DNS in the secret."
+            exit 1
+          fi
+
+          # EC2_SSH_KEY must look like a full PEM private key.
+          [[ "$KEY" == *"-----BEGIN "*" PRIVATE KEY-----"* ]] || (echo "EC2_SSH_KEY is not a valid private key (missing BEGIN ... PRIVATE KEY header)." && exit 1)
+          [[ "$KEY" == *"-----END "*" PRIVATE KEY-----"* ]] || (echo "EC2_SSH_KEY is not a valid private key (missing END ... PRIVATE KEY footer)." && exit 1)
+          [[ "$KEY" == *$'\n'* ]] || (echo "EC2_SSH_KEY must include the full multi-line PEM content." && exit 1)
+
+      - name: Write SSH key
+        run: |
+          set -euo pipefail
 
           mkdir -p ~/.ssh
           printf '%s' "${{ secrets.EC2_SSH_KEY }}" | tr -d '\r' > ~/.ssh/ec2_key.pem
@@ -186,6 +214,23 @@ jobs:
           touch ~/.ssh/known_hosts
           ssh-keyscan -H "${{ secrets.EC2_HOST }}" >> ~/.ssh/known_hosts 2>/dev/null || \
             echo "Warning: ssh-keyscan failed; continuing with StrictHostKeyChecking=accept-new"
+
+      - name: Validate SSH connectivity
+        run: |
+          set -euo pipefail
+
+          HOST="${{ secrets.EC2_HOST }}"
+
+          # Common misconfiguration: private VPC IP cannot be reached from GitHub-hosted runners.
+          if [[ "$HOST" =~ ^10\..* ]] || [[ "$HOST" =~ ^192\.168\..* ]] || [[ "$HOST" =~ ^172\.(1[6-9]|2[0-9]|3[0-1])\..* ]]; then
+            echo "EC2_HOST appears to be a private IP ($HOST). Use the instance Public IPv4/DNS in the secret."
+            exit 1
+          fi
+
+          # Validate key format and prove SSH auth before SCP/Deploy steps.
+          ssh-keygen -y -f ~/.ssh/ec2_key.pem >/dev/null
+          ssh -o BatchMode=yes -o ConnectTimeout=10 -o StrictHostKeyChecking=accept-new \
+            -i ~/.ssh/ec2_key.pem ${{ secrets.EC2_USER }}@${{ secrets.EC2_HOST }} "echo SSH_OK"
 
       - name: Copy compose file to EC2
         run: |
@@ -211,20 +256,36 @@ jobs:
             # Pull new image first (no downtime window yet)
             docker compose -f docker-compose.prod.yml pull
 
+            # Ensure named volumes are writable by the container's non-root user.
+            PROJECT_NAME="${COMPOSE_PROJECT_NAME:-$(basename "$PWD")}"  # usually "edusync"
+            APP_UID=$(docker run --rm --entrypoint sh ${{ env.IMAGE_NAME }}:latest -c 'id -u appuser')
+            APP_GID=$(docker run --rm --entrypoint sh ${{ env.IMAGE_NAME }}:latest -c 'id -g appuser')
+            for VOL in "${PROJECT_NAME}_logs" "${PROJECT_NAME}_uploads" "${PROJECT_NAME}_uploads_private"; do
+              docker volume create "$VOL" >/dev/null
+              docker run --rm -v "$VOL:/mnt" alpine:3.20 sh -c "mkdir -p /mnt && chown -R ${APP_UID}:${APP_GID} /mnt && chmod -R ug+rwX /mnt"
+            done
+
             # Recreate only changed containers; keep volumes intact
             docker compose -f docker-compose.prod.yml up -d --remove-orphans
 
-            # Wait for health-check to pass (max 120 s)
-            for i in $(seq 1 24); do
+            # Wait for health-check to pass (max 300 s)
+            for i in $(seq 1 60); do
               STATUS=$(docker inspect --format='{{.State.Health.Status}}' edusync-app 2>/dev/null || echo "starting")
-              echo "[$i/24] Health: $STATUS"
+              echo "[$i/60] Health: $STATUS"
               [ "$STATUS" = "healthy" ] && break
               sleep 5
             done
 
             # Fail the deploy if still not healthy
             FINAL=$(docker inspect --format='{{.State.Health.Status}}' edusync-app)
-            [ "$FINAL" = "healthy" ] || (echo "App did not become healthy!" && exit 1)
+            if [ "$FINAL" != "healthy" ]; then
+              echo "App did not become healthy. Dumping diagnostics..."
+              docker ps -a --filter name=edusync-app
+              docker inspect --format='{{json .State.Health}}' edusync-app || true
+              docker logs --tail 250 edusync-app || true
+              curl -fsS http://localhost:8080/actuator/health || true
+              exit 1
+            fi
 
             # Prune dangling images to reclaim disk space on t2.medium
             docker image prune -f
