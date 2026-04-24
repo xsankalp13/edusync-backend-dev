@@ -6,6 +6,7 @@ import com.project.edusync.em.model.dto.response.SittingPlanResponseDTO;
 import com.project.edusync.em.model.service.SittingPlanService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.validation.annotation.Validated;
 import org.springframework.web.bind.annotation.*;
 import java.util.List;
@@ -13,6 +14,7 @@ import java.util.List;
 @RestController
 @RequestMapping("${api.url}/auth/examination/sitting-plans")
 @RequiredArgsConstructor
+@PreAuthorize("hasAnyRole('ADMIN','SCHOOL_ADMIN','SUPER_ADMIN','EXAM_CONTROLLER')")
 public class SittingPlanController {
     private final SittingPlanService sittingPlanService;
 

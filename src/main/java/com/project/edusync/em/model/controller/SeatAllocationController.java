@@ -90,12 +90,14 @@ public class SeatAllocationController {
     }
 
     @DeleteMapping("/{id}")
+    @PreAuthorize("@examControllerAccess.canAccessSeatAllocation(#id)")
     public ResponseEntity<Void> deleteAllocation(@PathVariable Long id) {
         seatAllocationService.deleteAllocation(id);
         return ResponseEntity.noContent().build();
     }
 
     @DeleteMapping("/bulk")
+    @PreAuthorize("@examControllerAccess.canAccessSeatAllocations(#ids)")
     public ResponseEntity<Void> bulkDeleteAllocations(@RequestBody List<Long> ids) {
         seatAllocationService.bulkDeleteAllocations(ids);
         return ResponseEntity.noContent().build();

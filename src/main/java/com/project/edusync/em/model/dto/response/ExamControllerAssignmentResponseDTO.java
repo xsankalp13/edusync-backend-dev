@@ -14,5 +14,6 @@ public class ExamControllerAssignmentResponseDTO {
     String staffName;
     Long assignedByUserId;
     LocalDateTime assignedAt;
+    Integer remainingAttempts;
 }
 

@@ -30,7 +30,7 @@ public class InvigilationController {
     }
 
     @GetMapping("/staff/{staffId}")
-    @PreAuthorize("hasAnyRole('ADMIN','SCHOOL_ADMIN','SUPER_ADMIN')")
+    @PreAuthorize("hasAnyRole('ADMIN','SCHOOL_ADMIN','SUPER_ADMIN','EXAM_CONTROLLER')")
     public ResponseEntity<List<InvigilationResponseDTO>> getByStaff(@PathVariable Long staffId) {
         return ResponseEntity.ok(invigilationService.getInvigilationsByStaff(staffId));
     }

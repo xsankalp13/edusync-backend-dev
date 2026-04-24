@@ -62,11 +62,15 @@ public class ExamServiceImpl implements ExamService {
     /**
      * Retrieves a single exam by its public UUID.
      */
-    @Override
-    @Transactional(readOnly = true) // Optimize for read-only query
     public ExamResponseDTO getExamByUuid(UUID uuid) {
         Exam exam = findExamByUuid(uuid); // Use helper method
-        return examMapper.toResponseDTO(exam);
+        ExamResponseDTO dto = examMapper.toResponseDTO(exam);
+        assignmentRepository.findByExamIdAndActiveTrue(exam.getId()).ifPresent(assignment -> {
+            dto.setAssignedControllerId(assignment.getStaff().getId());
+            dto.setAssignedControllerName(assignment.getStaff().getUserProfile().getFirstName() + " " + assignment.getStaff().getUserProfile().getLastName());
+            dto.setRemainingAttempts(3 - assignment.getChangeCount());
+        });
+        return dto;
     }
 
     /**
@@ -97,7 +101,15 @@ public class ExamServiceImpl implements ExamService {
         }
 
         return visibleExams.stream()
-                .map(examMapper::toResponseDTO) // Uses the mapper for each item
+                .map(exam -> {
+                    ExamResponseDTO dto = examMapper.toResponseDTO(exam);
+                    assignmentRepository.findByExamIdAndActiveTrue(exam.getId()).ifPresent(assignment -> {
+                        dto.setAssignedControllerId(assignment.getStaff().getId());
+                        dto.setAssignedControllerName(assignment.getStaff().getUserProfile().getFirstName() + " " + assignment.getStaff().getUserProfile().getLastName());
+                        dto.setRemainingAttempts(3 - assignment.getChangeCount());
+                    });
+                    return dto;
+                })
                 .collect(Collectors.toList());
     }
 
@@ -170,9 +182,38 @@ public class ExamServiceImpl implements ExamService {
     @Override
     @Transactional(readOnly = true)
     public List<ExamResponseDTO> getUpcomingExams() {
-        return examRepository.findAll().stream()
+        User user = authUtil.getCurrentUser();
+
+        List<Exam> visibleExams;
+        if (hasAnyRole(user, ADMIN_ROLES)) {
+            visibleExams = examRepository.findAll();
+        } else if (hasRole(user, ROLE_EXAM_CONTROLLER)) {
+            Long staffId = staffRepository.findByUserProfile_User_Id(user.getId())
+                    .map(staff -> staff.getId())
+                    .orElse(null);
+            if (staffId == null) {
+                visibleExams = Collections.emptyList();
+            } else {
+                List<Long> assignedExamIds = assignmentRepository.findActiveExamIdsByStaffId(staffId);
+                visibleExams = assignedExamIds.isEmpty()
+                        ? Collections.emptyList()
+                        : examRepository.findAllById(assignedExamIds);
+            }
+        } else {
+            visibleExams = examRepository.findAll();
+        }
+
+        return visibleExams.stream()
                 .filter(e -> Boolean.TRUE.equals(e.getPublished()))
-                .map(examMapper::toResponseDTO)
+                .map(exam -> {
+                    ExamResponseDTO dto = examMapper.toResponseDTO(exam);
+                    assignmentRepository.findByExamIdAndActiveTrue(exam.getId()).ifPresent(assignment -> {
+                        dto.setAssignedControllerId(assignment.getStaff().getId());
+                        dto.setAssignedControllerName(assignment.getStaff().getUserProfile().getFirstName() + " " + assignment.getStaff().getUserProfile().getLastName());
+                        dto.setRemainingAttempts(3 - assignment.getChangeCount());
+                    });
+                    return dto;
+                })
                 .collect(Collectors.toList());
     }
 

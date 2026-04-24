@@ -22,6 +22,7 @@ public class AnswerEvaluationAdminController {
     private final AnswerEvaluationService answerEvaluationService;
 
     @PostMapping("/assign")
+    @PreAuthorize("@examControllerAccess.canAccessSchedule(#requestDTO.examScheduleId)")
     public ResponseEntity<EvaluationAssignmentResponseDTO> assignTeacher(
             @Valid @RequestBody EvaluationAssignmentCreateRequestDTO requestDTO) {
         return new ResponseEntity<>(answerEvaluationService.assignTeacher(requestDTO), HttpStatus.CREATED);
@@ -34,6 +35,7 @@ public class AnswerEvaluationAdminController {
     }
 
     @DeleteMapping("/assignments/{assignmentId}")
+    @PreAuthorize("@examControllerAccess.canAccessEvaluationAssignment(#assignmentId)")
     public ResponseEntity<Void> deleteAssignment(@PathVariable Long assignmentId) {
         answerEvaluationService.deleteAssignment(assignmentId);
         return ResponseEntity.noContent().build();

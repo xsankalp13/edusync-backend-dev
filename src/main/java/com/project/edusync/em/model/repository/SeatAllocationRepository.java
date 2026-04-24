@@ -497,6 +497,9 @@ public interface SeatAllocationRepository extends JpaRepository<SeatAllocation, 
                                                                                              @Param("endTime") LocalDateTime endTime,
                                                                                              @Param("studentIds") Collection<Long> studentIds);
 
+    @Query("SELECT sa.examSchedule.exam.id FROM SeatAllocation sa WHERE sa.id = :allocationId")
+    Optional<Long> findExamIdByAllocationId(@Param("allocationId") Long allocationId);
+
     @Query("""
         SELECT sa.seat.room.id AS roomId,
                sa.seat.room.name AS roomName,

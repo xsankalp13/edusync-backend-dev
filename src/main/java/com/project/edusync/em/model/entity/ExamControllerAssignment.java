@@ -43,6 +43,10 @@ public class ExamControllerAssignment {
     @Column(name = "is_active", nullable = false)
     private boolean active = true;
 
+    @Builder.Default
+    @Column(name = "change_count", nullable = false, columnDefinition = "integer default 0")
+    private int changeCount = 0;
+
     @PrePersist
     public void prePersist() {
         if (assignedAt == null) {

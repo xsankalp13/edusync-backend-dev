@@ -16,6 +16,8 @@ public interface ExamControllerAssignmentRepository extends JpaRepository<ExamCo
 
     boolean existsByExamIdAndStaffIdAndActiveTrue(Long examId, Long staffId);
 
+    long countByStaffIdAndActiveTrueAndExamIdNot(Long staffId, Long examId);
+
     @Query("""
         SELECT eca.exam.id
         FROM ExamControllerAssignment eca

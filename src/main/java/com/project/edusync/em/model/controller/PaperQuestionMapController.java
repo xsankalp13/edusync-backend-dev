@@ -9,11 +9,13 @@ import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
 
 @RestController
 @RequestMapping("${api.url}/auth/examination")
 @RequiredArgsConstructor
+@PreAuthorize("hasAnyRole('ADMIN','SCHOOL_ADMIN','SUPER_ADMIN','EXAM_CONTROLLER')")
 @Tag(name = "Paper-Question Mappings", description = "APIs for fine-tuning questions within a generated paper")
 public class PaperQuestionMapController {
 

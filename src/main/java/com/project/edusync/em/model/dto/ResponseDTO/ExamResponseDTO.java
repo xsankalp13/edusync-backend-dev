@@ -36,6 +36,11 @@ public class ExamResponseDTO {
     private LocalDateTime updatedAt;
     private String createdBy;
     private String updatedBy;
+    
+    // Exam Controller Info
+    private Long assignedControllerId;
+    private String assignedControllerName;
+    private Integer remainingAttempts;
 
 
 }

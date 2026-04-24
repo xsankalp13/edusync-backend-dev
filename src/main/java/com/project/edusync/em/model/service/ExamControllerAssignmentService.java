@@ -53,6 +53,23 @@ public class ExamControllerAssignmentService {
         ExamControllerAssignment assignment = assignmentRepository.findByExamIdAndActiveTrue(requestDTO.getExamId())
             .orElseGet(ExamControllerAssignment::new);
 
+        if (assignment.getId() != null && !assignment.getStaff().getId().equals(staff.getId())) {
+            if (assignment.getChangeCount() >= 3) {
+                throw new IllegalArgumentException("Maximum assignment changes reached for this exam. Limit is 3.");
+            }
+            // Revoke logic for the previous staff
+            Staff previousStaff = assignment.getStaff();
+            long otherAssignments = assignmentRepository.countByStaffIdAndActiveTrueAndExamIdNot(previousStaff.getId(), exam.getId());
+            if (otherAssignments == 0) {
+                User previousUser = resolveStaffUser(previousStaff, previousStaff.getId());
+                previousUser.getRoles().removeIf(role -> EXAM_CONTROLLER_ROLE.equals(role.getName()));
+                userRepository.save(previousUser);
+            }
+            assignment.setChangeCount(assignment.getChangeCount() + 1);
+        } else if (assignment.getId() == null) {
+            assignment.setChangeCount(0);
+        }
+
         assignment.setExam(exam);
         assignment.setStaff(staff);
         assignment.setActive(true);
@@ -68,6 +85,7 @@ public class ExamControllerAssignmentService {
             .staffName(staffName)
             .assignedByUserId(saved.getAssignedByUserId())
             .assignedAt(saved.getAssignedAt())
+            .remainingAttempts(3 - saved.getChangeCount())
             .build();
     }
 

@@ -21,6 +21,7 @@ public class SeatAllocationAdminController {
     private final SeatAllocationService seatAllocationService;
 
     @GetMapping("/schedule/{examScheduleId}/print")
+    @PreAuthorize("@examControllerAccess.canAccessSchedule(#examScheduleId)")
     public ResponseEntity<byte[]> printAllocationsForSchedule(
             @PathVariable Long examScheduleId,
             @RequestParam(name = "format", required = false, defaultValue = "ROOM_WISE") String format) {
