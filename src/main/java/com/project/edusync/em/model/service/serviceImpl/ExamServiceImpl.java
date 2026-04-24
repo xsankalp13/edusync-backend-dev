@@ -2,18 +2,24 @@ package com.project.edusync.em.model.service.serviceImpl;
 
 import com.project.edusync.common.exception.emException.EdusyncException;
 import com.project.edusync.common.exception.emException.ExamNotFoundException;
+import com.project.edusync.common.security.AuthUtil;
 import com.project.edusync.em.model.dto.RequestDTO.ExamRequestDTO;
 import com.project.edusync.em.model.dto.ResponseDTO.ExamResponseDTO;
 import com.project.edusync.em.model.entity.Exam;
 import com.project.edusync.em.model.mapper.ExamMapper;
+import com.project.edusync.em.model.repository.ExamControllerAssignmentRepository;
 import com.project.edusync.em.model.repository.ExamRepository;
 import com.project.edusync.em.model.service.ExamService;
+import com.project.edusync.iam.model.entity.User;
+import com.project.edusync.uis.repository.StaffRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.util.Collections;
 import java.util.List;
+import java.util.Set;
 import java.util.UUID;
 import java.util.stream.Collectors;
 
@@ -26,8 +32,14 @@ import java.util.stream.Collectors;
 @Transactional // All public methods will be transactional by default
 public class ExamServiceImpl implements ExamService {
 
+    private static final String ROLE_EXAM_CONTROLLER = "ROLE_EXAM_CONTROLLER";
+    private static final Set<String> ADMIN_ROLES = Set.of("ROLE_ADMIN", "ROLE_SCHOOL_ADMIN", "ROLE_SUPER_ADMIN");
+
     private final ExamRepository examRepository;
     private final ExamMapper examMapper; // Injected by @RequiredArgsConstructor
+    private final AuthUtil authUtil;
+    private final StaffRepository staffRepository;
+    private final ExamControllerAssignmentRepository assignmentRepository;
 
     /**
      * Creates a new exam based on the DTO.
@@ -63,7 +75,28 @@ public class ExamServiceImpl implements ExamService {
     @Override
     @Transactional(readOnly = true)
     public List<ExamResponseDTO> getAllExams() {
-        return examRepository.findAll().stream()
+        User user = authUtil.getCurrentUser();
+
+        List<Exam> visibleExams;
+        if (hasAnyRole(user, ADMIN_ROLES)) {
+            visibleExams = examRepository.findAll();
+        } else if (hasRole(user, ROLE_EXAM_CONTROLLER)) {
+            Long staffId = staffRepository.findByUserProfile_User_Id(user.getId())
+                .map(staff -> staff.getId())
+                .orElse(null);
+            if (staffId == null) {
+                visibleExams = Collections.emptyList();
+            } else {
+                List<Long> assignedExamIds = assignmentRepository.findActiveExamIdsByStaffId(staffId);
+                visibleExams = assignedExamIds.isEmpty()
+                    ? Collections.emptyList()
+                    : examRepository.findAllById(assignedExamIds);
+            }
+        } else {
+            visibleExams = examRepository.findAll();
+        }
+
+        return visibleExams.stream()
                 .map(examMapper::toResponseDTO) // Uses the mapper for each item
                 .collect(Collectors.toList());
     }
@@ -152,5 +185,13 @@ public class ExamServiceImpl implements ExamService {
         // Uses the new custom exception
         return examRepository.findByUuid(uuid)
                 .orElseThrow(() -> new ExamNotFoundException(uuid));
+    }
+
+    private boolean hasRole(User user, String roleName) {
+        return user.getRoles().stream().anyMatch(role -> roleName.equals(role.getName()));
+    }
+
+    private boolean hasAnyRole(User user, Set<String> roleNames) {
+        return user.getRoles().stream().anyMatch(role -> roleNames.contains(role.getName()));
     }
 }
