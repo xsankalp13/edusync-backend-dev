@@ -69,7 +69,7 @@ services:
       LOG_FILE_NAME: ${LOG_FILE_NAME:-/app/logs/edusync.log}
 
       # ── Flyway (prod: never auto-baseline) ───────────────────
-      FLYWAY_BASELINE_ON_MIGRATE: "false"
+      FLYWAY_BASELINE_ON_MIGRATE: "true"
 
     volumes:
       # Persist file uploads across container restarts
