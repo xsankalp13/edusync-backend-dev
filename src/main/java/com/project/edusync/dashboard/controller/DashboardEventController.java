@@ -10,6 +10,7 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
+import jakarta.servlet.http.HttpServletResponse;
 
 import java.time.Instant;
 import java.util.List;
@@ -24,7 +25,9 @@ public class DashboardEventController {
     private final DashboardEventService service;
 
     @GetMapping(value = "/events/stream", produces = MediaType.TEXT_EVENT_STREAM_VALUE)
-    public SseEmitter streamEvents(@AuthenticationPrincipal User user) {
+    public SseEmitter streamEvents(@AuthenticationPrincipal User user, HttpServletResponse response) {
+        response.setHeader("X-Accel-Buffering", "no");
+        response.setHeader("Cache-Control", "no-cache, no-transform");
         return service.register();
     }
 

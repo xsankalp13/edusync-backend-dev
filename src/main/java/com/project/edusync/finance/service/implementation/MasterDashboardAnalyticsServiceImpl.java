@@ -20,6 +20,7 @@ import org.springframework.transaction.annotation.Transactional;
 import java.math.BigDecimal;
 import java.math.RoundingMode;
 import java.time.LocalDate;
+import java.time.LocalDateTime;
 import java.time.YearMonth;
 import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
@@ -79,7 +80,9 @@ public class MasterDashboardAnalyticsServiceImpl implements MasterDashboardAnaly
 
         Map<String, BigDecimal> collectedByKey = new HashMap<>();
         for (PaymentRepository.MonthlyPaymentSumProjection p :
-                paymentRepository.sumCollectedGroupedByMonth(rangeStart, rangeEnd)) {
+                paymentRepository.sumCollectedGroupedByMonth(
+                        rangeStart.atStartOfDay(),
+                        rangeEnd.atTime(23, 59, 59))) {
             collectedByKey.put(p.getPaymentYear() + "-" + p.getPaymentMonth(), nullSafe(p.getCollectedTotal()));
         }
 

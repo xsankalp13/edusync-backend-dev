@@ -86,7 +86,7 @@ public interface PaymentRepository extends JpaRepository<Payment, Long> {
             ORDER BY YEAR(p.paymentDate), MONTH(p.paymentDate)
             """)
     java.util.List<MonthlyPaymentSumProjection> sumCollectedGroupedByMonth(
-            @Param("startDate") java.time.LocalDate startDate,
-            @Param("endDate") java.time.LocalDate endDate
+            @Param("startDate") java.time.LocalDateTime startDate,
+            @Param("endDate") java.time.LocalDateTime endDate
     );
 }

@@ -11,6 +11,7 @@ import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
+import jakarta.servlet.http.HttpServletResponse;
 
 import java.util.UUID;
 
@@ -28,7 +29,9 @@ public class ScheduleSSEController {
             description = "Starts the Genetic Algorithm and streams the best candidate schedules via SSE.",
             security = @SecurityRequirement(name = "bearerAuth")
     )
-    public SseEmitter streamGeneration(@PathVariable UUID sectionId) {
+    public SseEmitter streamGeneration(@PathVariable UUID sectionId, HttpServletResponse response) {
+        response.setHeader("X-Accel-Buffering", "no");
+        response.setHeader("Cache-Control", "no-cache, no-transform");
         return autoScheduleService.generateTimetableStream(sectionId);
     }
 }

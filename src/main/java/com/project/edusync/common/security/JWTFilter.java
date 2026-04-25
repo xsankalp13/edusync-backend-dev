@@ -29,6 +29,7 @@ import java.util.Map;
 public class JWTFilter extends OncePerRequestFilter {
 
     private static final String BULK_IMPORT_STREAM_PATH = "/bulk-import/stream/";
+    private static final String DASHBOARD_EVENTS_STREAM_PATH = "/dashboard/events/stream";
 
     // 1. We ONLY need AuthUtil. We do not need UserRepository.
     private final AuthUtil authUtil;
@@ -108,6 +109,6 @@ public class JWTFilter extends OncePerRequestFilter {
 
     private boolean isQueryTokenSupportedPath(HttpServletRequest request) {
         String path = request.getRequestURI();
-        return path != null && path.contains(BULK_IMPORT_STREAM_PATH);
+        return path != null && (path.contains(BULK_IMPORT_STREAM_PATH) || path.contains(DASHBOARD_EVENTS_STREAM_PATH));
     }
 }
