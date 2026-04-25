@@ -2,7 +2,7 @@
 -- PostgreSQL database dump
 --
 
-\restrict 6BJA0e4rtRVNuumCSWLeeFcY1YxJhAVwQrRuYL51M25TCkIZOBIyVlfJe5TNCWj
+restrict 6BJA0e4rtRVNuumCSWLeeFcY1YxJhAVwQrRuYL51M25TCkIZOBIyVlfJe5TNCWj
 
 -- Dumped from database version 17.9 (Debian 17.9-1.pgdg13+1)
 -- Dumped by pg_dump version 18.2 (Homebrew)
