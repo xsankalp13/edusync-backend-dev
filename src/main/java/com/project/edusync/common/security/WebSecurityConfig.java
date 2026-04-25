@@ -71,7 +71,6 @@ public class WebSecurityConfig {
         // Recommendation: Move origins to application.yml for environment-specific configs
         configuration.setAllowedOrigins(List.of(
             "https://localhost:5173",
-            "https://localhost:3000",
             "http://13.206.98.253",
             "https://siksha-intelligence-frontend-mvp.vercel.app",
             "https://erp.shikshaintelligence.com"
