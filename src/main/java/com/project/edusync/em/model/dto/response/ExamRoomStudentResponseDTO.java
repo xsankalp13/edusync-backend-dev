@@ -17,6 +17,7 @@ public class ExamRoomStudentResponseDTO {
     ExamAttendanceStatus attendanceStatus;
     boolean malpractice;
     boolean finalized;
+    boolean entryAllowed;
 
     // Backward-compatible aliases for existing clients.
     @JsonProperty("name")

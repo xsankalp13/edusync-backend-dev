@@ -69,6 +69,9 @@ import java.util.stream.Collectors;
 @Transactional
 public class AnswerEvaluationServiceImpl implements AnswerEvaluationService {
 
+    private static final Set<String> ADMIN_ROLES = Set.of("ROLE_ADMIN", "ROLE_SUPER_ADMIN", "ROLE_SCHOOL_ADMIN");
+    private static final String EXAM_CONTROLLER_ROLE = "ROLE_EXAM_CONTROLLER";
+
     private static final long PDF_MAX_SIZE_BYTES = 10L * 1024 * 1024;
     private static final long IMAGE_MAX_SIZE_BYTES_DEFAULT = 5L * 1024 * 1024;
     private static final String PDF_MAGIC = "%PDF-";
@@ -76,6 +79,7 @@ public class AnswerEvaluationServiceImpl implements AnswerEvaluationService {
     private static final Set<String> ALLOWED_METADATA_KEYS = Set.of("color", "strokeWidth", "path");
 
     private final EvaluationAssignmentRepository assignmentRepository;
+    private final ExamControllerAssignmentRepository controllerAssignmentRepository;
     private final AnswerSheetRepository answerSheetRepository;
     private final EvaluationResultRepository evaluationResultRepository;
     private final QuestionMarkRepository questionMarkRepository;
@@ -188,13 +192,21 @@ public class AnswerEvaluationServiceImpl implements AnswerEvaluationService {
     @Transactional(readOnly = true)
     public List<EvaluationAssignmentResponseDTO> getAssignmentsForAdmin(UUID teacherIdFilter) {
         requireAdmin();
+        User currentUser = authUtil.getCurrentUser();
         Long teacherId = null;
         if (teacherIdFilter != null) {
             teacherId = staffRepository.findByUuid(teacherIdFilter)
                     .orElseThrow(() -> new EdusyncException("EVAL-404", "Teacher not found", HttpStatus.NOT_FOUND))
                     .getId();
         }
-        return assignmentRepository.findAllWithSchedule(teacherId).stream()
+        List<EvaluationAssignment> assignments = assignmentRepository.findAllWithSchedule(teacherId);
+        if (hasExamControllerRole(currentUser) && !hasAdminPrivileges(currentUser)) {
+            Set<Long> accessibleExamIds = resolveAccessibleExamIds(currentUser);
+            assignments = assignments.stream()
+                    .filter(assignment -> accessibleExamIds.contains(assignment.getExamSchedule().getExam().getId()))
+                    .collect(Collectors.toList());
+        }
+        return assignments.stream()
                 .map(this::toAssignmentResponse)
                 .collect(Collectors.toList());
     }
@@ -715,9 +727,16 @@ public class AnswerEvaluationServiceImpl implements AnswerEvaluationService {
     @Transactional(readOnly = true)
     public List<AdminResultReviewResponseDTO> getResultsForAdmin(EvaluationResultStatus status) {
         requireAdmin();
+        User currentUser = authUtil.getCurrentUser();
         List<EvaluationResult> results = status == null
                 ? evaluationResultRepository.findAllWithContext()
                 : evaluationResultRepository.findAllByStatusWithContext(status);
+        if (hasExamControllerRole(currentUser) && !hasAdminPrivileges(currentUser)) {
+            Set<Long> accessibleExamIds = resolveAccessibleExamIds(currentUser);
+            results = results.stream()
+                    .filter(result -> accessibleExamIds.contains(result.getAnswerSheet().getExamSchedule().getExam().getId()))
+                    .collect(Collectors.toList());
+        }
         return results.stream().map(this::toAdminResultResponse).collect(Collectors.toList());
     }
 
@@ -1357,9 +1376,30 @@ public class AnswerEvaluationServiceImpl implements AnswerEvaluationService {
         Set<String> authorities = currentUser.getAuthorities().stream()
                 .map(Object::toString)
                 .collect(Collectors.toSet());
-        if (!(authorities.contains("ROLE_ADMIN") || authorities.contains("ROLE_SUPER_ADMIN") || authorities.contains("ROLE_SCHOOL_ADMIN"))) {
+        if (!(authorities.contains("ROLE_ADMIN")
+                || authorities.contains("ROLE_SUPER_ADMIN")
+                || authorities.contains("ROLE_SCHOOL_ADMIN")
+                || authorities.contains(EXAM_CONTROLLER_ROLE))) {
             throw new EdusyncException("EVAL-403", "Admin privileges required", HttpStatus.FORBIDDEN);
         }
+    }
+
+    private boolean hasAdminPrivileges(User user) {
+        Set<String> authorities = user.getAuthorities().stream().map(Object::toString).collect(Collectors.toSet());
+        return authorities.stream().anyMatch(ADMIN_ROLES::contains);
+    }
+
+    private boolean hasExamControllerRole(User user) {
+        Set<String> authorities = user.getAuthorities().stream().map(Object::toString).collect(Collectors.toSet());
+        return authorities.contains(EXAM_CONTROLLER_ROLE);
+    }
+
+    private Set<Long> resolveAccessibleExamIds(User user) {
+        Long staffId = staffRepository.findByUserProfile_User_Id(user.getId()).map(Staff::getId).orElse(null);
+        if (staffId == null) {
+            return Set.of();
+        }
+        return new HashSet<>(controllerAssignmentRepository.findActiveExamIdsByStaffId(staffId));
     }
 
     private EvaluationAssignmentResponseDTO toAssignmentResponse(EvaluationAssignment assignment) {

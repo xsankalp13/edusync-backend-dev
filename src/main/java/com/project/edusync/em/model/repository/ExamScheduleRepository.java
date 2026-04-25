@@ -118,6 +118,9 @@ List<ExamSchedule> findUpcomingForSection(@Param("sectionId") Long sectionId,
             """)
     Optional<ExamSchedule> findByIdWithTimeslot(@Param("scheduleId") Long scheduleId);
 
+	@Query("SELECT es.exam.id FROM ExamSchedule es WHERE es.id = :scheduleId")
+	Optional<Long> findExamIdByScheduleId(@Param("scheduleId") Long scheduleId);
+
 	@Query("""
 			SELECT COUNT(es) > 0
 			FROM ExamSchedule es

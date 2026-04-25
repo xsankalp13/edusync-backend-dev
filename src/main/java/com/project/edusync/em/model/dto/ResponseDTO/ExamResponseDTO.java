@@ -21,6 +21,7 @@ import java.util.UUID;
 @AllArgsConstructor
 public class ExamResponseDTO {
 
+    private Long id;
     private UUID uuid;
     private String name;
     private String academicYear;
@@ -35,6 +36,11 @@ public class ExamResponseDTO {
     private LocalDateTime updatedAt;
     private String createdBy;
     private String updatedBy;
+    
+    // Exam Controller Info
+    private Long assignedControllerId;
+    private String assignedControllerName;
+    private Integer remainingAttempts;
 
 
 }

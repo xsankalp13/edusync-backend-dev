@@ -15,12 +15,13 @@ import org.springframework.web.bind.annotation.RestController;
 @RestController
 @RequestMapping("/api/v1/admin/examination/seat-allocation")
 @RequiredArgsConstructor
-@PreAuthorize("hasAnyRole('ADMIN','SCHOOL_ADMIN','SUPER_ADMIN')")
+@PreAuthorize("hasAnyRole('ADMIN','SCHOOL_ADMIN','SUPER_ADMIN','EXAM_CONTROLLER')")
 public class SeatAllocationAdminController {
 
     private final SeatAllocationService seatAllocationService;
 
     @GetMapping("/schedule/{examScheduleId}/print")
+    @PreAuthorize("@examControllerAccess.canAccessSchedule(#examScheduleId)")
     public ResponseEntity<byte[]> printAllocationsForSchedule(
             @PathVariable Long examScheduleId,
             @RequestParam(name = "format", required = false, defaultValue = "ROOM_WISE") String format) {

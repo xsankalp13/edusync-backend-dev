@@ -55,6 +55,31 @@ public interface SeatAllocationRepository extends JpaRepository<SeatAllocation, 
         ExamAttendanceStatus getAttendanceStatus();
         Boolean getMalpractice();
         Boolean getFinalized();
+        Boolean getEntryAllowed();
+    }
+
+    interface ExamControllerRoomSummaryProjection {
+        Long getRoomId();
+        String getRoomName();
+        long getAllocatedCount();
+        long getMarkedCount();
+    }
+
+    interface ExamControllerStudentSeatProjection {
+        Long getExamScheduleId();
+        Long getRoomId();
+        String getRoomName();
+        Long getStudentId();
+        Integer getRollNo();
+        String getFirstName();
+        String getLastName();
+        String getClassName();
+        String getSubjectName();
+        Integer getRowNumber();
+        Integer getColumnNumber();
+        String getSeatNumber();
+        ExamAttendanceStatus getAttendanceStatus();
+        Boolean getEntryAllowed();
     }
 
     interface RoomStudentScheduleProjection {
@@ -426,12 +451,16 @@ public interface SeatAllocationRepository extends JpaRepository<SeatAllocation, 
                sa.seat.label AS seatNumber,
                ea.status AS attendanceStatus,
                ea.malpracticeReported AS malpractice,
-               ea.finalized AS finalized
+                ea.finalized AS finalized,
+                COALESCE(eed.allowed, true) AS entryAllowed
         FROM SeatAllocation sa
         LEFT JOIN ExamAttendance ea
                ON ea.examSchedule.id = sa.examSchedule.id
               AND ea.student.id = sa.student.id
               AND ea.room.id = sa.seat.room.id
+        LEFT JOIN ExamEntryDecision eed
+               ON eed.examSchedule.id = sa.examSchedule.id
+              AND eed.student.id = sa.student.id
         WHERE sa.seat.room.id = :roomId
           AND sa.startTime < :endTime
           AND sa.endTime > :startTime
@@ -467,4 +496,54 @@ public interface SeatAllocationRepository extends JpaRepository<SeatAllocation, 
                                                                                              @Param("startTime") LocalDateTime startTime,
                                                                                              @Param("endTime") LocalDateTime endTime,
                                                                                              @Param("studentIds") Collection<Long> studentIds);
+
+    @Query("SELECT sa.examSchedule.exam.id FROM SeatAllocation sa WHERE sa.id = :allocationId")
+    Optional<Long> findExamIdByAllocationId(@Param("allocationId") Long allocationId);
+
+    @Query("""
+        SELECT sa.seat.room.id AS roomId,
+               sa.seat.room.name AS roomName,
+               COUNT(sa.id) AS allocatedCount,
+               COUNT(ea.id) AS markedCount
+        FROM SeatAllocation sa
+        LEFT JOIN ExamAttendance ea
+               ON ea.examSchedule.id = sa.examSchedule.id
+              AND ea.student.id = sa.student.id
+              AND ea.room.id = sa.seat.room.id
+        WHERE sa.examSchedule.exam.id = :examId
+        GROUP BY sa.seat.room.id, sa.seat.room.name
+        ORDER BY sa.seat.room.name ASC
+        """)
+    List<ExamControllerRoomSummaryProjection> findExamControllerRoomSummariesByExamId(@Param("examId") Long examId);
+
+    @Query("""
+        SELECT sa.examSchedule.id AS examScheduleId,
+               sa.seat.room.id AS roomId,
+               sa.seat.room.name AS roomName,
+               sa.student.id AS studentId,
+               sa.student.rollNo AS rollNo,
+               sa.student.userProfile.firstName AS firstName,
+               sa.student.userProfile.lastName AS lastName,
+               sa.student.section.academicClass.name AS className,
+               sa.examSchedule.subject.name AS subjectName,
+               sa.seat.rowNumber AS rowNumber,
+               sa.seat.columnNumber AS columnNumber,
+               sa.seat.label AS seatNumber,
+               ea.status AS attendanceStatus,
+               COALESCE(eed.allowed, true) AS entryAllowed
+        FROM SeatAllocation sa
+        LEFT JOIN ExamAttendance ea
+               ON ea.examSchedule.id = sa.examSchedule.id
+              AND ea.student.id = sa.student.id
+              AND ea.room.id = sa.seat.room.id
+        LEFT JOIN ExamEntryDecision eed
+               ON eed.examSchedule.id = sa.examSchedule.id
+              AND eed.student.id = sa.student.id
+        WHERE sa.examSchedule.exam.id = :examId
+        ORDER BY sa.student.section.academicClass.name ASC,
+                 sa.student.rollNo ASC,
+                 sa.seat.room.name ASC,
+                 sa.examSchedule.id ASC
+        """)
+    List<ExamControllerStudentSeatProjection> findExamControllerStudentRowsByExamId(@Param("examId") Long examId);
 }

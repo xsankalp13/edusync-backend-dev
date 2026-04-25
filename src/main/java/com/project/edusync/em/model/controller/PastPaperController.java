@@ -31,7 +31,7 @@ public class PastPaperController {
      * Expects multipart/form-data with 'metadata' (JSON) and 'file' (binary).
      */
     @PostMapping(consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
-    @PreAuthorize("hasAnyRole('ADMIN','SCHOOL_ADMIN','SUPER_ADMIN')")
+    @PreAuthorize("hasAnyRole('ADMIN','SCHOOL_ADMIN','SUPER_ADMIN','EXAM_CONTROLLER')")
     @Operation(summary = "Upload a new past paper PDF")
     public ResponseEntity<PastPaperResponseDTO> uploadPastPaper(
             @RequestPart("metadata") @Valid PastPaperRequestDTO requestDTO,
@@ -40,7 +40,7 @@ public class PastPaperController {
     }
 
     @GetMapping
-    @PreAuthorize("hasAnyRole('STUDENT','TEACHER','ADMIN','SCHOOL_ADMIN','SUPER_ADMIN')")
+    @PreAuthorize("hasAnyRole('STUDENT','TEACHER','ADMIN','SCHOOL_ADMIN','SUPER_ADMIN','EXAM_CONTROLLER')")
     @Operation(summary = "Get all past papers with optional filters")
     public ResponseEntity<List<PastPaperResponseDTO>> getAllPastPapers(
             @Parameter(description = "Filter by Class UUID") @RequestParam(required = false) UUID classId,
@@ -50,14 +50,14 @@ public class PastPaperController {
     }
 
     @GetMapping("/{uuid}")
-    @PreAuthorize("hasAnyRole('STUDENT','TEACHER','ADMIN','SCHOOL_ADMIN','SUPER_ADMIN')")
+    @PreAuthorize("hasAnyRole('STUDENT','TEACHER','ADMIN','SCHOOL_ADMIN','SUPER_ADMIN','EXAM_CONTROLLER')")
     @Operation(summary = "Get a specific past paper by UUID")
     public ResponseEntity<PastPaperResponseDTO> getPastPaperByUuid(@PathVariable UUID uuid) {
         return ResponseEntity.ok(pastPaperService.getPastPaperByUuid(uuid));
     }
 
     @DeleteMapping("/{uuid}")
-    @PreAuthorize("hasAnyRole('ADMIN','SCHOOL_ADMIN','SUPER_ADMIN')")
+    @PreAuthorize("hasAnyRole('ADMIN','SCHOOL_ADMIN','SUPER_ADMIN','EXAM_CONTROLLER')")
     @Operation(summary = "Delete a past paper")
     public ResponseEntity<Void> deletePastPaper(@PathVariable UUID uuid) {
         pastPaperService.deletePastPaper(uuid);

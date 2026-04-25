@@ -13,9 +13,11 @@ import com.project.edusync.em.model.dto.response.ExamAttendanceMarkResponseDTO;
 import com.project.edusync.em.model.dto.response.ExamRoomStudentResponseDTO;
 import com.project.edusync.em.model.dto.response.InvigilatorRoomResponseDTO;
 import com.project.edusync.em.model.entity.ExamAttendance;
+import com.project.edusync.em.model.entity.ExamEntryDecision;
 import com.project.edusync.em.model.entity.ExamSchedule;
 import com.project.edusync.em.model.enums.ExamAttendanceStatus;
 import com.project.edusync.em.model.repository.ExamAttendanceRepository;
+import com.project.edusync.em.model.repository.ExamEntryDecisionRepository;
 import com.project.edusync.em.model.repository.ExamScheduleRepository;
 import com.project.edusync.em.model.repository.InvigilationRepository;
 import com.project.edusync.em.model.repository.SeatAllocationRepository;
@@ -44,6 +46,8 @@ public class ExamAttendanceService {
     private final ExamAttendanceRepository examAttendanceRepository;
     private final ExamScheduleRepository examScheduleRepository;
     private final RoomRepository roomRepository;
+    private final ExamEntryDecisionRepository examEntryDecisionRepository;
+    private final ExamControllerAccessService examControllerAccessService;
 
     public List<InvigilatorRoomResponseDTO> getAssignedRoomsForCurrentInvigilator() {
         Long staffId = resolveCurrentStaffId();
@@ -82,6 +86,7 @@ public class ExamAttendanceService {
                 .attendanceStatus(normalizeStoredStatus(s.getAttendanceStatus()))
                 .malpractice(Boolean.TRUE.equals(s.getMalpractice()) || s.getAttendanceStatus() == ExamAttendanceStatus.MALPRACTICE)
                 .finalized(Boolean.TRUE.equals(s.getFinalized()))
+                .entryAllowed(Boolean.TRUE.equals(s.getEntryAllowed()))
                 .build())
             .toList();
     }
@@ -119,6 +124,14 @@ public class ExamAttendanceService {
                 e -> attendanceKey(e.getExamSchedule().getId(), e.getStudent().getId()),
                 Function.identity(),
                 (a, b) -> a));
+
+        Map<String, Boolean> entryAllowedByKey = examEntryDecisionRepository
+            .findByExamScheduleIdsAndStudentIds(scheduleIds, requestedStudentIds)
+            .stream()
+            .collect(Collectors.toMap(
+                e -> attendanceKey(e.getExamSchedule().getId(), e.getStudent().getId()),
+                ExamEntryDecision::isAllowed,
+                (left, right) -> right));
 
         Map<Long, ExamSchedule> schedulesById = examScheduleRepository.findAllById(scheduleIds).stream()
             .collect(Collectors.toMap(ExamSchedule::getId, Function.identity()));
@@ -160,6 +173,10 @@ public class ExamAttendanceService {
                     .build();
             }
             ExamAttendanceStatus normalizedStatus = normalizeRequestedStatus(entry);
+            boolean entryAllowed = entryAllowedByKey.getOrDefault(key, true);
+            if (!entryAllowed && normalizedStatus == ExamAttendanceStatus.PRESENT) {
+                throw new BadRequestException("Student is blocked from this exam. Mark as absent or allow entry first");
+            }
             boolean malpractice = normalizeMalpractice(entry);
             if (malpractice && normalizedStatus == ExamAttendanceStatus.ABSENT) {
                 throw new BadRequestException("Malpractice can only be marked for present students");
@@ -283,7 +300,14 @@ public class ExamAttendanceService {
             .orElseThrow(() -> new BadRequestException("Logged-in user is not mapped to staff"));
     }
 
+    public Long resolveCurrentStaffIdForPrivilegedAction() {
+        return resolveCurrentStaffId();
+    }
+
     private void validateInvigilatorAssignment(Long staffId, Long examScheduleId, Long roomId) {
+        if (examControllerAccessService.canAccessSchedule(examScheduleId)) {
+            return;
+        }
         if (!invigilationRepository.existsByExamScheduleIdAndRoom_IdAndStaffId(examScheduleId, roomId, staffId)) {
             throw new BadRequestException("You are not assigned as invigilator for this room and exam");
         }

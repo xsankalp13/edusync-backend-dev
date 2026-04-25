@@ -7,6 +7,7 @@ import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
@@ -16,6 +17,7 @@ import java.util.UUID;
 @RestController
 @RequestMapping("${api.url}/auth/examination/exams")
 @RequiredArgsConstructor
+@PreAuthorize("hasAnyRole('ADMIN','SCHOOL_ADMIN','SUPER_ADMIN','EXAM_CONTROLLER')")
 public class ExamController {
 
     private final ExamService examService;
@@ -27,6 +29,7 @@ public class ExamController {
     }
 
     @GetMapping("/{uuid}")
+    @PreAuthorize("@examControllerAccess.canAccessExamUuid(#uuid)")
     public ResponseEntity<ExamResponseDTO> getExamByUuid(@PathVariable UUID uuid) {
         return ResponseEntity.ok(examService.getExamByUuid(uuid));
     }
@@ -42,22 +45,26 @@ public class ExamController {
     }
 
     @PutMapping("/{uuid}")
+    @PreAuthorize("@examControllerAccess.canAccessExamUuid(#uuid)")
     public ResponseEntity<ExamResponseDTO> updateExam(@PathVariable UUID uuid, @Valid @RequestBody ExamRequestDTO requestDTO) {
         return ResponseEntity.ok(examService.updateExam(uuid, requestDTO));
     }
 
     @PatchMapping("/{uuid}/publish")
+    @PreAuthorize("@examControllerAccess.canAccessExamUuid(#uuid)")
     public ResponseEntity<ExamResponseDTO> publishExam(@PathVariable UUID uuid, @RequestBody Map<String, Boolean> body) {
         Boolean published = body.get("published");
         return ResponseEntity.ok(examService.publishExam(uuid, published));
     }
 
     @PatchMapping("/{uuid}/publish-timetable")
+    @PreAuthorize("@examControllerAccess.canAccessExamUuid(#uuid)")
     public ResponseEntity<ExamResponseDTO> publishTimetable(@PathVariable UUID uuid) {
         return ResponseEntity.ok(examService.publishTimetable(uuid));
     }
 
     @DeleteMapping("/{uuid}")
+    @PreAuthorize("@examControllerAccess.canAccessExamUuid(#uuid)")
     public ResponseEntity<Void> deleteExam(@PathVariable UUID uuid) {
         examService.deleteExam(uuid);
         return ResponseEntity.noContent().build();

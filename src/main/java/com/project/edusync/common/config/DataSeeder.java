@@ -90,6 +90,7 @@ public class DataSeeder implements ApplicationRunner {
                 "ROLE_LIBRARIAN",
                 "ROLE_GUARDIAN",
                 "ROLE_ADMIN",
+                "ROLE_EXAM_CONTROLLER",
                 "ROLE_SUPER_ADMIN",
                 "ROLE_SCHOOL_ADMIN",
                 "ROLE_SECURITY_GUARD",
@@ -315,6 +316,16 @@ public class DataSeeder implements ApplicationRunner {
                 "admission:enquiry:reply",
                 "admission:form:read:all",
                 "admission:form:approve"
+        ));
+
+        blueprint.put("ROLE_EXAM_CONTROLLER", List.of(
+                "profile:read:own",
+                "profile:update:own",
+                "exam:read:all",
+                "exam:manage:all",
+                "exam:attendance:manage",
+                "exam:seat-allocation:manage",
+                "exam:invigilation:manage"
         ));
 
         blueprint.put("ROLE_SUPER_ADMIN", List.of(

@@ -41,4 +41,7 @@ public interface InvigilationRepository extends JpaRepository<Invigilation, Long
         ORDER BY i.examSchedule.examDate ASC, i.examSchedule.timeslot.startTime ASC
         """)
     List<InvigilatorRoomProjection> findAssignedRoomsByStaffId(@Param("staffId") Long staffId);
+
+    @Query("SELECT i.examSchedule.exam.id FROM Invigilation i WHERE i.id = :invigilationId")
+    java.util.Optional<Long> findExamIdByInvigilationId(@Param("invigilationId") Long invigilationId);
 }

@@ -63,7 +63,7 @@ public class AdminUserQueryController {
      * </ul>
      */
     @GetMapping("/students")
-    @PreAuthorize("hasAnyAuthority('ROLE_SCHOOL_ADMIN', 'ROLE_SUPER_ADMIN')")
+    @PreAuthorize("hasAnyAuthority('ROLE_SCHOOL_ADMIN', 'ROLE_SUPER_ADMIN', 'ROLE_EXAM_CONTROLLER')")
     @Operation(
             summary = "Get All Students",
             description = "Returns a paginated, searchable list of all students. " +
@@ -126,7 +126,7 @@ public class AdminUserQueryController {
      * </ul>
      */
     @GetMapping("/staff")
-    @PreAuthorize("hasAnyAuthority('ROLE_SCHOOL_ADMIN', 'ROLE_SUPER_ADMIN')")
+    @PreAuthorize("hasAnyAuthority('ROLE_SCHOOL_ADMIN', 'ROLE_SUPER_ADMIN', 'ROLE_EXAM_CONTROLLER')")
     @Operation(
             summary = "Get All Staff",
             description = "Returns a paginated, searchable, and filterable list of all staff members. " +

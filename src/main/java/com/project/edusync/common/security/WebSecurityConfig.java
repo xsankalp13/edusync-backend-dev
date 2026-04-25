@@ -70,7 +70,7 @@ public class WebSecurityConfig {
         CorsConfiguration configuration = new CorsConfiguration();
         // Recommendation: Move origins to application.yml for environment-specific configs
         configuration.setAllowedOrigins(List.of(
-            "http://localhost:5173",
+            "https://localhost:5173",
             "http://localhost:3000",
             "http://13.206.98.253",
             "https://siksha-intelligence-frontend-mvp.vercel.app",
