@@ -76,6 +76,8 @@ jobs:
           CLOUDINARY_API_SECRET: dummy
           SNS_ENABLED: "false"
           SUPER_ADMIN_BOOTSTRAP_REQUIRED: "false"
+          SUPER_ADMIN_USERNAME: dummy
+          SUPER_ADMIN_PASSWORD: dummy
 
       - name: Archive test results
         if: always()
