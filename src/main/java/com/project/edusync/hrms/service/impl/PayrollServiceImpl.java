@@ -55,8 +55,8 @@ import com.project.edusync.uis.model.entity.Staff;
 import com.project.edusync.uis.model.entity.StaffSensitiveInfo;
 import com.project.edusync.uis.repository.StaffRepository;
 import com.project.edusync.uis.repository.StaffSensitiveInfoRepository;
-import com.project.edusync.finance.service.implementation.GeneralLedgerService;
-import com.project.edusync.finance.model.entity.JournalEntryLine;
+import com.project.edusync.finance.service.GeneralLedgerService;
+import com.project.edusync.finance.model.entity.JournalLine;
 import com.project.edusync.finance.model.enums.JournalReferenceType;
 import com.project.edusync.finance.repository.AccountRepository;
 import com.project.edusync.finance.model.entity.Account;
@@ -336,26 +336,26 @@ public class PayrollServiceImpl implements PayrollService {
         Account deductionsAccount = accounts.stream().filter(a -> a.getCode().startsWith("21")).findFirst().orElse(null); // Assuming 21XX is payroll liabilities
 
         if (salaryExpenseAccount != null && bankAccount != null) {
-            JournalEntryLine drLine = new JournalEntryLine();
+            JournalLine drLine = new JournalLine();
             drLine.setAccount(salaryExpenseAccount);
-            drLine.setAmount(saved.getTotalGross());
-            drLine.setIsDebit(true);
-            drLine.setDescription("Salary Expense for run " + saved.getPayMonth() + "/" + saved.getPayYear());
+            drLine.setDebitAmount(saved.getTotalGross());
+            drLine.setCreditAmount(BigDecimal.ZERO);
+            drLine.setNarration("Salary Expense for run " + saved.getPayMonth() + "/" + saved.getPayYear());
 
-            JournalEntryLine crBankLine = new JournalEntryLine();
+            JournalLine crBankLine = new JournalLine();
             crBankLine.setAccount(bankAccount);
-            crBankLine.setAmount(saved.getTotalNet());
-            crBankLine.setIsDebit(false);
-            crBankLine.setDescription("Net Salary Payout");
+            crBankLine.setDebitAmount(BigDecimal.ZERO);
+            crBankLine.setCreditAmount(saved.getTotalNet());
+            crBankLine.setNarration("Net Salary Payout");
             
-            List<JournalEntryLine> lines = new java.util.ArrayList<>(List.of(drLine, crBankLine));
+            List<JournalLine> lines = new java.util.ArrayList<>(List.of(drLine, crBankLine));
             
             if (saved.getTotalDeductions().compareTo(java.math.BigDecimal.ZERO) > 0 && deductionsAccount != null) {
-                JournalEntryLine crDedLine = new JournalEntryLine();
+                JournalLine crDedLine = new JournalLine();
                 crDedLine.setAccount(deductionsAccount);
-                crDedLine.setAmount(saved.getTotalDeductions());
-                crDedLine.setIsDebit(false);
-                crDedLine.setDescription("Payroll Deductions Payable");
+                crDedLine.setDebitAmount(BigDecimal.ZERO);
+                crDedLine.setCreditAmount(saved.getTotalDeductions());
+                crDedLine.setNarration("Payroll Deductions Payable");
                 lines.add(crDedLine);
             }
             

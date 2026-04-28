@@ -6,6 +6,7 @@ import com.project.edusync.finance.model.entity.*;
 import com.project.edusync.finance.model.enums.JournalReferenceType;
 import com.project.edusync.finance.repository.AccountRepository;
 import com.project.edusync.finance.repository.MiscellaneousReceiptRepository;
+import com.project.edusync.finance.service.GeneralLedgerService;
 import jakarta.persistence.EntityNotFoundException;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -13,6 +14,7 @@ import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.util.List;
 import java.util.stream.Collectors;
@@ -55,17 +57,17 @@ public class MiscellaneousReceiptServiceImpl {
         // Generate GL Entry
         // Dr Deposit Account (Asset)
         // Cr Income Account (Revenue)
-        JournalEntryLine drLine = new JournalEntryLine();
+        JournalLine drLine = new JournalLine();
         drLine.setAccount(depositAccount);
-        drLine.setAmount(dto.amount());
-        drLine.setIsDebit(true);
-        drLine.setDescription(dto.description() + " (Deposit)");
+        drLine.setDebitAmount(dto.amount());
+        drLine.setCreditAmount(BigDecimal.ZERO);
+        drLine.setNarration(dto.description() + " (Deposit)");
 
-        JournalEntryLine crLine = new JournalEntryLine();
+        JournalLine crLine = new JournalLine();
         crLine.setAccount(incomeAccount);
-        crLine.setAmount(dto.amount());
-        crLine.setIsDebit(false);
-        crLine.setDescription(dto.description() + " (Income)");
+        crLine.setDebitAmount(BigDecimal.ZERO);
+        crLine.setCreditAmount(dto.amount());
+        crLine.setNarration(dto.description() + " (Income)");
 
         JournalEntry glEntry = glService.createJournalEntry(
             dto.receiptDate(),

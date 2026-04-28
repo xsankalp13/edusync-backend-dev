@@ -15,45 +15,45 @@ import java.time.LocalDate;
 import java.util.List;
 
 /** /auth/finance/assets */
-@RestController @RequestMapping("/auth/finance/assets") @RequiredArgsConstructor
+@RestController @RequestMapping("${api.url}/auth/finance/assets") @RequiredArgsConstructor
 public class FixedAssetController {
 
     private final FixedAssetServiceImpl assetService;
     private static final Long SID = 1L;
 
-    @GetMapping @PreAuthorize("hasAnyAuthority('finance:assets:read','ROLE_ADMIN','ROLE_FINANCE_ADMIN')")
+    @GetMapping @PreAuthorize("hasAnyAuthority('finance:assets:read','ROLE_ADMIN', 'ROLE_SCHOOL_ADMIN','ROLE_FINANCE_ADMIN')")
     public ResponseEntity<List<AssetResponseDTO>> getAll() { return ResponseEntity.ok(assetService.getAllAssets(SID)); }
 
-    @GetMapping("/{id}") @PreAuthorize("hasAnyAuthority('finance:assets:read','ROLE_ADMIN','ROLE_FINANCE_ADMIN')")
+    @GetMapping("/{id}") @PreAuthorize("hasAnyAuthority('finance:assets:read','ROLE_ADMIN', 'ROLE_SCHOOL_ADMIN','ROLE_FINANCE_ADMIN')")
     public ResponseEntity<AssetResponseDTO> getById(@PathVariable Long id) { return ResponseEntity.ok(assetService.getAssetById(id, SID)); }
 
-    @PostMapping @PreAuthorize("hasAnyAuthority('finance:assets:write','ROLE_ADMIN','ROLE_FINANCE_ADMIN')")
+    @PostMapping @PreAuthorize("hasAnyAuthority('finance:assets:write','ROLE_ADMIN', 'ROLE_SCHOOL_ADMIN','ROLE_FINANCE_ADMIN')")
     public ResponseEntity<AssetResponseDTO> create(@Valid @RequestBody AssetRequestDTO dto) {
         return ResponseEntity.status(HttpStatus.CREATED).body(assetService.createAsset(dto, SID));
     }
 
-    @PutMapping("/{id}") @PreAuthorize("hasAnyAuthority('finance:assets:write','ROLE_ADMIN','ROLE_FINANCE_ADMIN')")
+    @PutMapping("/{id}") @PreAuthorize("hasAnyAuthority('finance:assets:write','ROLE_ADMIN', 'ROLE_SCHOOL_ADMIN','ROLE_FINANCE_ADMIN')")
     public ResponseEntity<AssetResponseDTO> update(@PathVariable Long id, @Valid @RequestBody AssetRequestDTO dto) {
         return ResponseEntity.ok(assetService.updateAsset(id, dto, SID));
     }
 
-    @PostMapping("/{id}/depreciate") @PreAuthorize("hasAnyAuthority('finance:assets:write','ROLE_ADMIN','ROLE_FINANCE_ADMIN')")
+    @PostMapping("/{id}/depreciate") @PreAuthorize("hasAnyAuthority('finance:assets:write','ROLE_ADMIN', 'ROLE_SCHOOL_ADMIN','ROLE_FINANCE_ADMIN')")
     public ResponseEntity<DepreciationEntryResponseDTO> depreciate(
             @PathVariable Long id, @RequestParam String financialYear) {
         return ResponseEntity.ok(assetService.postDepreciation(id, financialYear, SID));
     }
 
-    @PostMapping("/depreciate-batch") @PreAuthorize("hasAnyAuthority('finance:assets:write','ROLE_ADMIN','ROLE_FINANCE_ADMIN')")
+    @PostMapping("/depreciate-batch") @PreAuthorize("hasAnyAuthority('finance:assets:write','ROLE_ADMIN', 'ROLE_SCHOOL_ADMIN','ROLE_FINANCE_ADMIN')")
     public ResponseEntity<List<DepreciationEntryResponseDTO>> depreciationBatch(@RequestParam String financialYear) {
         return ResponseEntity.ok(assetService.runDepreciationBatch(financialYear, SID));
     }
 
-    @GetMapping("/{id}/depreciation") @PreAuthorize("hasAnyAuthority('finance:assets:read','ROLE_ADMIN','ROLE_FINANCE_ADMIN')")
+    @GetMapping("/{id}/depreciation") @PreAuthorize("hasAnyAuthority('finance:assets:read','ROLE_ADMIN', 'ROLE_SCHOOL_ADMIN','ROLE_FINANCE_ADMIN')")
     public ResponseEntity<List<DepreciationEntryResponseDTO>> getDepreciationHistory(@PathVariable Long id) {
         return ResponseEntity.ok(assetService.getDepreciationHistory(id, SID));
     }
 
-    @PostMapping("/{id}/dispose") @PreAuthorize("hasAnyAuthority('finance:assets:write','ROLE_ADMIN','ROLE_FINANCE_ADMIN')")
+    @PostMapping("/{id}/dispose") @PreAuthorize("hasAnyAuthority('finance:assets:write','ROLE_ADMIN', 'ROLE_SCHOOL_ADMIN','ROLE_FINANCE_ADMIN')")
     public ResponseEntity<AssetResponseDTO> dispose(
             @PathVariable Long id,
             @RequestParam(required = false) String disposalDate,

@@ -76,4 +76,17 @@ public interface GeneralLedgerService {
      * in chronological order with a running balance.
      */
     List<JournalEntryResponseDTO> getAccountLedger(Long accountId, LocalDate from, LocalDate to, Long schoolId);
+
+    /** Create Entry with multiple lines */
+    JournalEntry createJournalEntry(
+        LocalDate entryDate,
+        String description,
+        JournalReferenceType referenceType,
+        Long referenceId,
+        List<com.project.edusync.finance.model.entity.JournalLine> lines,
+        Long schoolId
+    );
+
+    /** Get account balance as of specific date */
+    BigDecimal getAccountBalanceAsOfDate(Long accountId, LocalDate asOfDate, Long schoolId);
 }

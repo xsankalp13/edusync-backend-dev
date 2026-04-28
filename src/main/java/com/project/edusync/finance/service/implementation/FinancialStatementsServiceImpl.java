@@ -4,6 +4,7 @@ import com.project.edusync.finance.dto.statements.FinancialStatementDTO;
 import com.project.edusync.finance.dto.statements.FinancialStatementDTO.AccountBalanceDTO;
 import com.project.edusync.finance.model.entity.Account;
 import com.project.edusync.finance.repository.AccountRepository;
+import com.project.edusync.finance.service.GeneralLedgerService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -44,7 +45,7 @@ public class FinancialStatementsServiceImpl {
             BigDecimal dr = BigDecimal.ZERO;
             BigDecimal cr = BigDecimal.ZERO;
             
-            boolean isNormalDebit = "ASSET".equals(acc.getType().name()) || "EXPENSE".equals(acc.getType().name());
+            boolean isNormalDebit = "ASSET".equals(acc.getAccountType().name()) || "EXPENSE".equals(acc.getAccountType().name());
             
             if (isNormalDebit) {
                 if (balance.compareTo(BigDecimal.ZERO) > 0) dr = balance;
@@ -57,7 +58,7 @@ public class FinancialStatementsServiceImpl {
             totalDr = totalDr.add(dr);
             totalCr = totalCr.add(cr);
             
-            items.add(new AccountBalanceDTO(acc.getId(), acc.getCode(), acc.getName(), acc.getSubType(), dr, cr, balance));
+            items.add(new AccountBalanceDTO(acc.getId(), acc.getCode(), acc.getName(), acc.getAccountType().name(), dr, cr, balance));
         }
 
         return new FinancialStatementDTO("Trial Balance as of " + asOfDate, items, totalDr, totalCr, null);
@@ -69,7 +70,7 @@ public class FinancialStatementsServiceImpl {
      */
     public FinancialStatementDTO generateProfitAndLoss(LocalDate startDate, LocalDate endDate, Long schoolId) {
         List<Account> accounts = accountRepository.findBySchoolId(schoolId).stream()
-            .filter(a -> "REVENUE".equals(a.getType().name()) || "EXPENSE".equals(a.getType().name()))
+            .filter(a -> "REVENUE".equals(a.getAccountType().name()) || "EXPENSE".equals(a.getAccountType().name()) || "INCOME".equals(a.getAccountType().name()))
             .collect(Collectors.toList());
             
         List<AccountBalanceDTO> items = new ArrayList<>();
@@ -84,13 +85,13 @@ public class FinancialStatementsServiceImpl {
             
             if (periodActivity.compareTo(BigDecimal.ZERO) == 0) continue;
             
-            if ("REVENUE".equals(acc.getType().name())) {
+            if ("REVENUE".equals(acc.getAccountType().name()) || "INCOME".equals(acc.getAccountType().name())) {
                 totalRevenue = totalRevenue.add(periodActivity); // Positive implies Revenue increase
             } else {
                 totalExpense = totalExpense.add(periodActivity); // Positive implies Expense increase
             }
             
-            items.add(new AccountBalanceDTO(acc.getId(), acc.getCode(), acc.getName(), acc.getType().name(), null, null, periodActivity));
+            items.add(new AccountBalanceDTO(acc.getId(), acc.getCode(), acc.getName(), acc.getAccountType().name(), null, null, periodActivity));
         }
 
         BigDecimal netProfit = totalRevenue.subtract(totalExpense);
@@ -103,7 +104,7 @@ public class FinancialStatementsServiceImpl {
      */
     public FinancialStatementDTO generateBalanceSheet(LocalDate asOfDate, Long schoolId) {
         List<Account> accounts = accountRepository.findBySchoolId(schoolId).stream()
-            .filter(a -> "ASSET".equals(a.getType().name()) || "LIABILITY".equals(a.getType().name()) || "EQUITY".equals(a.getType().name()))
+            .filter(a -> "ASSET".equals(a.getAccountType().name()) || "LIABILITY".equals(a.getAccountType().name()) || "EQUITY".equals(a.getAccountType().name()))
             .collect(Collectors.toList());
             
         List<AccountBalanceDTO> items = new ArrayList<>();
@@ -114,13 +115,13 @@ public class FinancialStatementsServiceImpl {
             BigDecimal balance = glService.getAccountBalanceAsOfDate(acc.getId(), asOfDate, schoolId);
             if (balance.compareTo(BigDecimal.ZERO) == 0) continue;
             
-            if ("ASSET".equals(acc.getType().name())) {
+            if ("ASSET".equals(acc.getAccountType().name())) {
                 totalAssets = totalAssets.add(balance);
             } else {
                 totalLiabEq = totalLiabEq.add(balance);
             }
             
-            items.add(new AccountBalanceDTO(acc.getId(), acc.getCode(), acc.getName(), acc.getType().name(), null, null, balance));
+            items.add(new AccountBalanceDTO(acc.getId(), acc.getCode(), acc.getName(), acc.getAccountType().name(), null, null, balance));
         }
         
         // Ensure Retained Earnings (Profit & Loss up to asOfDate) is added to Equity to balance it

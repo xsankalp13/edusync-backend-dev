@@ -25,7 +25,7 @@ import java.util.List;
  * Base path: /auth/finance/gl
  */
 @RestController
-@RequestMapping("/auth/finance/gl")
+@RequestMapping("${api.url}/auth/finance/gl")
 @RequiredArgsConstructor
 public class GeneralLedgerController {
 
@@ -38,7 +38,7 @@ public class GeneralLedgerController {
      * Create and immediately post a manual journal entry.
      */
     @PostMapping("/journal-entries")
-    @PreAuthorize("hasAnyAuthority('finance:gl:write', 'ROLE_ADMIN', 'ROLE_FINANCE_ADMIN')")
+    @PreAuthorize("hasAnyAuthority('finance:gl:write', 'ROLE_ADMIN', 'ROLE_SCHOOL_ADMIN', 'ROLE_FINANCE_ADMIN')")
     public ResponseEntity<JournalEntryResponseDTO> createManualEntry(
             @Valid @RequestBody JournalEntryRequestDTO dto) {
         return ResponseEntity.status(HttpStatus.CREATED)
@@ -56,7 +56,7 @@ public class GeneralLedgerController {
      * @param size   Page size
      */
     @GetMapping("/journal-entries")
-    @PreAuthorize("hasAnyAuthority('finance:gl:read', 'ROLE_ADMIN', 'ROLE_FINANCE_ADMIN', 'ROLE_AUDITOR')")
+    @PreAuthorize("hasAnyAuthority('finance:gl:read', 'ROLE_ADMIN', 'ROLE_SCHOOL_ADMIN', 'ROLE_FINANCE_ADMIN', 'ROLE_AUDITOR')")
     public ResponseEntity<Page<JournalEntryResponseDTO>> getJournalEntries(
             @RequestParam(required = false) JournalEntryStatus status,
             @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate from,
@@ -73,7 +73,7 @@ public class GeneralLedgerController {
      * Full detail of a single journal entry including all lines.
      */
     @GetMapping("/journal-entries/{id}")
-    @PreAuthorize("hasAnyAuthority('finance:gl:read', 'ROLE_ADMIN', 'ROLE_FINANCE_ADMIN', 'ROLE_AUDITOR')")
+    @PreAuthorize("hasAnyAuthority('finance:gl:read', 'ROLE_ADMIN', 'ROLE_SCHOOL_ADMIN', 'ROLE_FINANCE_ADMIN', 'ROLE_AUDITOR')")
     public ResponseEntity<JournalEntryResponseDTO> getById(@PathVariable Long id) {
         return ResponseEntity.ok(glService.getJournalEntryById(id, DEFAULT_SCHOOL_ID));
     }
@@ -83,7 +83,7 @@ public class GeneralLedgerController {
      * Reverse a posted journal entry.
      */
     @PostMapping("/journal-entries/{id}/reverse")
-    @PreAuthorize("hasAnyAuthority('finance:gl:write', 'ROLE_ADMIN', 'ROLE_FINANCE_ADMIN')")
+    @PreAuthorize("hasAnyAuthority('finance:gl:write', 'ROLE_ADMIN', 'ROLE_SCHOOL_ADMIN', 'ROLE_FINANCE_ADMIN')")
     public ResponseEntity<JournalEntryResponseDTO> reverseEntry(
             @PathVariable Long id,
             @RequestParam(required = false) String reason
@@ -96,7 +96,7 @@ public class GeneralLedgerController {
      * Returns the Trial Balance — all account balances at current state.
      */
     @GetMapping("/trial-balance")
-    @PreAuthorize("hasAnyAuthority('finance:gl:read', 'ROLE_ADMIN', 'ROLE_FINANCE_ADMIN', 'ROLE_AUDITOR')")
+    @PreAuthorize("hasAnyAuthority('finance:gl:read', 'ROLE_ADMIN', 'ROLE_SCHOOL_ADMIN', 'ROLE_FINANCE_ADMIN', 'ROLE_AUDITOR')")
     public ResponseEntity<List<TrialBalanceRowDTO>> getTrialBalance() {
         return ResponseEntity.ok(glService.getTrialBalance(DEFAULT_SCHOOL_ID));
     }
@@ -106,7 +106,7 @@ public class GeneralLedgerController {
      * Drilldown ledger for a specific account showing all postings in date range.
      */
     @GetMapping("/ledger/{accountId}")
-    @PreAuthorize("hasAnyAuthority('finance:gl:read', 'ROLE_ADMIN', 'ROLE_FINANCE_ADMIN', 'ROLE_AUDITOR')")
+    @PreAuthorize("hasAnyAuthority('finance:gl:read', 'ROLE_ADMIN', 'ROLE_SCHOOL_ADMIN', 'ROLE_FINANCE_ADMIN', 'ROLE_AUDITOR')")
     public ResponseEntity<List<JournalEntryResponseDTO>> getAccountLedger(
             @PathVariable Long accountId,
             @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate from,

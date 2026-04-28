@@ -67,7 +67,7 @@ public interface JournalEntryRepository extends JpaRepository<JournalEntry, Long
         WHERE je.schoolId = :schoolId
           AND je.status = 'POSTED'
           AND je.entryDate = :date
-          AND jl.amount = :amount
+          AND (jl.debitAmount = :amount OR jl.creditAmount = :amount)
         ORDER BY je.entryDate DESC
     """)
     List<JournalEntry> findByDateAndAmount(

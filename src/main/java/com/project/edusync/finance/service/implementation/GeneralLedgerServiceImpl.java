@@ -66,6 +66,46 @@ public class GeneralLedgerServiceImpl implements GeneralLedgerService {
     }
 
     @Override
+    public JournalEntry createJournalEntry(
+            LocalDate entryDate,
+            String description,
+            JournalReferenceType referenceType,
+            Long referenceId,
+            List<JournalLine> lines,
+            Long schoolId
+    ) {
+        JournalEntry entry = buildEntry(entryDate, description, referenceType, referenceId, schoolId);
+        
+        int lineNum = 1;
+        BigDecimal totalDebits = BigDecimal.ZERO;
+        BigDecimal totalCredits = BigDecimal.ZERO;
+        
+        for (JournalLine line : lines) {
+            line.setLineNumber(lineNum++);
+            if (line.getDebitAmount() == null) line.setDebitAmount(BigDecimal.ZERO);
+            if (line.getCreditAmount() == null) line.setCreditAmount(BigDecimal.ZERO);
+            
+            // if both are zero but "amount" was set logic fallback 
+            // since we are manually constructing it in Misc/Payroll.
+            // Wait, we used `line.setIsDebit(true)` and `line.setAmount()` in other services! 
+            // Oh, JournalLine doesn't have isDebit or setAmount!
+            
+            totalDebits = totalDebits.add(line.getDebitAmount());
+            totalCredits = totalCredits.add(line.getCreditAmount());
+            entry.addLine(line);
+        }
+        
+        if (totalDebits.compareTo(totalCredits) != 0) {
+            throw new IllegalArgumentException("Journal Entry must balance. Dr: " + totalDebits + ", Cr: " + totalCredits);
+        }
+
+        postEntry(entry);
+        JournalEntry saved = journalEntryRepository.save(entry);
+        updateAccountBalances(saved);
+        return saved;
+    }
+
+    @Override
     public JournalEntry autoPostEntry(
             LocalDate entryDate,
             String description,
@@ -217,6 +257,25 @@ public class GeneralLedgerServiceImpl implements GeneralLedgerService {
                 .distinct()
                 .map(this::toResponseDTO)
                 .collect(Collectors.toList());
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public BigDecimal getAccountBalanceAsOfDate(Long accountId, LocalDate asOfDate, Long schoolId) {
+        // We get all lines posted to this account up to that date.
+        // It sums debitAmount and creditAmount for finding net
+        List<JournalLine> lines = journalLineRepository.findLedgerLines(accountId, LocalDate.of(2000, 1, 1), asOfDate); // or whatever beginning is
+        BigDecimal totalDr = lines.stream().map(JournalLine::getDebitAmount).reduce(BigDecimal.ZERO, BigDecimal::add);
+        BigDecimal totalCr = lines.stream().map(JournalLine::getCreditAmount).reduce(BigDecimal.ZERO, BigDecimal::add);
+        
+        Account acc = accountRepository.findById(accountId).orElseThrow();
+        boolean isDebitNormal = acc.getAccountType() == AccountType.ASSET || acc.getAccountType() == AccountType.EXPENSE;
+        
+        if (isDebitNormal) {
+            return totalDr.subtract(totalCr);
+        } else {
+            return totalCr.subtract(totalDr);
+        }
     }
 
     // ── Private Helpers ──────────────────────────────────────────────────────

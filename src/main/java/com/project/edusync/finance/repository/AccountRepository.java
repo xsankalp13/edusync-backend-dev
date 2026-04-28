@@ -33,4 +33,7 @@ public interface AccountRepository extends JpaRepository<Account, Long> {
     boolean existsByCodeAndSchoolIdAndIdNot(String code, Long schoolId, Long excludeId);
 
     boolean existsByCodeAndSchoolId(String code, Long schoolId);
+
+    /** Fetch all accounts for a school. */
+    List<Account> findBySchoolId(Long schoolId);
 }

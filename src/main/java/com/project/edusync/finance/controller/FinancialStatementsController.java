@@ -11,7 +11,7 @@ import org.springframework.web.bind.annotation.*;
 import java.time.LocalDate;
 
 @RestController
-@RequestMapping("/auth/finance/statements")
+@RequestMapping("${api.url}/auth/finance/statements")
 @RequiredArgsConstructor
 public class FinancialStatementsController {
 
@@ -19,14 +19,14 @@ public class FinancialStatementsController {
     private static final Long SID = 1L;
 
     @GetMapping("/trial-balance")
-    @PreAuthorize("hasAnyAuthority('finance:reports:read','ROLE_ADMIN','ROLE_FINANCE_ADMIN')")
+    @PreAuthorize("hasAnyAuthority('finance:reports:read','ROLE_ADMIN', 'ROLE_SCHOOL_ADMIN','ROLE_FINANCE_ADMIN')")
     public ResponseEntity<FinancialStatementDTO> getTrialBalance(
             @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate asOfDate) {
         return ResponseEntity.ok(statementService.generateTrialBalance(asOfDate, SID));
     }
 
     @GetMapping("/profit-and-loss")
-    @PreAuthorize("hasAnyAuthority('finance:reports:read','ROLE_ADMIN','ROLE_FINANCE_ADMIN')")
+    @PreAuthorize("hasAnyAuthority('finance:reports:read','ROLE_ADMIN', 'ROLE_SCHOOL_ADMIN','ROLE_FINANCE_ADMIN')")
     public ResponseEntity<FinancialStatementDTO> getProfitAndLoss(
             @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate startDate,
             @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate endDate) {
@@ -34,7 +34,7 @@ public class FinancialStatementsController {
     }
 
     @GetMapping("/balance-sheet")
-    @PreAuthorize("hasAnyAuthority('finance:reports:read','ROLE_ADMIN','ROLE_FINANCE_ADMIN')")
+    @PreAuthorize("hasAnyAuthority('finance:reports:read','ROLE_ADMIN', 'ROLE_SCHOOL_ADMIN','ROLE_FINANCE_ADMIN')")
     public ResponseEntity<FinancialStatementDTO> getBalanceSheet(
             @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate asOfDate) {
         return ResponseEntity.ok(statementService.generateBalanceSheet(asOfDate, SID));

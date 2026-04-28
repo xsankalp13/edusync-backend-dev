@@ -17,7 +17,7 @@ import java.util.List;
  * Base path: /auth/finance/accounts
  */
 @RestController
-@RequestMapping("/auth/finance/accounts")
+@RequestMapping("${api.url}/auth/finance/accounts")
 @RequiredArgsConstructor
 public class AccountController {
 
@@ -32,7 +32,7 @@ public class AccountController {
      * Returns the full COA as a nested tree — used by the ChartOfAccounts.tsx tree view.
      */
     @GetMapping("/tree")
-    @PreAuthorize("hasAnyAuthority('finance:coa:read', 'ROLE_ADMIN', 'ROLE_FINANCE_ADMIN')")
+    @PreAuthorize("hasAnyAuthority('finance:coa:read', 'ROLE_ADMIN', 'ROLE_SCHOOL_ADMIN', 'ROLE_FINANCE_ADMIN')")
     public ResponseEntity<List<AccountResponseDTO>> getTree() {
         return ResponseEntity.ok(accountService.getCOATree(DEFAULT_SCHOOL_ID));
     }
@@ -42,7 +42,7 @@ public class AccountController {
      * Flat list of all accounts — used by admin data tables.
      */
     @GetMapping
-    @PreAuthorize("hasAnyAuthority('finance:coa:read', 'ROLE_ADMIN', 'ROLE_FINANCE_ADMIN')")
+    @PreAuthorize("hasAnyAuthority('finance:coa:read', 'ROLE_ADMIN', 'ROLE_SCHOOL_ADMIN', 'ROLE_FINANCE_ADMIN')")
     public ResponseEntity<List<AccountResponseDTO>> getAll() {
         return ResponseEntity.ok(accountService.getAllAccounts(DEFAULT_SCHOOL_ID));
     }
@@ -52,7 +52,7 @@ public class AccountController {
      * Flat list of active posting accounts — used by journal entry dropdowns.
      */
     @GetMapping("/posting")
-    @PreAuthorize("hasAnyAuthority('finance:coa:read', 'finance:gl:write', 'ROLE_ADMIN', 'ROLE_FINANCE_ADMIN')")
+    @PreAuthorize("hasAnyAuthority('finance:coa:read', 'finance:gl:write', 'ROLE_ADMIN', 'ROLE_SCHOOL_ADMIN', 'ROLE_FINANCE_ADMIN')")
     public ResponseEntity<List<AccountResponseDTO>> getPostingAccounts() {
         return ResponseEntity.ok(accountService.getPostingAccounts(DEFAULT_SCHOOL_ID));
     }
@@ -62,7 +62,7 @@ public class AccountController {
      * Single account detail.
      */
     @GetMapping("/{id}")
-    @PreAuthorize("hasAnyAuthority('finance:coa:read', 'ROLE_ADMIN', 'ROLE_FINANCE_ADMIN')")
+    @PreAuthorize("hasAnyAuthority('finance:coa:read', 'ROLE_ADMIN', 'ROLE_SCHOOL_ADMIN', 'ROLE_FINANCE_ADMIN')")
     public ResponseEntity<AccountResponseDTO> getById(@PathVariable Long id) {
         return ResponseEntity.ok(accountService.getAccountById(id, DEFAULT_SCHOOL_ID));
     }
@@ -72,7 +72,7 @@ public class AccountController {
      * Create a new account in the COA.
      */
     @PostMapping
-    @PreAuthorize("hasAnyAuthority('finance:coa:write', 'ROLE_ADMIN', 'ROLE_FINANCE_ADMIN')")
+    @PreAuthorize("hasAnyAuthority('finance:coa:write', 'ROLE_ADMIN', 'ROLE_SCHOOL_ADMIN', 'ROLE_FINANCE_ADMIN')")
     public ResponseEntity<AccountResponseDTO> create(@Valid @RequestBody AccountRequestDTO dto) {
         return ResponseEntity.status(HttpStatus.CREATED)
                 .body(accountService.createAccount(dto, DEFAULT_SCHOOL_ID));
@@ -83,7 +83,7 @@ public class AccountController {
      * Update an existing account.
      */
     @PutMapping("/{id}")
-    @PreAuthorize("hasAnyAuthority('finance:coa:write', 'ROLE_ADMIN', 'ROLE_FINANCE_ADMIN')")
+    @PreAuthorize("hasAnyAuthority('finance:coa:write', 'ROLE_ADMIN', 'ROLE_SCHOOL_ADMIN', 'ROLE_FINANCE_ADMIN')")
     public ResponseEntity<AccountResponseDTO> update(
             @PathVariable Long id,
             @Valid @RequestBody AccountRequestDTO dto) {
@@ -95,7 +95,7 @@ public class AccountController {
      * Soft-deletes (deactivates) an account.
      */
     @DeleteMapping("/{id}")
-    @PreAuthorize("hasAnyAuthority('finance:coa:write', 'ROLE_ADMIN', 'ROLE_FINANCE_ADMIN')")
+    @PreAuthorize("hasAnyAuthority('finance:coa:write', 'ROLE_ADMIN', 'ROLE_SCHOOL_ADMIN', 'ROLE_FINANCE_ADMIN')")
     public ResponseEntity<Void> deactivate(@PathVariable Long id) {
         accountService.deactivateAccount(id, DEFAULT_SCHOOL_ID);
         return ResponseEntity.noContent().build();
@@ -107,7 +107,7 @@ public class AccountController {
      * Should be called once during school setup.
      */
     @PostMapping("/seed")
-    @PreAuthorize("hasAnyAuthority('ROLE_ADMIN', 'ROLE_SUPER_ADMIN')")
+    @PreAuthorize("hasAnyAuthority('ROLE_ADMIN', 'ROLE_SCHOOL_ADMIN', 'ROLE_SUPER_ADMIN')")
     public ResponseEntity<String> seedCOA() {
         accountService.seedDefaultCOA(DEFAULT_SCHOOL_ID);
         return ResponseEntity.ok("Default Chart of Accounts seeded successfully.");
