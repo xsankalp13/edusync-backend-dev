@@ -89,23 +89,24 @@ class HrmsDashboardControllerSecurityTest {
     @Test
     @WithMockUser(roles = {"ADMIN"})
     void summaryAllowedForAdmin() throws Exception {
-        when(hrmsDashboardService.getSummary()).thenReturn(new HrmsDashboardSummaryDTO(
-                0,
-                0,
-                0,
-                BigDecimal.ZERO,
-                BigDecimal.ZERO,
-                0,
-                0,
-                0,
-                0,
-                0,
-                0,
-                0,
-                List.of(),
-                List.of(),
-                List.of()
-        ));
+        when(hrmsDashboardService.getSummary()).thenReturn(HrmsDashboardSummaryDTO.builder()
+                .totalActiveStaff(0)
+                .staffWithSalaryMapping(0)
+                .staffWithoutSalaryMapping(0)
+                .totalPayrollThisMonth(BigDecimal.ZERO)
+                .totalPayrollLastMonth(BigDecimal.ZERO)
+                .pendingLeaveApplications(0)
+                .todayPresent(0)
+                .todayAbsent(0)
+                .todayOnLeave(0)
+                .totalTeachingStaff(0)
+                .totalNonTeachingAdmin(0)
+                .totalNonTeachingSupport(0)
+                .gradeDistribution(List.of())
+                .payrollTrend(List.of())
+                .categoryAttendance(List.of())
+                .pendingApprovalRequests(0)
+                .build());
 
         mockMvc.perform(get("/api/v1/auth/hrms/dashboard/summary"))
                 .andExpect(status().isOk());

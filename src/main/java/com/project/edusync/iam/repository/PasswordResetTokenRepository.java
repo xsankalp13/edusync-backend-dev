@@ -7,10 +7,16 @@ import org.springframework.stereotype.Repository;
 
 import java.util.Optional;
 
+import java.time.Instant;
+
 @Repository
 public interface PasswordResetTokenRepository extends JpaRepository<PasswordResetToken, Long> {
 
     Optional<PasswordResetToken> findByToken(String token);
 
     void deleteByUser(User user);
+
+    Optional<PasswordResetToken> findFirstByUserAndExpiryDateAfterOrderByExpiryDateDesc(User user, Instant now);
+
+    long countByUserAndCreatedAtAfter(User user, Instant time);
 }

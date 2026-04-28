@@ -121,4 +121,51 @@ public interface LeaveApplicationRepository extends JpaRepository<LeaveApplicati
     );
 
     Optional<LeaveApplication> findByUuid(java.util.UUID uuid);
+
+    interface LeaveCountByDateProjection {
+        java.time.LocalDate getLeaveDate();
+        Long getOnLeaveCount();
+    }
+
+    /**
+     * Returns all approved leave applications that overlap with the given date range.
+     * The service layer aggregates per-day on-leave counts in-memory from the result.
+     * This is 1 query replacing N individual countDistinctStaffOnApprovedLeave calls.
+     * Returns (fromDate, toDate, staffId) rows for the service to expand.
+     */
+    @Query("""
+            SELECT la FROM LeaveApplication la
+            WHERE la.active = true
+              AND la.status = com.project.edusync.hrms.model.enums.LeaveApplicationStatus.APPROVED
+              AND la.fromDate <= :endDate
+              AND la.toDate >= :startDate
+            """)
+    java.util.List<LeaveApplication> findApprovedLeaveOverlappingRange(
+            @Param("startDate") java.time.LocalDate startDate,
+            @Param("endDate") java.time.LocalDate endDate
+    );
+
+    interface CategoryLeaveCountProjection {
+        com.project.edusync.uis.model.enums.StaffCategory getCategory();
+        Long getOnLeaveCount();
+    }
+
+    /**
+     * Returns (category, onLeaveCount) for active staff on approved leave on specific date.
+     * Replaces 3 individual per-category leave count queries in buildCategoryAttendance().
+     */
+    @Query("""
+            SELECT la.staff.category as category,
+                   COUNT(DISTINCT la.staff.id) as onLeaveCount
+            FROM LeaveApplication la
+            WHERE la.active = true
+              AND la.staff.isActive = true
+              AND la.status = com.project.edusync.hrms.model.enums.LeaveApplicationStatus.APPROVED
+              AND la.fromDate <= :date
+              AND la.toDate >= :date
+            GROUP BY la.staff.category
+            """)
+    List<CategoryLeaveCountProjection> countOnLeaveByDateGroupedByCategory(
+            @Param("date") java.time.LocalDate date
+    );
 }

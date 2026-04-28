@@ -3,6 +3,7 @@ package com.project.edusync.common.config;
 import com.project.edusync.adm.model.entity.AcademicClass;
 import com.project.edusync.adm.model.entity.Section;
 import com.project.edusync.adm.repository.AcademicClassRepository;
+import com.project.edusync.adm.repository.SectionRepository;
 import com.project.edusync.common.settings.model.entity.AppSetting;
 import com.project.edusync.common.settings.model.enums.SettingGroup;
 import com.project.edusync.common.settings.model.enums.SettingType;
@@ -28,6 +29,7 @@ import java.util.LinkedHashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Set;
 import java.util.stream.Collectors;
 
@@ -44,6 +46,7 @@ public class DataSeeder implements ApplicationRunner {
     private final RoleRepository roleRepository;
     private final PermissionRepository permissionRepository;
     private final AcademicClassRepository classRepository;
+    private final SectionRepository sectionRepository;
     private final AppSettingRepository appSettingRepository;
     private final AppSettingCryptoService appSettingCryptoService;
     private final UserRepository userRepository;
@@ -51,6 +54,7 @@ public class DataSeeder implements ApplicationRunner {
     private final Environment environment; // 1. Inject the Spring Environment
 
     private static final Map<String, List<String>> ROLE_PERMISSION_BLUEPRINT = buildRolePermissionBlueprint();
+    private static final Map<String, List<String>> CLASS_SECTION_BLUEPRINT = buildClassSectionBlueprint();
 
     @Override
     @Transactional
@@ -86,8 +90,10 @@ public class DataSeeder implements ApplicationRunner {
                 "ROLE_LIBRARIAN",
                 "ROLE_GUARDIAN",
                 "ROLE_ADMIN",
+                "ROLE_EXAM_CONTROLLER",
                 "ROLE_SUPER_ADMIN",
                 "ROLE_SCHOOL_ADMIN",
+                "ROLE_HR_ADMIN",
                 "ROLE_SECURITY_GUARD",
                 "ROLE_APPLICANT"
         );
@@ -261,6 +267,41 @@ public class DataSeeder implements ApplicationRunner {
                 "admission:payment:create"
         ));
 
+        blueprint.put("ROLE_HR_ADMIN", List.of(
+                "profile:read:own",
+                "profile:update:own",
+                "profile:read:all",
+                "dashboard:read:school",
+                "users:read:all",
+                "hrms:leave:manage",
+                "hrms:leave-template:manage",
+                "hrms:leave-balance:manage",
+                "hrms:leave:approve",
+                "hrms:attendance:manage",
+                "hrms:attendance:read:all",
+                "hrms:payroll:manage",
+                "hrms:payroll:run",
+                "hrms:salary:manage",
+                "hrms:salary:read:all",
+                "hrms:designation:manage",
+                "hrms:grade:manage",
+                "hrms:shift:manage",
+                "hrms:onboarding:manage",
+                "hrms:document:manage",
+                "hrms:loan:manage",
+                "hrms:overtime:manage",
+                "hrms:expense:manage",
+                "hrms:training:manage",
+                "hrms:appraisal:manage",
+                "hrms:promotion:manage",
+                "hrms:exit:manage",
+                "hrms:statutory:manage",
+                "hrms:bank:manage",
+                "hrms:proxy:manage",
+                "attendance:read:all",
+                "reports:read:school"
+        ));
+
         blueprint.put("ROLE_SCHOOL_ADMIN", List.of(
                 "profile:read:own",
                 "profile:update:own",
@@ -313,6 +354,16 @@ public class DataSeeder implements ApplicationRunner {
                 "admission:form:approve"
         ));
 
+        blueprint.put("ROLE_EXAM_CONTROLLER", List.of(
+                "profile:read:own",
+                "profile:update:own",
+                "exam:read:all",
+                "exam:manage:all",
+                "exam:attendance:manage",
+                "exam:seat-allocation:manage",
+                "exam:invigilation:manage"
+        ));
+
         blueprint.put("ROLE_SUPER_ADMIN", List.of(
                 "profile:read:all",
                 "profile:update:all",
@@ -348,51 +399,83 @@ public class DataSeeder implements ApplicationRunner {
     }
 
     private void seedClassesAndSections() {
-        // No .count() check needed.
-        log.info("Seeding foundational Academic Classes and Sections...");
+        log.info("Seeding foundational Academic Classes and Sections (idempotent)...");
 
-        // Use the helper to create classes and their sections in one go
-        createClassWithSections("Nursery", Arrays.asList("A", "B"));
-        createClassWithSections("LKG", Arrays.asList("A", "B"));
-        createClassWithSections("UKG", Arrays.asList("A", "B"));
-
-        List<String> standardSections = Arrays.asList("A", "B", "C");
-        for (int i = 1; i <= 12; i++) {
-            createClassWithSections("Class " + i, standardSections);
+        int classesCreated = 0;
+        int sectionsCreated = 0;
+        for (Map.Entry<String, List<String>> fixture : CLASS_SECTION_BLUEPRINT.entrySet()) {
+            SeedResult result = ensureClassWithSections(fixture.getKey(), fixture.getValue());
+            classesCreated += result.classesCreated();
+            sectionsCreated += result.sectionsCreated();
         }
 
-        log.info("Saved {} classes and their corresponding sections.", classRepository.count());
+        log.info(
+                "Class/section seeding complete. New classes: {}, new sections: {}, total classes: {}.",
+                classesCreated,
+                sectionsCreated,
+                classRepository.count()
+        );
     }
 
-    /**
-     * Helper method to create an AcademicClass and its child Sections.
-     * This leverages CascadeType.ALL on the 'sections' relationship
-     * in the AcademicClass entity.
-     */
-    private void createClassWithSections(String className, List<String> sectionNames) {
-        // 1. Create the parent (AcademicClass)
-        AcademicClass ac = new AcademicClass();
-        ac.setName(className);
-        ac.setIsActive(true);
+    private SeedResult ensureClassWithSections(String className, List<String> sectionNames) {
+        String normalizedClassName = normalizeRequired(className, "Class name");
 
-        // 2. Create the children (Sections) and link them to the parent
-        Set<Section> sections = new HashSet<>();
-        for (String sectionName : sectionNames) {
-            Section section = new Section();
-            section.setSectionName(sectionName);
-            section.setAcademicClass(ac); // Link child to parent
-            sections.add(section);
+        AcademicClass academicClass = classRepository.findByNameIgnoreCase(normalizedClassName).orElse(null);
+        int classesCreated = 0;
+        if (academicClass == null) {
+            AcademicClass created = new AcademicClass();
+            created.setName(normalizedClassName);
+            created.setIsActive(true);
+            academicClass = classRepository.save(created);
+            classesCreated = 1;
         }
 
-        // 3. Set the relationship on the parent side
-        ac.setSections(sections);
+        if (!Boolean.TRUE.equals(academicClass.getIsActive())) {
+            academicClass.setIsActive(true);
+            academicClass = classRepository.save(academicClass);
+        }
 
-        // 4. Save the parent.
-        // Because of @OneToMany(mappedBy = "academicClass", cascade = CascadeType.ALL...)
-        // saving the parent (AcademicClass) will automatically save all the
-        // linked Section entities in the same transaction.
-        classRepository.save(ac);
-        log.debug("Created class: {} with sections: {}", className, sectionNames);
+        Set<String> normalizedSections = Objects.requireNonNull(sectionNames, "Section list must not be null").stream()
+                .map(section -> normalizeRequired(section, "Section name"))
+                .collect(Collectors.toCollection(java.util.LinkedHashSet::new));
+
+        int sectionsCreated = 0;
+        for (String sectionName : normalizedSections) {
+            if (sectionRepository.findByAcademicClass_NameAndSectionName(normalizedClassName, sectionName).isPresent()) {
+                continue;
+            }
+
+            Section section = new Section();
+            section.setSectionName(sectionName);
+            section.setAcademicClass(academicClass);
+            section.setIsActive(true);
+            sectionRepository.save(section);
+            sectionsCreated++;
+        }
+
+        log.debug("Ensured class '{}' with sections {}.", normalizedClassName, normalizedSections);
+        return new SeedResult(classesCreated, sectionsCreated);
+    }
+
+    private String normalizeRequired(String value, String fieldName) {
+        String normalized = Objects.requireNonNull(value, fieldName + " must not be null").trim();
+        if (normalized.isEmpty()) {
+            throw new IllegalStateException(fieldName + " must not be blank in class/section seed blueprint.");
+        }
+        return normalized;
+    }
+
+    private static Map<String, List<String>> buildClassSectionBlueprint() {
+        Map<String, List<String>> blueprint = new LinkedHashMap<>();
+        blueprint.put("Nursery", List.of("A", "B"));
+        blueprint.put("LKG", List.of("A", "B"));
+        blueprint.put("UKG", List.of("A", "B"));
+
+        List<String> standardSections = List.of("A", "B", "C");
+        for (int i = 1; i <= 12; i++) {
+            blueprint.put("Class " + i, standardSections);
+        }
+        return blueprint;
     }
 
     private void seedAppSettings() {
@@ -551,6 +634,9 @@ public class DataSeeder implements ApplicationRunner {
                                String description,
                                boolean requiresRestart,
                                boolean sensitive) {
+    }
+
+    private record SeedResult(int classesCreated, int sectionsCreated) {
     }
 }
 

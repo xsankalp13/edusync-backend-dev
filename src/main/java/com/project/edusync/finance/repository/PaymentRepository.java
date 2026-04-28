@@ -59,4 +59,34 @@ public interface PaymentRepository extends JpaRepository<Payment, Long> {
               AND MONTH(p.paymentDate) = :month
             """)
     BigDecimal sumCollectedByYearMonth(@Param("year") int year, @Param("month") int month);
+
+    /**
+     * Projection for monthly collected payment totals.
+     */
+    interface MonthlyPaymentSumProjection {
+        Integer getPaymentYear();
+        Integer getPaymentMonth();
+        java.math.BigDecimal getCollectedTotal();
+    }
+
+    /**
+     * Returns (paymentYear, paymentMonth, collectedTotal) for each month in range.
+     * Replaces 6 individual sumCollectedByYearMonth calls in MasterDashboardAnalyticsServiceImpl.
+     * 1 query instead of 6.
+     */
+    @Query("""
+            SELECT YEAR(p.paymentDate) as paymentYear,
+                   MONTH(p.paymentDate) as paymentMonth,
+                   COALESCE(SUM(p.amountPaid), 0) as collectedTotal
+            FROM Payment p
+            WHERE p.status = 'SUCCESS'
+              AND p.paymentDate >= :startDate
+              AND p.paymentDate <= :endDate
+            GROUP BY YEAR(p.paymentDate), MONTH(p.paymentDate)
+            ORDER BY YEAR(p.paymentDate), MONTH(p.paymentDate)
+            """)
+    java.util.List<MonthlyPaymentSumProjection> sumCollectedGroupedByMonth(
+            @Param("startDate") java.time.LocalDateTime startDate,
+            @Param("endDate") java.time.LocalDateTime endDate
+    );
 }

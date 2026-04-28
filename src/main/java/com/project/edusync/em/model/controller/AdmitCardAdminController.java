@@ -19,12 +19,13 @@ import java.util.UUID;
 @RestController
 @RequestMapping("/api/v1/admin/admit-cards")
 @RequiredArgsConstructor
-@PreAuthorize("hasAnyRole('ADMIN','SCHOOL_ADMIN','SUPER_ADMIN')")
+@PreAuthorize("hasAnyRole('ADMIN','SCHOOL_ADMIN','SUPER_ADMIN','EXAM_CONTROLLER')")
 public class AdmitCardAdminController {
 
     private final AdmitCardService admitCardService;
 
     @PostMapping("/generate")
+    @PreAuthorize("@examControllerAccess.canAccessExamUuid(#requestDTO.examId)")
     public ResponseEntity<AdmitCardGenerationResponseDTO> generate(@Valid @RequestBody AdmitCardGenerateRequestDTO requestDTO) {
         if (requestDTO.getScheduleId() != null) {
             return ResponseEntity.ok(admitCardService.generateAdmitCardsForSchedule(requestDTO.getExamId(), requestDTO.getScheduleId()));
@@ -33,6 +34,7 @@ public class AdmitCardAdminController {
     }
 
     @PostMapping("/generate/schedule/{scheduleId}")
+    @PreAuthorize("@examControllerAccess.canAccessSchedule(#scheduleId)")
     public ResponseEntity<AdmitCardGenerationResponseDTO> generateForSchedule(
             @Valid @RequestBody AdmitCardGenerateRequestDTO requestDTO,
             @PathVariable Long scheduleId) {
@@ -40,6 +42,7 @@ public class AdmitCardAdminController {
     }
 
     @PostMapping("/generate-batch")
+    @PreAuthorize("@examControllerAccess.canAccessExamUuid(#requestDTO.examId)")
     public ResponseEntity<byte[]> generateBatch(@Valid @RequestBody AdmitCardGenerateRequestDTO requestDTO) {
         byte[] pdf = admitCardService.generateBatchAdmitCardsPdf(requestDTO.getExamId(), requestDTO.getScheduleId());
         return ResponseEntity.ok()
@@ -50,11 +53,13 @@ public class AdmitCardAdminController {
     }
 
     @GetMapping("/status/{examUuid}")
+    @PreAuthorize("@examControllerAccess.canAccessExamUuid(#examUuid)")
     public ResponseEntity<List<ScheduleAdmitCardStatusDTO>> getStatus(@PathVariable UUID examUuid) {
         return ResponseEntity.ok(admitCardService.getAdmitCardStatusByExam(examUuid));
     }
 
     @GetMapping("/status/{examUuid}/progress")
+    @PreAuthorize("@examControllerAccess.canAccessExamUuid(#examUuid)")
     public ResponseEntity<AdmitCardGenerationProgressDTO> getProgress(@PathVariable UUID examUuid) {
         return ResponseEntity.ok(admitCardService.getGenerationProgress(examUuid));
     }

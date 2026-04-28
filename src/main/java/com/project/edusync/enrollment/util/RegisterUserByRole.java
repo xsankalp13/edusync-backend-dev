@@ -247,54 +247,91 @@ public class RegisterUserByRole {
         staff.setStaffType(staffType);
         staff.setCategory(staffCategory);
 
-        StaffDesignation designation = staffDesignationRepository.findByDesignationCodeIgnoreCase(designationCode)
-                .orElseThrow(() -> new RuntimeException("Designation not found for code: " + designationCode));
-        staff.setDesignation(designation);
-        staff.setJobTitle(designation.getDesignationName());
+        // ── Designation (optional) ────────────────────────────────────────────
+        // If designationCode is provided, look it up and apply it together with its
+        // default salary template and grade. If it is blank/null the staff member is
+        // saved without a designation; an admin can assign one later via
+        // POST /hrms/designations/{id}/assign-staff
+        if (designationCode != null && !designationCode.isBlank()) {
+            StaffDesignation designation = staffDesignationRepository.findByDesignationCodeIgnoreCase(designationCode)
+                    .orElseThrow(() -> new RuntimeException("Designation not found for code: " + designationCode));
+            staff.setDesignation(designation);
+            staff.setJobTitle(designation.getDesignationName());
 
-        staff.setActive(true);
-        staff.setUserProfile(userProfile);
+            staff.setActive(true);
+            staff.setUserProfile(userProfile);
 
-        log.info("Attempting to create base Staff record for: {}", email);
-        Staff savedStaff = staffRepository.save(staff);
-        log.info("Successfully created base Staff with ID: {}", savedStaff.getId());
+            log.info("Attempting to create base Staff record for: {}", email);
+            Staff savedStaff = staffRepository.save(staff);
+            log.info("Successfully created base Staff with ID: {}", savedStaff.getId());
 
-        if (designation.getDefaultSalaryTemplate() == null) {
-            throw new RuntimeException("Designation " + designationCode + " has no default salary template. Cannot proceed with staff creation.");
-        }
+            if (designation.getDefaultSalaryTemplate() == null) {
+                throw new RuntimeException("Designation " + designationCode
+                        + " has no default salary template. Cannot proceed with staff creation.");
+            }
 
-        com.project.edusync.hrms.model.entity.StaffSalaryMapping ssm = new com.project.edusync.hrms.model.entity.StaffSalaryMapping();
-        ssm.setStaff(savedStaff);
-        ssm.setTemplate(designation.getDefaultSalaryTemplate());
-        ssm.setEffectiveFrom(joiningDate);
-        ssm.setActive(true);
-        staffSalaryMappingRepository.save(ssm);
+            com.project.edusync.hrms.model.entity.StaffSalaryMapping ssm = new com.project.edusync.hrms.model.entity.StaffSalaryMapping();
+            ssm.setStaff(savedStaff);
+            ssm.setTemplate(designation.getDefaultSalaryTemplate());
+            ssm.setEffectiveFrom(joiningDate);
+            ssm.setActive(true);
+            staffSalaryMappingRepository.save(ssm);
 
-        if (designation.getDefaultGrade() != null) {
-            com.project.edusync.hrms.model.entity.StaffGradeAssignment sga = new com.project.edusync.hrms.model.entity.StaffGradeAssignment();
-            sga.setStaff(savedStaff);
-            sga.setGrade(designation.getDefaultGrade());
-            sga.setEffectiveFrom(joiningDate);
-            sga.setActive(true);
-            staffGradeAssignmentRepository.save(sga);
-        }
+            if (designation.getDefaultGrade() != null) {
+                com.project.edusync.hrms.model.entity.StaffGradeAssignment sga = new com.project.edusync.hrms.model.entity.StaffGradeAssignment();
+                sga.setStaff(savedStaff);
+                sga.setGrade(designation.getDefaultGrade());
+                sga.setEffectiveFrom(joiningDate);
+                sga.setActive(true);
+                staffGradeAssignmentRepository.save(sga);
+            }
 
-        // --- Create Staff Details based on StaffType ---
-        // Any exception thrown here (e.g., from validationHelper)
-        // will bubble up, fail the transaction, and be caught by the service.
-        switch (staffType) {
-            case TEACHER:
-                registerTeacherDetails(savedStaff, row);
-                break;
-            case LIBRARIAN:
-                registerLibrarianDetails(savedStaff, row);
-                break;
-            case PRINCIPAL:
-                registerPrincipalDetails(savedStaff, row);
-                break;
-            // TODO: Add cases for SECURITY_GUARD, ADMIN_STAFF, etc.
-            default:
-                log.warn("No specific details table configured for StaffType: {}", staffType);
+            // --- Create Staff Details based on StaffType ---
+            switch (staffType) {
+                case TEACHER:
+                    registerTeacherDetails(savedStaff, row);
+                    break;
+                case LIBRARIAN:
+                    registerLibrarianDetails(savedStaff, row);
+                    break;
+                case PRINCIPAL:
+                    registerPrincipalDetails(savedStaff, row);
+                    break;
+                default:
+                    log.warn("No specific details table configured for StaffType: {}", staffType);
+            }
+        } else {
+            // No designation provided — save staff without it.
+            // Salary mapping and grade assignment will need to be done manually.
+            log.info("[RegisterStaff] No designationCode provided for employeeId='{}'; "
+                    + "skipping designation/salary/grade auto-assignment.", employeeId);
+
+            // Give them a default job title derived from their staffType so NOT NULL constraint is satisfied
+            String defaultTitle = java.util.Arrays.stream(staffType.name().split("_"))
+                    .map(word -> word.substring(0, 1).toUpperCase() + word.substring(1).toLowerCase())
+                    .collect(java.util.stream.Collectors.joining(" "));
+            staff.setJobTitle(defaultTitle);
+
+            staff.setActive(true);
+            staff.setUserProfile(userProfile);
+
+            Staff savedStaff = staffRepository.save(staff);
+            log.info("Successfully created base Staff (no designation) with ID: {}", savedStaff.getId());
+
+            // Still create role-specific details
+            switch (staffType) {
+                case TEACHER:
+                    registerTeacherDetails(savedStaff, row);
+                    break;
+                case LIBRARIAN:
+                    registerLibrarianDetails(savedStaff, row);
+                    break;
+                case PRINCIPAL:
+                    registerPrincipalDetails(savedStaff, row);
+                    break;
+                default:
+                    log.warn("No specific details table configured for StaffType: {}", staffType);
+            }
         }
 
         log.info("Successfully created staff and details for: {}", email);

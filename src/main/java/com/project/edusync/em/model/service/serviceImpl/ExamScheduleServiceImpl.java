@@ -121,7 +121,7 @@ public class ExamScheduleServiceImpl implements ExamScheduleService {
         if (!examScheduleRepository.existsById(scheduleId)) {
             throw new EdusyncException("EM-404", "Exam Schedule not found", HttpStatus.NOT_FOUND);
         }
-        
+
         // Cascade delete explicit relationships
         sittingPlanRepository.deleteAllInBatch(sittingPlanRepository.findByExamScheduleId(scheduleId));
         invigilationRepository.deleteAllInBatch(invigilationRepository.findByExamScheduleId(scheduleId));
@@ -240,6 +240,9 @@ public class ExamScheduleServiceImpl implements ExamScheduleService {
         entity.setTimeslot(timeslot);
 
         entity.setExamDate(dto.getExamDate());
+
+        validateNoDuplicateSchedule(entity);
+
         entity.setDuration(dto.getDuration());
         if (dto.getMaxMarks() != null && dto.getMaxMarks().intValue() != snapshot.getTotalMarks()) {
             throw new EdusyncException("EM-400", "maxMarks must match selected template totalMarks", HttpStatus.BAD_REQUEST);
@@ -252,6 +255,34 @@ public class ExamScheduleServiceImpl implements ExamScheduleService {
                 ? studentRepository.countBySection_IdAndIsActiveTrue(entity.getSection().getId())
                 : studentRepository.countBySection_AcademicClass_IdAndIsActiveTrue(entity.getAcademicClass().getId());
         entity.setActiveStudentCount(Math.toIntExact(activeStudents));
+    }
+
+    private void validateNoDuplicateSchedule(ExamSchedule entity) {
+        Long examId = entity.getExam() != null ? entity.getExam().getId() : null;
+        Long classId = entity.getAcademicClass() != null ? entity.getAcademicClass().getId() : null;
+        Long sectionId = entity.getSection() != null ? entity.getSection().getId() : null;
+        Long subjectId = entity.getSubject() != null ? entity.getSubject().getId() : null;
+        Long timeslotId = entity.getTimeslot() != null ? entity.getTimeslot().getId() : null;
+
+        if (examId == null || classId == null || subjectId == null || timeslotId == null || entity.getExamDate() == null) {
+            throw new EdusyncException("EM-400", "Incomplete schedule data for duplicate validation", HttpStatus.BAD_REQUEST);
+        }
+
+        boolean duplicate = examScheduleRepository.existsDuplicateSchedule(
+                examId,
+                classId,
+                sectionId,
+                subjectId,
+                entity.getExamDate(),
+                timeslotId,
+                entity.getId());
+
+        if (duplicate) {
+            throw new EdusyncException(
+                    "EM-409",
+                    "Duplicate schedule is not allowed for the same exam, class/section, subject, date, and time",
+                    HttpStatus.CONFLICT);
+        }
     }
 
     private ExamScheduleResponseDTO mapEntityToResponse(ExamSchedule entity) {

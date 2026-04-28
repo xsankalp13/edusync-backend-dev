@@ -20,6 +20,7 @@ import com.project.edusync.enrollment.model.dto.BulkImportReportDTO;
 import com.project.edusync.enrollment.model.dto.BulkRoomImportReportDTO;
 import com.project.edusync.enrollment.service.BulkImportService;
 import com.project.edusync.enrollment.service.SseEmitterRegistry;
+import com.project.edusync.enrollment.util.BulkImportErrorSanitizer;
 import com.project.edusync.enrollment.util.CsvValidationHelper;
 import com.project.edusync.enrollment.util.RegisterUserByRole;
 import com.project.edusync.em.model.service.SeatAllocationService;
@@ -100,7 +101,9 @@ public class BulkImportServiceImpl implements BulkImportService {
     private static final List<String> STAFF_HEADER = Arrays.asList(
             // Common Staff (0-11)
             "firstName", "lastName", "middleName", "email", "dateOfBirth",
-            "gender", "employeeId", "joiningDate", "designationCode", "department", "staffType", "staffCategory",
+            "gender", "employeeId", "joiningDate",
+            "designationCode", // col 8 — optional; leave blank if designation is set separately via bulk-assign API
+            "department", "staffType", "staffCategory",
             // Teacher (12-16)
             "certifications", "specializations", "yearsOfExperience", "educationLevel", "stateLicenseNumber",
             // Principal (17-18)
@@ -187,6 +190,10 @@ public class BulkImportServiceImpl implements BulkImportService {
         report.setStatus("PROCESSING");
         int rowNumber = 1, successCount = 0, failureCount = 0;
 
+        Set<String> seenEmails = new HashSet<>();
+        Set<String> seenEmployeeIds = new HashSet<>();
+        Set<String> seenEnrollmentNumbers = new HashSet<>();
+
         try (Reader reader = new InputStreamReader(file.getInputStream());
                 CSVReader csvReader = new CSVReader(reader)) {
 
@@ -226,8 +233,24 @@ public class BulkImportServiceImpl implements BulkImportService {
                 try {
                     StudentRowProcessingResult studentResult = null;
                     if (USER_TYPE_STUDENTS.equalsIgnoreCase(userType)) {
+                        String enrollmentNumber = (row.length > 7 && row[7] != null) ? row[7].trim() : "";
+                        String email = (row.length > 3 && row[3] != null) ? row[3].trim().toLowerCase() : "";
+                        if (!enrollmentNumber.isEmpty() && !seenEnrollmentNumbers.add(enrollmentNumber)) {
+                            throw new ResourceDuplicateException("Duplicate enrollmentNumber '" + enrollmentNumber + "' found within this file.");
+                        }
+                        if (!email.isEmpty() && !seenEmails.add(email)) {
+                            throw new ResourceDuplicateException("Duplicate email '" + email + "' found within this file.");
+                        }
                         studentResult = processStudentRow(row, roleCache, sectionCache, Collections.emptyList());
                     } else if (USER_TYPE_STAFF.equalsIgnoreCase(userType)) {
+                        String email = (row.length > 3 && row[3] != null) ? row[3].trim().toLowerCase() : "";
+                        String employeeId = (row.length > 6 && row[6] != null) ? row[6].trim() : "";
+                        if (!email.isEmpty() && !seenEmails.add(email)) {
+                            throw new ResourceDuplicateException("Duplicate email '" + email + "' found within this file.");
+                        }
+                        if (!employeeId.isEmpty() && !seenEmployeeIds.add(employeeId)) {
+                            throw new ResourceDuplicateException("Duplicate employeeId '" + employeeId + "' found within this file.");
+                        }
                         routeStaffRowProcessing(row, roleCache);
                     }
                     successCount++;
@@ -249,10 +272,10 @@ public class BulkImportServiceImpl implements BulkImportService {
 
                 } catch (Exception e) {
                     failureCount++;
-                    String errorMessage = e.getMessage();
+                    String errorMessage = BulkImportErrorSanitizer.sanitize(e);
                     String error = String.format("Row %d: %s", rowNumber, errorMessage);
                     report.getErrorMessages().add(error);
-                    log.warn("Failed to process row {}: {}", rowNumber, errorMessage);
+                    log.warn("Failed to process row {}: {}", rowNumber, e.getMessage(), e);
 
                     // ── Emit ROW_FAILURE ──────────────────────────────────────────
                     emitEvent(sessionId, BulkImportProgressEvent.builder()
@@ -465,9 +488,9 @@ public class BulkImportServiceImpl implements BulkImportService {
                             rowNumber - 1, enrollmentNumber, successCount, failureCount);
                 } catch (Exception e) {
                     failureCount++;
-                    String errorMessage = e.getMessage();
+                    String errorMessage = BulkImportErrorSanitizer.sanitize(e);
                     report.getErrorMessages().add(String.format("Row %d: %s", rowNumber, errorMessage));
-                    log.warn("[StudentsWithGuardians] Row={} failed. Reason: {}", rowNumber - 1, errorMessage);
+                    log.warn("[StudentsWithGuardians] Row={} failed. Reason: {}", rowNumber - 1, e.getMessage(), e);
 
                     emitEvent(sessionId, BulkImportProgressEvent.builder()
                             .rowNumber(rowNumber - 1)
@@ -514,11 +537,11 @@ public class BulkImportServiceImpl implements BulkImportService {
                                 identifier);
                     } catch (Exception e) {
                         failureCount++;
-                        String errorMessage = e.getMessage();
+                        String errorMessage = BulkImportErrorSanitizer.sanitize(e);
                         report.getErrorMessages().add(String.format("Student '%s': %s", identifier, errorMessage));
                         log.warn(
                                 "[StudentsWithGuardians] Failed to link guardians for existing student='{}'. Reason: {}",
-                                identifier, errorMessage);
+                                identifier, e.getMessage(), e);
                         emitEvent(sessionId, BulkImportProgressEvent.builder()
                                 .rowNumber(rowNumber - 1)
                                 .eventType("ROW_FAILURE")
@@ -1100,7 +1123,8 @@ public class BulkImportServiceImpl implements BulkImportService {
         Gender gender = validationHelper.parseEnum(Gender.class, row[5], "gender");
         String employeeId = validationHelper.validateString(row[6], "employeeId");
         LocalDate joiningDate = validationHelper.parseDate(row[7], "joiningDate");
-        String designationCode = validationHelper.validateString(row[8], "designationCode");
+        // designationCode is optional — leave blank if admin will assign via bulk-assign API later
+        String designationCode = (row[8] != null && !row[8].isBlank()) ? row[8].trim() : null;
         Department department = validationHelper.parseEnum(Department.class, row[9], "department");
         StaffCategory staffCategory = validationHelper.parseEnum(StaffCategory.class, row[11], "staffCategory");
 
@@ -1144,7 +1168,8 @@ public class BulkImportServiceImpl implements BulkImportService {
         Gender gender = validationHelper.parseEnum(Gender.class, row[5], "gender");
         String employeeId = validationHelper.validateString(row[6], "employeeId");
         LocalDate joiningDate = validationHelper.parseDate(row[7], "joiningDate");
-        String designationCode = validationHelper.validateString(row[8], "designationCode");
+        // designationCode is optional
+        String designationCode = (row[8] != null && !row[8].isBlank()) ? row[8].trim() : null;
         Department department = validationHelper.parseEnum(Department.class, row[9], "department");
         StaffCategory staffCategory = validationHelper.parseEnum(StaffCategory.class, row[11], "staffCategory");
 
@@ -1185,7 +1210,8 @@ public class BulkImportServiceImpl implements BulkImportService {
         Gender gender = validationHelper.parseEnum(Gender.class, row[5], "gender");
         String employeeId = validationHelper.validateString(row[6], "employeeId");
         LocalDate joiningDate = validationHelper.parseDate(row[7], "joiningDate");
-        String designationCode = validationHelper.validateString(row[8], "designationCode");
+        // designationCode is optional
+        String designationCode = (row[8] != null && !row[8].isBlank()) ? row[8].trim() : null;
         Department department = validationHelper.parseEnum(Department.class, row[9], "department");
         StaffCategory staffCategory = validationHelper.parseEnum(StaffCategory.class, row[11], "staffCategory");
 

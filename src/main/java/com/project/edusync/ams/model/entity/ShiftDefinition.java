@@ -29,6 +29,14 @@ public class ShiftDefinition extends AuditableEntity {
     @Column(name = "grace_minutes", nullable = false)
     private Integer graceMinutes = 0;
 
+    /**
+     * Maximum minutes late before a clock-in triggers "Half Day" status.
+     * If null, the system defaults to half of the total shift duration.
+     * Example: 120 means > 120 minutes late = Half Day; <= 120 = Late (flagged for review).
+     */
+    @Column(name = "max_late_threshold_minutes")
+    private Integer maxLateThresholdMinutes;
+
     @Column(name = "applicable_days", nullable = false, columnDefinition = "TEXT")
     private String applicableDays;
 

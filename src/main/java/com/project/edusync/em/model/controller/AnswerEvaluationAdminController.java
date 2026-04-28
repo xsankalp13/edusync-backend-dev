@@ -16,12 +16,13 @@ import java.util.UUID;
 @RestController
 @RequestMapping("${api.url}/auth/examination/evaluation")
 @RequiredArgsConstructor
-@PreAuthorize("hasAnyAuthority('ROLE_ADMIN','ROLE_SCHOOL_ADMIN','ROLE_SUPER_ADMIN')")
+@PreAuthorize("hasAnyAuthority('ROLE_ADMIN','ROLE_SCHOOL_ADMIN','ROLE_SUPER_ADMIN','ROLE_EXAM_CONTROLLER')")
 public class AnswerEvaluationAdminController {
 
     private final AnswerEvaluationService answerEvaluationService;
 
     @PostMapping("/assign")
+    @PreAuthorize("@examControllerAccess.canAccessSchedule(#requestDTO.examScheduleId)")
     public ResponseEntity<EvaluationAssignmentResponseDTO> assignTeacher(
             @Valid @RequestBody EvaluationAssignmentCreateRequestDTO requestDTO) {
         return new ResponseEntity<>(answerEvaluationService.assignTeacher(requestDTO), HttpStatus.CREATED);
@@ -34,6 +35,7 @@ public class AnswerEvaluationAdminController {
     }
 
     @DeleteMapping("/assignments/{assignmentId}")
+    @PreAuthorize("@examControllerAccess.canAccessEvaluationAssignment(#assignmentId)")
     public ResponseEntity<Void> deleteAssignment(@PathVariable Long assignmentId) {
         answerEvaluationService.deleteAssignment(assignmentId);
         return ResponseEntity.noContent().build();

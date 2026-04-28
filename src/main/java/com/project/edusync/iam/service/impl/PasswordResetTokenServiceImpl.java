@@ -2,6 +2,7 @@
 package com.project.edusync.iam.service.impl;
 
 import com.project.edusync.common.exception.iam.InvalidTokenException;
+import com.project.edusync.common.exception.iam.RateLimitExceededException;
 import com.project.edusync.iam.model.entity.PasswordResetToken;
 import com.project.edusync.iam.model.entity.User;
 import com.project.edusync.iam.repository.PasswordResetTokenRepository;
@@ -12,6 +13,8 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.Instant;
+import java.time.temporal.ChronoUnit;
+import java.util.Optional;
 import java.util.UUID;
 
 @Service
@@ -28,14 +31,33 @@ public class PasswordResetTokenServiceImpl implements PasswordResetTokenService 
     @Override
     @Transactional
     public PasswordResetToken createResetToken(User user) {
-        // Clean up any existing tokens for this user
+        Instant now = Instant.now();
+
+        // 1. Rate Limiting Check: max 3 requests per hour
+        Instant oneHourAgo = now.minus(1, ChronoUnit.HOURS);
+        long recentTokenCount = passwordResetTokenRepository.countByUserAndCreatedAtAfter(user, oneHourAgo);
+        
+        if (recentTokenCount >= 3) {
+            throw new RateLimitExceededException("Too many password reset requests. Please try again later.");
+        }
+
+        // 2. Token Reuse: return existing valid token if present
+        Optional<PasswordResetToken> existingValidToken = passwordResetTokenRepository
+                .findFirstByUserAndExpiryDateAfterOrderByExpiryDateDesc(user, now);
+
+        if (existingValidToken.isPresent()) {
+            return existingValidToken.get();
+        }
+
+        // 3. Create a new token (cleanup old tokens first)
         passwordResetTokenRepository.deleteByUser(user);
 
         String tokenString = UUID.randomUUID().toString();
         PasswordResetToken resetToken = PasswordResetToken.builder()
                 .user(user)
                 .token(tokenString)
-                .expiryDate(Instant.now().plusMillis(resetExpirationTimeMs))
+                .expiryDate(now.plusMillis(resetExpirationTimeMs))
+                .createdAt(now)
                 .build();
 
         return passwordResetTokenRepository.save(resetToken);

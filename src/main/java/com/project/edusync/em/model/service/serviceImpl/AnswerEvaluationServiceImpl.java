@@ -69,6 +69,9 @@ import java.util.stream.Collectors;
 @Transactional
 public class AnswerEvaluationServiceImpl implements AnswerEvaluationService {
 
+    private static final Set<String> ADMIN_ROLES = Set.of("ROLE_ADMIN", "ROLE_SUPER_ADMIN", "ROLE_SCHOOL_ADMIN");
+    private static final String EXAM_CONTROLLER_ROLE = "ROLE_EXAM_CONTROLLER";
+
     private static final long PDF_MAX_SIZE_BYTES = 10L * 1024 * 1024;
     private static final long IMAGE_MAX_SIZE_BYTES_DEFAULT = 5L * 1024 * 1024;
     private static final String PDF_MAGIC = "%PDF-";
@@ -76,12 +79,14 @@ public class AnswerEvaluationServiceImpl implements AnswerEvaluationService {
     private static final Set<String> ALLOWED_METADATA_KEYS = Set.of("color", "strokeWidth", "path");
 
     private final EvaluationAssignmentRepository assignmentRepository;
+    private final ExamControllerAssignmentRepository controllerAssignmentRepository;
     private final AnswerSheetRepository answerSheetRepository;
     private final EvaluationResultRepository evaluationResultRepository;
     private final QuestionMarkRepository questionMarkRepository;
     private final AnswerSheetAnnotationRepository annotationRepository;
     private final AnswerSheetImageRepository answerSheetImageRepository;
     private final ExamScheduleRepository examScheduleRepository;
+    private final ExamAttendanceRepository examAttendanceRepository;
     private final StudentRepository studentRepository;
     private final StaffRepository staffRepository;
     private final StudentExamStatusRepository studentExamStatusRepository;
@@ -187,13 +192,21 @@ public class AnswerEvaluationServiceImpl implements AnswerEvaluationService {
     @Transactional(readOnly = true)
     public List<EvaluationAssignmentResponseDTO> getAssignmentsForAdmin(UUID teacherIdFilter) {
         requireAdmin();
+        User currentUser = authUtil.getCurrentUser();
         Long teacherId = null;
         if (teacherIdFilter != null) {
             teacherId = staffRepository.findByUuid(teacherIdFilter)
                     .orElseThrow(() -> new EdusyncException("EVAL-404", "Teacher not found", HttpStatus.NOT_FOUND))
                     .getId();
         }
-        return assignmentRepository.findAllWithSchedule(teacherId).stream()
+        List<EvaluationAssignment> assignments = assignmentRepository.findAllWithSchedule(teacherId);
+        if (hasExamControllerRole(currentUser) && !hasAdminPrivileges(currentUser)) {
+            Set<Long> accessibleExamIds = resolveAccessibleExamIds(currentUser);
+            assignments = assignments.stream()
+                    .filter(assignment -> accessibleExamIds.contains(assignment.getExamSchedule().getExam().getId()))
+                    .collect(Collectors.toList());
+        }
+        return assignments.stream()
                 .map(this::toAssignmentResponse)
                 .collect(Collectors.toList());
     }
@@ -223,8 +236,19 @@ public class AnswerEvaluationServiceImpl implements AnswerEvaluationService {
         Map<Long, AnswerSheet> answerSheetByStudentId = answerSheetRepository.findByExamScheduleId(scheduleId).stream()
                 .collect(Collectors.toMap(a -> a.getStudent().getId(), a -> a, (a, b) -> a));
 
+        Map<Long, Boolean> malpracticeByStudentId = examAttendanceRepository
+                .findByExamScheduleIdAndStudentIds(scheduleId, students.stream().map(Student::getId).toList())
+                .stream()
+                .collect(Collectors.toMap(
+                        a -> a.getStudent().getId(),
+                        a -> a.isMalpracticeReported() || a.getStatus() == com.project.edusync.em.model.enums.ExamAttendanceStatus.MALPRACTICE,
+                        (a, b) -> a));
+
         return students.stream()
-                .map(student -> toTeacherEvaluationStudentResponse(student, answerSheetByStudentId.get(student.getId())))
+                .map(student -> toTeacherEvaluationStudentResponse(
+                        student,
+                        answerSheetByStudentId.get(student.getId()),
+                        malpracticeByStudentId.getOrDefault(student.getId(), false)))
                 .collect(Collectors.toList());
     }
 
@@ -246,8 +270,19 @@ public class AnswerEvaluationServiceImpl implements AnswerEvaluationService {
         Map<Long, AnswerSheet> answerSheetByStudentId = answerSheetRepository.findByExamScheduleId(scheduleId).stream()
                 .collect(Collectors.toMap(a -> a.getStudent().getId(), a -> a, (a, b) -> a));
 
+        Map<Long, Boolean> malpracticeByStudentId = examAttendanceRepository
+                .findByExamScheduleIdAndStudentIds(scheduleId, students.getContent().stream().map(Student::getId).toList())
+                .stream()
+                .collect(Collectors.toMap(
+                        a -> a.getStudent().getId(),
+                        a -> a.isMalpracticeReported() || a.getStatus() == com.project.edusync.em.model.enums.ExamAttendanceStatus.MALPRACTICE,
+                        (a, b) -> a));
+
         List<TeacherEvaluationStudentResponseDTO> content = students.getContent().stream()
-                .map(student -> toTeacherEvaluationStudentResponse(student, answerSheetByStudentId.get(student.getId())))
+                .map(student -> toTeacherEvaluationStudentResponse(
+                        student,
+                        answerSheetByStudentId.get(student.getId()),
+                        malpracticeByStudentId.getOrDefault(student.getId(), false)))
                 .collect(Collectors.toList());
 
         return new PageImpl<>(content, pageable, students.getTotalElements());
@@ -277,18 +312,18 @@ public class AnswerEvaluationServiceImpl implements AnswerEvaluationService {
         try {
             MediaUploadProperties.Cloudinary cfg = mediaUploadProperties.getCloudinary();
             String folder = cfg.getFolder() != null ? cfg.getFolder() : "answer-sheets";
-            
+
             String originalName = file.getOriginalFilename();
-            String nameWithoutExtension = originalName != null && originalName.contains(".") 
-                ? originalName.substring(0, originalName.lastIndexOf('.')) 
+            String nameWithoutExtension = originalName != null && originalName.contains(".")
+                ? originalName.substring(0, originalName.lastIndexOf('.'))
                 : (originalName != null ? originalName : "file");
 
             String publicId = folder + "/" + UUID.randomUUID() + "_" + nameWithoutExtension;
-            
+
             var uploadResult = cloudinary.uploader().upload(file.getBytes(), ObjectUtils.asMap(
                     "public_id", publicId,
                     "resource_type", "raw",
-                    "flags", "attachment" 
+                    "flags", "attachment"
             ));
             fileUrl = (String) uploadResult.get("secure_url");
         } catch (Exception e) {
@@ -692,9 +727,16 @@ public class AnswerEvaluationServiceImpl implements AnswerEvaluationService {
     @Transactional(readOnly = true)
     public List<AdminResultReviewResponseDTO> getResultsForAdmin(EvaluationResultStatus status) {
         requireAdmin();
+        User currentUser = authUtil.getCurrentUser();
         List<EvaluationResult> results = status == null
                 ? evaluationResultRepository.findAllWithContext()
                 : evaluationResultRepository.findAllByStatusWithContext(status);
+        if (hasExamControllerRole(currentUser) && !hasAdminPrivileges(currentUser)) {
+            Set<Long> accessibleExamIds = resolveAccessibleExamIds(currentUser);
+            results = results.stream()
+                    .filter(result -> accessibleExamIds.contains(result.getAnswerSheet().getExamSchedule().getExam().getId()))
+                    .collect(Collectors.toList());
+        }
         return results.stream().map(this::toAdminResultResponse).collect(Collectors.toList());
     }
 
@@ -783,7 +825,7 @@ public class AnswerEvaluationServiceImpl implements AnswerEvaluationService {
     public int publishResultsBulk(List<Long> resultIds) {
         requireAdmin();
         if (resultIds == null || resultIds.isEmpty()) return 0;
-        
+
         List<EvaluationResult> results = evaluationResultRepository.findAllByIdInAndStatusWithContext(resultIds, EvaluationResultStatus.APPROVED);
         if (results.isEmpty()) return 0;
 
@@ -821,18 +863,18 @@ public class AnswerEvaluationServiceImpl implements AnswerEvaluationService {
     @Transactional(readOnly = true)
     public ClassResultSummaryResponseDTO getClassResultSummary(UUID classId, UUID examId) {
         requireAdmin();
-        
+
         List<ExamSchedule> allSchedules = examScheduleRepository.findByExamUuid(examId);
         List<ExamSchedule> classSchedules = allSchedules.stream()
             .filter(es -> es.getAcademicClass().getUuid().equals(classId))
             .collect(Collectors.toList());
-            
+
         if (classSchedules.isEmpty()) {
             throw new EdusyncException("EVAL-404", "No schedules found for class and exam", HttpStatus.NOT_FOUND);
         }
-        
+
         Long internalExamId = classSchedules.get(0).getExam().getId();
-        
+
         List<Object[]> counts = examScheduleRepository.countActiveStudentsPerSchedule(internalExamId);
         long totalStudents = 0;
         List<Long> classScheduleIds = classSchedules.stream().map(ExamSchedule::getId).collect(Collectors.toList());
@@ -842,21 +884,21 @@ public class AnswerEvaluationServiceImpl implements AnswerEvaluationService {
                 totalStudents += ((Number) row[1]).longValue();
             }
         }
-        
+
         long absentStudents = studentExamStatusRepository.countAbsentStudentsByClassAndExam(classId, examId);
-        
+
         List<EvaluationResult> results = evaluationResultRepository.findAllWithContext().stream()
              .filter(r -> classScheduleIds.contains(r.getAnswerSheet().getExamSchedule().getId()))
              .collect(Collectors.toList());
-             
+
         long evaluatedStudents = results.stream()
-            .filter(r -> r.getStatus() == EvaluationResultStatus.SUBMITTED || 
-                         r.getStatus() == EvaluationResultStatus.APPROVED || 
+            .filter(r -> r.getStatus() == EvaluationResultStatus.SUBMITTED ||
+                         r.getStatus() == EvaluationResultStatus.APPROVED ||
                          r.getStatus() == EvaluationResultStatus.PUBLISHED)
             .count();
-            
+
         long pendingStudents = totalStudents - absentStudents - evaluatedStudents;
-        
+
         String status = "INCOMPLETE";
         if (pendingStudents <= 0) {
             long publishedCount = results.stream().filter(r -> r.getStatus() == EvaluationResultStatus.PUBLISHED).count();
@@ -869,7 +911,7 @@ public class AnswerEvaluationServiceImpl implements AnswerEvaluationService {
                 status = "READY_FOR_APPROVAL";
             }
         }
-        
+
         return ClassResultSummaryResponseDTO.builder()
                 .classId(classId)
                 .className(classSchedules.get(0).getAcademicClass().getName())
@@ -892,18 +934,18 @@ public class AnswerEvaluationServiceImpl implements AnswerEvaluationService {
         if (summary.getPendingStudents() > 0) {
             throw new EdusyncException("EVAL-409", "Cannot approve class yet. Still " + summary.getPendingStudents() + " students pending evaluation or absent marking.", HttpStatus.CONFLICT);
         }
-        
+
         List<ExamSchedule> allSchedules = examScheduleRepository.findByExamUuid(examId);
         List<Long> classScheduleIds = allSchedules.stream()
             .filter(es -> es.getAcademicClass().getUuid().equals(classId))
             .map(ExamSchedule::getId)
             .collect(Collectors.toList());
-            
+
         List<EvaluationResult> results = evaluationResultRepository.findAllWithContext().stream()
              .filter(r -> classScheduleIds.contains(r.getAnswerSheet().getExamSchedule().getId()))
              .filter(r -> r.getStatus() == EvaluationResultStatus.SUBMITTED)
              .collect(Collectors.toList());
-             
+
         User currentUser = authUtil.getCurrentUser();
         for (EvaluationResult result : results) {
             result.setStatus(EvaluationResultStatus.APPROVED);
@@ -924,14 +966,14 @@ public class AnswerEvaluationServiceImpl implements AnswerEvaluationService {
             .filter(es -> es.getAcademicClass().getUuid().equals(classId))
             .map(ExamSchedule::getId)
             .collect(Collectors.toList());
-            
+
         List<EvaluationResult> results = evaluationResultRepository.findAllWithContext().stream()
              .filter(r -> classScheduleIds.contains(r.getAnswerSheet().getExamSchedule().getId()))
              .filter(r -> r.getStatus() == EvaluationResultStatus.APPROVED)
              .collect(Collectors.toList());
-             
+
         if (results.isEmpty()) return 0;
-        
+
         List<Long> resultIds = results.stream().map(EvaluationResult::getId).collect(Collectors.toList());
         return publishResultsBulk(resultIds);
     }
@@ -942,13 +984,13 @@ public class AnswerEvaluationServiceImpl implements AnswerEvaluationService {
         ExamSchedule schedule = getSchedule(scheduleId);
         Student student = studentRepository.findById(studentId)
             .orElseThrow(() -> new EdusyncException("EVAL-404", "Student not found", HttpStatus.NOT_FOUND));
-            
+
         StudentExamStatus status = studentExamStatusRepository.findByStudentIdAndExamScheduleId(studentId, scheduleId)
             .orElseGet(() -> StudentExamStatus.builder()
                 .student(student)
                 .examSchedule(schedule)
                 .build());
-                
+
         status.setIsAbsent(isAbsent);
         studentExamStatusRepository.save(status);
     }
@@ -1062,7 +1104,7 @@ public class AnswerEvaluationServiceImpl implements AnswerEvaluationService {
                 Path filePath = ensureStorageRoot().resolve(answerSheet.getFileUrl()).normalize();
                 resource = new UrlResource(filePath.toUri());
             }
-            
+
             if (!resource.exists() || !resource.isReadable()) {
                 throw new EdusyncException("EVAL-404", "Answer sheet file not found", HttpStatus.NOT_FOUND);
             }
@@ -1334,9 +1376,30 @@ public class AnswerEvaluationServiceImpl implements AnswerEvaluationService {
         Set<String> authorities = currentUser.getAuthorities().stream()
                 .map(Object::toString)
                 .collect(Collectors.toSet());
-        if (!(authorities.contains("ROLE_ADMIN") || authorities.contains("ROLE_SUPER_ADMIN") || authorities.contains("ROLE_SCHOOL_ADMIN"))) {
+        if (!(authorities.contains("ROLE_ADMIN")
+                || authorities.contains("ROLE_SUPER_ADMIN")
+                || authorities.contains("ROLE_SCHOOL_ADMIN")
+                || authorities.contains(EXAM_CONTROLLER_ROLE))) {
             throw new EdusyncException("EVAL-403", "Admin privileges required", HttpStatus.FORBIDDEN);
         }
+    }
+
+    private boolean hasAdminPrivileges(User user) {
+        Set<String> authorities = user.getAuthorities().stream().map(Object::toString).collect(Collectors.toSet());
+        return authorities.stream().anyMatch(ADMIN_ROLES::contains);
+    }
+
+    private boolean hasExamControllerRole(User user) {
+        Set<String> authorities = user.getAuthorities().stream().map(Object::toString).collect(Collectors.toSet());
+        return authorities.contains(EXAM_CONTROLLER_ROLE);
+    }
+
+    private Set<Long> resolveAccessibleExamIds(User user) {
+        Long staffId = staffRepository.findByUserProfile_User_Id(user.getId()).map(Staff::getId).orElse(null);
+        if (staffId == null) {
+            return Set.of();
+        }
+        return new HashSet<>(controllerAssignmentRepository.findActiveExamIdsByStaffId(staffId));
     }
 
     private EvaluationAssignmentResponseDTO toAssignmentResponse(EvaluationAssignment assignment) {
@@ -1360,7 +1423,9 @@ public class AnswerEvaluationServiceImpl implements AnswerEvaluationService {
                 .build();
     }
 
-    private TeacherEvaluationStudentResponseDTO toTeacherEvaluationStudentResponse(Student student, AnswerSheet sheet) {
+    private TeacherEvaluationStudentResponseDTO toTeacherEvaluationStudentResponse(Student student,
+                                                                                  AnswerSheet sheet,
+                                                                                  boolean malpracticeReported) {
         String fullName = student.getUserProfile().getFirstName() + " " + student.getUserProfile().getLastName();
         return TeacherEvaluationStudentResponseDTO.builder()
                 .studentId(student.getUuid())
@@ -1368,6 +1433,7 @@ public class AnswerEvaluationServiceImpl implements AnswerEvaluationService {
                 .enrollmentNumber(student.getEnrollmentNumber())
                 .answerSheetId(sheet != null ? sheet.getId() : null)
                 .answerSheetStatus(sheet != null ? sheet.getStatus() : null)
+                .malpracticeReported(malpracticeReported)
                 .build();
     }
 

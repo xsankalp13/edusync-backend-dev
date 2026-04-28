@@ -20,12 +20,15 @@ import org.springframework.transaction.annotation.Transactional;
 import java.math.BigDecimal;
 import java.math.RoundingMode;
 import java.time.LocalDate;
+import java.time.LocalDateTime;
 import java.time.YearMonth;
 import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
 import java.util.EnumSet;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Locale;
+import java.util.Map;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
@@ -56,57 +59,106 @@ public class MasterDashboardAnalyticsServiceImpl implements MasterDashboardAnaly
                 .build();
     }
 
+    /**
+     * Builds 6-month finance/payroll trend using 3 grouped queries instead of 18 individual ones.
+     * Before: 3 queries × 6 months = 18 queries.
+     * After: 3 grouped range queries = 3 queries.
+     */
     private List<MasterAnalyticsResponseDTO.FinancePayrollPoint> buildFinancePayrollTrend() {
-        List<MasterAnalyticsResponseDTO.FinancePayrollPoint> points = new ArrayList<>();
         YearMonth currentMonth = YearMonth.now();
+        YearMonth startMonth = currentMonth.minusMonths(5);
 
-        for (int i = 5; i >= 0; i--) {
-            YearMonth target = currentMonth.minusMonths(i);
-            int year = target.getYear();
-            int month = target.getMonthValue();
+        LocalDate rangeStart = startMonth.atDay(1);
+        LocalDate rangeEnd = currentMonth.atEndOfMonth();
 
-            BigDecimal expected = nullSafe(invoiceRepository.sumExpectedByIssueYearMonth(year, month));
-            BigDecimal collected = nullSafe(paymentRepository.sumCollectedByYearMonth(year, month));
-            BigDecimal payroll = nullSafe(payrollRunRepository.sumTotalNetByMonthAndStatuses(
-                    year,
-                    month,
-                    EnumSet.of(PayrollRunStatus.PROCESSED, PayrollRunStatus.APPROVED, PayrollRunStatus.DISBURSED)
-            ));
-
-            points.add(MasterAnalyticsResponseDTO.FinancePayrollPoint.builder()
-                    .month(target.format(MONTH_LABEL))
-                    .expected(expected)
-                    .collected(collected)
-                    .payroll(payroll)
-                    .build());
+        // 3 grouped range queries
+        Map<String, BigDecimal> expectedByKey = new HashMap<>();
+        for (InvoiceRepository.MonthlyInvoiceSumProjection p :
+                invoiceRepository.sumExpectedGroupedByMonth(rangeStart, rangeEnd)) {
+            expectedByKey.put(p.getInvoiceYear() + "-" + p.getInvoiceMonth(), nullSafe(p.getExpectedTotal()));
         }
 
+        Map<String, BigDecimal> collectedByKey = new HashMap<>();
+        for (PaymentRepository.MonthlyPaymentSumProjection p :
+                paymentRepository.sumCollectedGroupedByMonth(
+                        rangeStart.atStartOfDay(),
+                        rangeEnd.atTime(23, 59, 59))) {
+            collectedByKey.put(p.getPaymentYear() + "-" + p.getPaymentMonth(), nullSafe(p.getCollectedTotal()));
+        }
+
+        EnumSet<PayrollRunStatus> payrollStatuses = EnumSet.of(
+                PayrollRunStatus.PROCESSED, PayrollRunStatus.APPROVED, PayrollRunStatus.DISBURSED);
+        Map<String, BigDecimal> payrollByKey = new HashMap<>();
+        for (PayrollRunRepository.MonthlyPayrollSumProjection p :
+                payrollRunRepository.sumPayrollGroupedByMonth(
+                        startMonth.getYear(), startMonth.getMonthValue(),
+                        currentMonth.getYear(), currentMonth.getMonthValue(),
+                        payrollStatuses)) {
+            payrollByKey.put(p.getPayYear() + "-" + p.getPayMonth(), nullSafe(p.getTotalNet()));
+        }
+
+        // Assemble 6 points in-memory
+        List<MasterAnalyticsResponseDTO.FinancePayrollPoint> points = new ArrayList<>();
+        for (int i = 5; i >= 0; i--) {
+            YearMonth target = currentMonth.minusMonths(i);
+            String key = target.getYear() + "-" + target.getMonthValue();
+            points.add(MasterAnalyticsResponseDTO.FinancePayrollPoint.builder()
+                    .month(target.format(MONTH_LABEL))
+                    .expected(expectedByKey.getOrDefault(key, BigDecimal.ZERO))
+                    .collected(collectedByKey.getOrDefault(key, BigDecimal.ZERO))
+                    .payroll(payrollByKey.getOrDefault(key, BigDecimal.ZERO))
+                    .build());
+        }
         return points;
     }
 
+    /**
+     * Builds 14-day attendance trend using 4 queries instead of 30.
+     * Before: 2 static counts + (2 per-day queries × 14 days) = 30 queries.
+     * After: 2 static counts + 2 grouped range queries = 4 queries.
+     */
     private List<MasterAnalyticsResponseDTO.AttendancePoint> buildAttendanceTrend() {
-        List<MasterAnalyticsResponseDTO.AttendancePoint> points = new ArrayList<>();
         LocalDate today = LocalDate.now();
+        LocalDate rangeStart = today.minusDays(13);
 
+        // 2 static headcount queries (already efficient)
         long totalActiveStudents = studentRepository.countByIsActiveTrue();
         long totalActiveStaff = staffRepository.countByIsActiveTrue();
 
+        // 1 grouped query replacing 14 student per-day queries
+        Map<LocalDate, Long> presentStudentsByDate = new HashMap<>();
+        for (StudentDailyAttendanceRepository.DailyStudentCountProjection p :
+                studentDailyAttendanceRepository.countPresentStudentsByDateRange(rangeStart, today)) {
+            presentStudentsByDate.put(p.getAttendanceDate(), p.getPresentCount());
+        }
+
+        // 1 grouped query replacing 14 staff per-day queries
+        Map<LocalDate, Long> presentStaffByDate = new HashMap<>();
+        for (StaffDailyAttendanceRepository.DailyAttendanceCountProjection p :
+                staffDailyAttendanceRepository.countPresentStaffByDateRange(rangeStart, today)) {
+            presentStaffByDate.put(p.getAttendanceDate(), p.getPresentCount());
+        }
+
+        // Assemble 14 points in-memory
+        List<MasterAnalyticsResponseDTO.AttendancePoint> points = new ArrayList<>();
         for (int i = 13; i >= 0; i--) {
             LocalDate date = today.minusDays(i);
-
-            long presentStudents = studentDailyAttendanceRepository.countDistinctPresentStudentsByDate(date);
-            long presentStaff = staffDailyAttendanceRepository.countDistinctPresentStaffByDate(date);
-
+            long presentStudents = presentStudentsByDate.getOrDefault(date, 0L);
+            long presentStaff = presentStaffByDate.getOrDefault(date, 0L);
             points.add(MasterAnalyticsResponseDTO.AttendancePoint.builder()
                     .day(date.format(DAY_LABEL))
                     .student(toPercent(presentStudents, totalActiveStudents))
                     .staff(toPercent(presentStaff, totalActiveStaff))
                     .build());
         }
-
         return points;
     }
 
+    /**
+     * Builds demographics using 2 queries instead of 4.
+     * Student class grouping kept as-is (already efficient).
+     * Staff category counts collapsed into 1 grouped query.
+     */
     private List<MasterAnalyticsResponseDTO.DemographicPoint> buildDemographics() {
         long primaryStudents = 0;
         long secondaryStudents = 0;
@@ -128,9 +180,15 @@ public class MasterDashboardAnalyticsServiceImpl implements MasterDashboardAnaly
             }
         }
 
-        long teachingStaff = staffRepository.countByIsActiveTrueAndCategory(StaffCategory.TEACHING);
-        long supportStaff = staffRepository.countByIsActiveTrueAndCategory(StaffCategory.NON_TEACHING_ADMIN)
-                + staffRepository.countByIsActiveTrueAndCategory(StaffCategory.NON_TEACHING_SUPPORT);
+        // 1 grouped query replacing 3 individual category count queries
+        Map<StaffCategory, Long> staffByCategory = new HashMap<>();
+        for (StaffRepository.StaffCategoryCountProjection p : staffRepository.countActiveStaffGroupedByCategory()) {
+            staffByCategory.put(p.getCategory(), p.getCount());
+        }
+
+        long teachingStaff = staffByCategory.getOrDefault(StaffCategory.TEACHING, 0L);
+        long supportStaff = staffByCategory.getOrDefault(StaffCategory.NON_TEACHING_ADMIN, 0L)
+                + staffByCategory.getOrDefault(StaffCategory.NON_TEACHING_SUPPORT, 0L);
 
         return List.of(
                 MasterAnalyticsResponseDTO.DemographicPoint.builder()
@@ -177,5 +235,3 @@ public class MasterDashboardAnalyticsServiceImpl implements MasterDashboardAnaly
         return BigDecimal.valueOf(clamped).setScale(1, RoundingMode.HALF_UP).doubleValue();
     }
 }
-
-

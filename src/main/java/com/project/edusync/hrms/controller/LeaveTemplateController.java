@@ -34,7 +34,7 @@ public class LeaveTemplateController {
     private final LeaveTemplateService leaveTemplateService;
 
     @GetMapping
-    @PreAuthorize("hasAnyRole('SUPER_ADMIN', 'ADMIN')")
+    @PreAuthorize("hasAnyRole('SUPER_ADMIN', 'ADMIN', 'SCHOOL_ADMIN', 'HR_ADMIN')")
     public ResponseEntity<List<LeaveTemplateResponseDTO>> list(
             @RequestParam(required = false) String academicYear,
             @RequestParam(required = false) StaffCategory category
@@ -43,20 +43,20 @@ public class LeaveTemplateController {
     }
 
     @GetMapping("/{ref}")
-    @PreAuthorize("hasAnyRole('SUPER_ADMIN', 'ADMIN')")
+    @PreAuthorize("hasAnyRole('SUPER_ADMIN', 'ADMIN', 'SCHOOL_ADMIN', 'HR_ADMIN')")
     public ResponseEntity<LeaveTemplateResponseDTO> getByIdentifier(@PathVariable String ref) {
         return ResponseEntity.ok(leaveTemplateService.getByIdentifier(ref));
     }
 
     @PostMapping
-    @PreAuthorize("hasAnyRole('SUPER_ADMIN', 'ADMIN')")
+    @PreAuthorize("hasAnyRole('SUPER_ADMIN', 'ADMIN', 'SCHOOL_ADMIN', 'HR_ADMIN')")
     public ResponseEntity<LeaveTemplateResponseDTO> create(@Valid @RequestBody LeaveTemplateCreateDTO dto) {
         return ResponseEntity.status(HttpStatus.CREATED)
                 .body(leaveTemplateService.create(dto));
     }
 
     @PutMapping("/{ref}")
-    @PreAuthorize("hasAnyRole('SUPER_ADMIN', 'ADMIN')")
+    @PreAuthorize("hasAnyRole('SUPER_ADMIN', 'ADMIN', 'SCHOOL_ADMIN', 'HR_ADMIN')")
     public ResponseEntity<LeaveTemplateResponseDTO> update(
             @PathVariable String ref,
             @Valid @RequestBody LeaveTemplateUpdateDTO dto) {
@@ -64,14 +64,14 @@ public class LeaveTemplateController {
     }
 
     @DeleteMapping("/{ref}")
-    @PreAuthorize("hasAnyRole('SUPER_ADMIN', 'ADMIN')")
+    @PreAuthorize("hasAnyRole('SUPER_ADMIN', 'ADMIN', 'SCHOOL_ADMIN', 'HR_ADMIN')")
     public ResponseEntity<Void> delete(@PathVariable String ref) {
         leaveTemplateService.delete(ref);
         return ResponseEntity.ok(null);
     }
 
     @PostMapping("/{ref}/assign")
-    @PreAuthorize("hasAnyRole('SUPER_ADMIN', 'ADMIN')")
+    @PreAuthorize("hasAnyRole('SUPER_ADMIN', 'ADMIN', 'SCHOOL_ADMIN', 'HR_ADMIN')")
     public ResponseEntity<StaffLeaveTemplateMappingResponseDTO> assignToStaff(
             @PathVariable String ref,
             @Valid @RequestBody StaffLeaveTemplateMappingRequestDTO dto) {
@@ -79,7 +79,7 @@ public class LeaveTemplateController {
     }
 
     @PostMapping("/{ref}/assign-by-designation")
-    @PreAuthorize("hasAnyRole('SUPER_ADMIN', 'ADMIN')")
+    @PreAuthorize("hasAnyRole('SUPER_ADMIN', 'ADMIN', 'SCHOOL_ADMIN', 'HR_ADMIN')")
     public ResponseEntity<BulkOperationResultDTO> assignByDesignation(
             @PathVariable String ref,
             @Valid @RequestBody BulkAssignByDesignationDTO dto) {
@@ -87,7 +87,7 @@ public class LeaveTemplateController {
     }
 
     @GetMapping("/staff/{staffRef}")
-    @PreAuthorize("hasAnyRole('SUPER_ADMIN', 'ADMIN', 'TEACHER', 'PRINCIPAL')")
+    @PreAuthorize("hasAnyRole('SUPER_ADMIN', 'ADMIN', 'SCHOOL_ADMIN', 'HR_ADMIN', 'TEACHER', 'PRINCIPAL')")
     public ResponseEntity<List<StaffLeaveTemplateMappingResponseDTO>> getStaffMappings(@PathVariable String staffRef) {
         return ResponseEntity.ok(leaveTemplateService.getStaffMappings(staffRef));
     }

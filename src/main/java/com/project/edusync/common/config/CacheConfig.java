@@ -127,6 +127,14 @@ public class CacheConfig {
                 .withCacheConfiguration(
                         CacheNames.MASTER_DASHBOARD_ANALYTICS,
                         redisCacheConfiguration().entryTtl(Duration.ofMinutes(5))
+                )
+                .withCacheConfiguration(
+                        CacheNames.HRMS_DASHBOARD_SUMMARY,
+                        redisCacheConfiguration().entryTtl(Duration.ofMinutes(2))
+                )
+                .withCacheConfiguration(
+                        CacheNames.FINANCE_DASHBOARD_SUMMARY,
+                        redisCacheConfiguration().entryTtl(Duration.ofMinutes(2))
                 );
     }
 }

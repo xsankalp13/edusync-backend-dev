@@ -126,4 +126,31 @@ public interface StudentDailyAttendanceRepository extends JpaRepository<StudentD
               AND sda.attendanceType.isPresentMark = true
             """)
     long countDistinctPresentStudentsByDate(@Param("date") LocalDate date);
+
+    /**
+     * Projection for daily student presence
+     */
+    interface DailyStudentCountProjection {
+        LocalDate getAttendanceDate();
+        Long getPresentCount();
+    }
+
+    /**
+     * Returns (attendanceDate, presentCount) for each date in the range.
+     * Replaces the 14-day per-day loop in MasterDashboardAnalyticsServiceImpl.buildAttendanceTrend().
+     * 1 query instead of 14.
+     */
+    @Query("""
+            SELECT sda.attendanceDate as attendanceDate,
+                   COUNT(DISTINCT sda.studentId) as presentCount
+            FROM StudentDailyAttendance sda
+            WHERE sda.attendanceDate BETWEEN :startDate AND :endDate
+              AND sda.attendanceType.isPresentMark = true
+            GROUP BY sda.attendanceDate
+            ORDER BY sda.attendanceDate
+            """)
+    List<DailyStudentCountProjection> countPresentStudentsByDateRange(
+            @Param("startDate") LocalDate startDate,
+            @Param("endDate") LocalDate endDate
+    );
 }

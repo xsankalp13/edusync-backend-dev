@@ -33,4 +33,8 @@ public class PasswordResetToken {
     @NotNull
     @Column(nullable = false)
     private Instant expiryDate;
+
+    @NotNull
+    @Column(nullable = false, updatable = false)
+    private Instant createdAt;
 }

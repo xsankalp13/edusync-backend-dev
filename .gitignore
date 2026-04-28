@@ -8,7 +8,6 @@ target/
 # Contains local secrets and keys.
 # DO NOT commit this file to Git!
 .env
-
 /node_modules
 
 # Log folder
@@ -16,7 +15,8 @@ target/
 
 # Other common Java/Maven ignores
 target/
-.mvn/
+# Only ignore the binary jar — the properties file MUST be committed so CI can run mvnw
+.mvn/wrapper/maven-wrapper.jar
 *.log
 
 ### STS ###

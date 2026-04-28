@@ -1056,4 +1056,60 @@ public class UserManagementServiceImpl implements UserManagementService {
         return userRepository.findByUsername(username)
                 .orElseThrow(() -> new ResourceNotFoundException("User", "username", username));
     }
+
+    // =================================================================================
+    // HR ADMIN PROMOTION / DEMOTION
+    // =================================================================================
+
+    @Override
+    @Transactional
+    public User promoteToHrAdmin(java.util.UUID staffId) {
+        log.info("Process started: Promoting staff member to HR Admin. staffUuid={}", staffId);
+
+        Staff staff = staffRepository.findByUuid(staffId)
+                .orElseThrow(() -> new ResourceNotFoundException("Staff", "uuid", staffId));
+
+        User user = staff.getUserProfile().getUser();
+
+        Role hrAdminRole = roleRepository.findByName("ROLE_HR_ADMIN")
+                .orElseThrow(() -> new EdusyncException(
+                        "ROLE_HR_ADMIN role not found in database. Ensure the DataSeeder has run.",
+                        HttpStatus.INTERNAL_SERVER_ERROR));
+
+        // Additive: preserve all existing roles, just add HR_ADMIN
+        Set<Role> roles = new HashSet<>(user.getRoles());
+        boolean alreadyHrAdmin = roles.stream().anyMatch(r -> "ROLE_HR_ADMIN".equals(r.getName()));
+        if (alreadyHrAdmin) {
+            log.info("Staff member already has HR Admin role. staffUuid={}", staffId);
+            return user;
+        }
+
+        roles.add(hrAdminRole);
+        user.setRoles(roles);
+        User saved = userRepository.save(user);
+        log.info("Success: Staff member promoted to HR Admin. staffUuid={}, userId={}", staffId, user.getId());
+        return saved;
+    }
+
+    @Override
+    @Transactional
+    public void demoteFromHrAdmin(java.util.UUID staffId) {
+        log.info("Process started: Revoking HR Admin role. staffUuid={}", staffId);
+
+        Staff staff = staffRepository.findByUuid(staffId)
+                .orElseThrow(() -> new ResourceNotFoundException("Staff", "uuid", staffId));
+
+        User user = staff.getUserProfile().getUser();
+
+        Set<Role> roles = new HashSet<>(user.getRoles());
+        boolean removed = roles.removeIf(r -> "ROLE_HR_ADMIN".equals(r.getName()));
+
+        if (!removed) {
+            throw new EdusyncException("Staff member does not have the HR Admin role.", HttpStatus.CONFLICT);
+        }
+
+        user.setRoles(roles);
+        userRepository.save(user);
+        log.info("Success: HR Admin role revoked. staffUuid={}, userId={}", staffId, user.getId());
+    }
 }

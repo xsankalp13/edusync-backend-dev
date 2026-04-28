@@ -106,4 +106,25 @@ public interface StaffRepository extends JpaRepository<Staff, Long> {
     List<Staff> findByIsActiveTrue();
 
     Page<Staff> findByIsActiveTrue(Pageable pageable);
+
+    /**
+     * Projection for grouped staff category counts.
+     */
+    interface StaffCategoryCountProjection {
+        StaffCategory getCategory();
+        Long getCount();
+    }
+
+    /**
+     * Returns (category, count) for all active staff, grouped by StaffCategory.
+     * Replaces 3 individual countByIsActiveTrueAndCategory calls in buildDemographics().
+     * 1 query instead of 3.
+     */
+    @Query("""
+            SELECT st.category as category, COUNT(st) as count
+            FROM Staff st
+            WHERE st.isActive = true
+            GROUP BY st.category
+            """)
+    List<StaffCategoryCountProjection> countActiveStaffGroupedByCategory();
 }

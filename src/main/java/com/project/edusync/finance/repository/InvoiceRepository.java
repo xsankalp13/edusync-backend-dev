@@ -134,4 +134,33 @@ public interface InvoiceRepository extends JpaRepository<Invoice, Long> {
               AND MONTH(i.issueDate) = :month
             """)
     BigDecimal sumExpectedByIssueYearMonth(@Param("year") int year, @Param("month") int month);
+
+    /**
+     * Projection for monthly expected invoice totals.
+     */
+    interface MonthlyInvoiceSumProjection {
+        Integer getInvoiceYear();
+        Integer getInvoiceMonth();
+        java.math.BigDecimal getExpectedTotal();
+    }
+
+    /**
+     * Returns (invoiceYear, invoiceMonth, expectedTotal) for each month in the range.
+     * Replaces 6 individual sumExpectedByIssueYearMonth calls in MasterDashboardAnalyticsServiceImpl.
+     * 1 query instead of 6.
+     */
+    @Query("""
+            SELECT YEAR(i.issueDate) as invoiceYear,
+                   MONTH(i.issueDate) as invoiceMonth,
+                   COALESCE(SUM(i.totalAmount), 0) as expectedTotal
+            FROM Invoice i
+            WHERE i.issueDate >= :startDate
+              AND i.issueDate <= :endDate
+            GROUP BY YEAR(i.issueDate), MONTH(i.issueDate)
+            ORDER BY YEAR(i.issueDate), MONTH(i.issueDate)
+            """)
+    java.util.List<MonthlyInvoiceSumProjection> sumExpectedGroupedByMonth(
+            @Param("startDate") java.time.LocalDate startDate,
+            @Param("endDate") java.time.LocalDate endDate
+    );
 }

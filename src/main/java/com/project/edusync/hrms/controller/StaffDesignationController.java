@@ -1,5 +1,7 @@
 package com.project.edusync.hrms.controller;
 
+import com.project.edusync.hrms.dto.designation.BulkDesignationAssignRequestDTO;
+import com.project.edusync.hrms.dto.designation.BulkDesignationAssignResultDTO;
 import com.project.edusync.hrms.dto.designation.StaffDesignationCreateUpdateDTO;
 import com.project.edusync.hrms.dto.designation.StaffDesignationResponseDTO;
 import com.project.edusync.hrms.service.StaffDesignationService;
@@ -71,6 +73,44 @@ public class StaffDesignationController {
     public ResponseEntity<Void> delete(@PathVariable String identifier) {
         staffDesignationService.deleteByIdentifier(identifier);
         return ResponseEntity.noContent().build();
+    }
+
+    /**
+     * POST /{identifier}/assign-staff
+     *
+     * Bulk-assigns a list of staff members to this designation.
+     * Each entry in {@code staffRefs} may be a staff UUID or employeeId.
+     * Processing is resilient — one bad ref will not abort the rest.
+     *
+     * <pre>
+     * {
+     *   "staffRefs": ["EMP001", "EMP002", "550e8400-e29b-41d4-a716-446655440000"]
+     * }
+     * </pre>
+     */
+    @PostMapping("/{identifier}/assign-staff")
+    @Operation(
+            summary = "Bulk assign staff to a designation",
+            description = "Pass a list of staff UUIDs or employeeIds. "
+                    + "Each entry is processed independently; failures are listed in the response."
+    )
+    @PreAuthorize("hasAnyAuthority('ROLE_SUPER_ADMIN','ROLE_SCHOOL_ADMIN','ROLE_ADMIN')")
+    public ResponseEntity<BulkDesignationAssignResultDTO> bulkAssignStaff(
+            @PathVariable String identifier,
+            @Valid @RequestBody BulkDesignationAssignRequestDTO dto) {
+        return ResponseEntity.ok(staffDesignationService.bulkAssignToDesignation(identifier, dto));
+    }
+
+    @PostMapping("/unassign-staff")
+    @Operation(
+            summary = "Bulk unassign staff from their designations",
+            description = "Clears designation for each staff ref. "
+                    + "JobTitle reverts to StaffType name. Salary mappings are preserved."
+    )
+    @PreAuthorize("hasAnyAuthority('ROLE_SUPER_ADMIN','ROLE_SCHOOL_ADMIN','ROLE_ADMIN')")
+    public ResponseEntity<BulkDesignationAssignResultDTO> bulkUnassignStaff(
+            @Valid @RequestBody BulkDesignationAssignRequestDTO dto) {
+        return ResponseEntity.ok(staffDesignationService.bulkUnassignFromDesignation(dto));
     }
 }
 

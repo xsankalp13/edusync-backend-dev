@@ -1,5 +1,6 @@
 package com.project.edusync.ams.model.repository;
 
+
 import com.project.edusync.ams.model.entity.StaffDailyAttendance;
 import com.project.edusync.uis.model.enums.StaffCategory;
 import org.springframework.data.jpa.repository.JpaSpecificationExecutor;
@@ -17,6 +18,24 @@ import java.util.UUID;
 
 @Repository
 public interface StaffDailyAttendanceRepository extends JpaRepository<StaffDailyAttendance, Long>, JpaSpecificationExecutor<StaffDailyAttendance> {
+
+    /**
+     * Projection for a single date's attendance
+     */
+    interface DailyAttendanceCountProjection {
+        java.time.LocalDate getAttendanceDate();
+        Long getPresentCount();
+        Long getAbsentCount();
+    }
+
+    /**
+     * Projection for category-level attendance on a specific date
+     */
+    interface CategoryAttendanceCountProjection {
+        StaffCategory getCategory();
+        Long getPresentCount();
+        Long getAbsentCount();
+    }
 
     interface StaffDailyStatusCountProjection {
         String getShortCode();
@@ -142,4 +161,59 @@ public interface StaffDailyAttendanceRepository extends JpaRepository<StaffDaily
               AND sda.attendanceType.isAbsenceMark = true
             """)
     long countDistinctAbsentStaffByDateAndCategory(@Param("date") LocalDate date, @Param("category") StaffCategory category);
+
+    /**
+     * Returns (attendanceDate, presentCount, absentCount) for each date in the range.
+     * Replaces the N+1 day loop in buildHeatmap() — 1 query instead of 2×N.
+     */
+    @Query("""
+            SELECT sda.attendanceDate as attendanceDate,
+                   SUM(CASE WHEN sda.attendanceType.isPresentMark = true THEN 1 ELSE 0 END) as presentCount,
+                   SUM(CASE WHEN sda.attendanceType.isAbsenceMark = true THEN 1 ELSE 0 END) as absentCount
+            FROM StaffDailyAttendance sda
+            WHERE sda.attendanceDate BETWEEN :startDate AND :endDate
+            GROUP BY sda.attendanceDate
+            ORDER BY sda.attendanceDate
+            """)
+    List<DailyAttendanceCountProjection> heatmapPresentAbsentByDateRange(
+            @Param("startDate") LocalDate startDate,
+            @Param("endDate") LocalDate endDate
+    );
+
+    /**
+     * Returns (category, presentCount, absentCount) for a specific date, grouped by StaffCategory.
+     * Replaces 6 individual category-level count queries in buildCategoryAttendance().
+     */
+    @Query("""
+            SELECT st.category as category,
+                   SUM(CASE WHEN sda.attendanceType.isPresentMark = true THEN 1 ELSE 0 END) as presentCount,
+                   SUM(CASE WHEN sda.attendanceType.isAbsenceMark = true THEN 1 ELSE 0 END) as absentCount
+            FROM StaffDailyAttendance sda
+            JOIN Staff st ON st.id = sda.staffId
+            WHERE st.isActive = true
+              AND sda.attendanceDate = :date
+            GROUP BY st.category
+            """)
+    List<CategoryAttendanceCountProjection> countByDateGroupedByCategoryAndAttendanceType(
+            @Param("date") LocalDate date
+    );
+
+    /**
+     * Returns (attendanceDate, presentCount) for each date in the range.
+     * Shared by MasterDashboardAnalyticsServiceImpl.buildAttendanceTrend() — 1 query instead of 14.
+     */
+    @Query("""
+            SELECT sda.attendanceDate as attendanceDate,
+                   COUNT(DISTINCT sda.staffId) as presentCount,
+                   0L as absentCount
+            FROM StaffDailyAttendance sda
+            WHERE sda.attendanceDate BETWEEN :startDate AND :endDate
+              AND sda.attendanceType.isPresentMark = true
+            GROUP BY sda.attendanceDate
+            ORDER BY sda.attendanceDate
+            """)
+    List<DailyAttendanceCountProjection> countPresentStaffByDateRange(
+            @Param("startDate") LocalDate startDate,
+            @Param("endDate") LocalDate endDate
+    );
 }

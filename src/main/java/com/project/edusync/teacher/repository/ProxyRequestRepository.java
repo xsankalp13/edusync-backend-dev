@@ -57,4 +57,16 @@ public interface ProxyRequestRepository extends JpaRepository<ProxyRequest, Long
 
     /** Find by uuid. */
     java.util.Optional<ProxyRequest> findByUuid(UUID uuid);
+
+    /**
+     * Counts pending proxy requests for a given date.
+     * Replaces findActiveRequestsOnDate(...).stream().filter(PENDING).count() pattern
+     * which loads all entities into memory.
+     */
+    @Query("""
+        SELECT COUNT(r) FROM ProxyRequest r
+        WHERE r.periodDate = :date
+          AND r.status = com.project.edusync.teacher.model.enums.ProxyRequestStatus.PENDING
+    """)
+    long countPendingByDate(@Param("date") LocalDate date);
 }

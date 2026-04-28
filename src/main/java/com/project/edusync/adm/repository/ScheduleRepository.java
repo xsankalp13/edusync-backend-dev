@@ -283,4 +283,31 @@ public interface ScheduleRepository extends JpaRepository<Schedule, Long> {
               AND s.isActive = true
             """)
     List<Timeslot> findDistinctActiveTimeslotsByTeacherId(@Param("teacherId") Long teacherId);
+
+    /**
+     * Finds all active schedules whose timeslot starts within [windowStart, windowEnd]
+     * on a given day of week — used by the pre-period proxy cron to detect periods
+     * starting in the next 5 minutes.
+     */
+    @Query("""
+            SELECT s FROM Schedule s
+            JOIN FETCH s.teacher td
+            JOIN FETCH td.staff st
+            JOIN FETCH st.userProfile up
+            JOIN FETCH s.subject sub
+            JOIN FETCH s.section sec
+            JOIN FETCH sec.academicClass ac
+            JOIN FETCH s.timeslot ts
+            WHERE s.isActive = true
+              AND (ts.isBreak IS NULL OR ts.isBreak = false)
+              AND (ts.isNonTeachingSlot IS NULL OR ts.isNonTeachingSlot = false)
+              AND ts.dayOfWeek = :dayOfWeek
+              AND ts.startTime >= :windowStart
+              AND ts.startTime <= :windowEnd
+            ORDER BY ts.startTime ASC
+            """)
+    List<Schedule> findSchedulesStartingBetween(
+            @Param("dayOfWeek") Short dayOfWeek,
+            @Param("windowStart") LocalTime windowStart,
+            @Param("windowEnd") LocalTime windowEnd);
 }

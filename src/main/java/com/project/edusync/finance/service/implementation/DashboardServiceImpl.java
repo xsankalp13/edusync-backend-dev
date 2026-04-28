@@ -1,6 +1,7 @@
 package com.project.edusync.finance.service.implementation;
 
 import com.project.edusync.common.exception.finance.StudentNotFoundException;
+import com.project.edusync.common.config.CacheNames;
 import com.project.edusync.finance.dto.dashboard.AdminDashboardSummaryDTO;
 import com.project.edusync.finance.dto.dashboard.ParentDashboardSummaryDTO;
 import com.project.edusync.finance.repository.InvoiceRepository;
@@ -8,6 +9,7 @@ import com.project.edusync.finance.repository.PaymentRepository;
 import com.project.edusync.finance.service.DashboardService;
 import com.project.edusync.uis.repository.StudentRepository;
 import lombok.RequiredArgsConstructor;
+import org.springframework.cache.annotation.Cacheable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -24,6 +26,7 @@ public class DashboardServiceImpl implements DashboardService {
 
     @Override
     @Transactional(readOnly = true)
+    @Cacheable(value = CacheNames.FINANCE_DASHBOARD_SUMMARY, key = "'admin'")
     public AdminDashboardSummaryDTO getAdminDashboardSummary() {
 
         // 1. Call all the custom aggregate queries

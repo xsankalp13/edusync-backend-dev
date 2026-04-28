@@ -1,0 +1,105 @@
+# =============================================================
+# Production docker-compose — EC2 t2.medium
+#
+# External services (Postgres on Azure, Redis Cloud) are NOT
+# declared here; they are injected via environment variables.
+# Only the application container runs on the host.
+# =============================================================
+version: "3.9"
+
+services:
+  edusync:
+    image: ${IMAGE_NAME}   # ghcr.io/<org>/edusync-backend:<sha>
+    container_name: edusync-app
+    restart: unless-stopped
+
+    ports:
+      - "8080:8080"
+
+    environment:
+      SPRING_PROFILES_ACTIVE: prod
+
+      # ── Database (Azure PostgreSQL) ──────────────────────────
+      DB_URL:   ${DB_URL}
+      DB_USER:  ${DB_USER}
+      DB_PASS:  ${DB_PASS}
+
+      # ── Redis Cloud (RedisLabs) ───────────────────────────────
+      REDIS_HOST:        ${REDIS_HOST}
+      REDIS_PORT:        ${REDIS_PORT:-6379}
+      REDIS_TIMEOUT:     ${REDIS_TIMEOUT:-2s}
+      REDIS_USERNAME:    ${REDIS_USERNAME:-default}
+      REDIS_PASSWORD:    ${REDIS_PASSWORD:-}
+      REDIS_SSL_ENABLED: ${REDIS_SSL_ENABLED:-false}
+
+      # ── JWT / Security ───────────────────────────────────────
+      JWT_SECRET_KEY:         ${JWT_SECRET_KEY}
+      JWT_EXPIRATION_TIME:    ${JWT_EXPIRATION_TIME}
+      REFRESH_EXPIRATION_TIME: ${REFRESH_EXPIRATION_TIME}
+      PASSWORD_RESET_TIME:    ${PASSWORD_RESET_TIME}
+
+      # ── Mail ─────────────────────────────────────────────────
+      MAIL_HOST:     ${MAIL_HOST}
+      MAIL_PORT:     ${MAIL_PORT}
+      MAIL_USERNAME: ${MAIL_USERNAME}
+      MAIL_PASSWORD: ${MAIL_PASSWORD}
+      MAIL_FROM:     ${MAIL_FROM}
+
+      # ── Razorpay ─────────────────────────────────────────────
+      RAZORPAY_KEY_ID:     ${RAZORPAY_KEY_ID}
+      RAZORPAY_KEY_SECRET: ${RAZORPAY_KEY_SECRET}
+
+      # ── Cloudinary ───────────────────────────────────────────
+      CLOUDINARY_CLOUD_NAME:    ${CLOUDINARY_CLOUD_NAME}
+      CLOUDINARY_API_KEY:       ${CLOUDINARY_API_KEY}
+      CLOUDINARY_API_SECRET:    ${CLOUDINARY_API_SECRET}
+      CLOUDINARY_UPLOAD_FOLDER: ${CLOUDINARY_UPLOAD_FOLDER:-profiles}
+
+      # ── App URLs ─────────────────────────────────────────────
+      BASE_URL:          ${BASE_URL}
+      API_VERSION:       ${API_VERSION:-/api/v1}
+      APP_FRONTEND_URL:  ${APP_FRONTEND_URL}
+
+      # ── Misc ─────────────────────────────────────────────────
+      JASYPT_ENCRYPTOR_PASSWORD:  ${JASYPT_ENCRYPTOR_PASSWORD}
+      SNS_ENABLED: "false"   # No LocalStack in prod; SNS disabled
+      SUPER_ADMIN_BOOTSTRAP_REQUIRED: ${SUPER_ADMIN_BOOTSTRAP_REQUIRED:-true}
+      SUPER_ADMIN_USERNAME: ${SUPER_ADMIN_USERNAME}
+      SUPER_ADMIN_PASSWORD: ${SUPER_ADMIN_PASSWORD}
+      LOG_FILE_NAME: ${LOG_FILE_NAME:-/app/logs/edusync.log}
+
+      # ── Flyway (prod: never auto-baseline) ───────────────────
+      FLYWAY_BASELINE_ON_MIGRATE: "true"
+
+    volumes:
+      # Persist file uploads across container restarts
+      - uploads:/app/uploads
+      - uploads_private:/app/uploads-private
+      - logs:/app/logs
+
+    # Lightweight health-check so Docker knows when the app is ready
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://localhost:8080/actuator/health | grep -q '\"status\":\"UP\"' || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 60s
+
+    # Hard memory cap keeps the JVM from touching swap on t2.medium
+    mem_limit: 3g
+    mem_reservation: 1g
+
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "20m"
+        max-file: "5"
+
+volumes:
+  uploads:
+  uploads_private:
+  logs:
+
+
+
+

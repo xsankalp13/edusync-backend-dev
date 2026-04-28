@@ -37,7 +37,9 @@ class StaffDesignationServiceImplTest {
                 "Primary Teacher",
                 StaffCategory.TEACHING,
                 null,
-                10
+                10,
+                null,
+                null
         );
 
         when(staffDesignationRepository.existsByDesignationCodeIgnoreCaseAndActiveTrue("PRT")).thenReturn(true);
@@ -52,7 +54,9 @@ class StaffDesignationServiceImplTest {
                 "Primary Teacher",
                 StaffCategory.TEACHING,
                 null,
-                10
+                10,
+                null,
+                null
         );
 
         when(staffDesignationRepository.existsByDesignationCodeIgnoreCaseAndActiveTrue("PRT")).thenReturn(false);

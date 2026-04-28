@@ -11,6 +11,12 @@ import java.util.Optional;
 
 public interface EvaluationResultRepository extends JpaRepository<EvaluationResult, Long> {
 
+    @Query("SELECT er.answerSheet.examSchedule.exam.id FROM EvaluationResult er WHERE er.id = :resultId")
+    Optional<Long> findExamIdByResultId(@Param("resultId") Long resultId);
+
+    @Query("SELECT er.id, er.answerSheet.examSchedule.exam.id FROM EvaluationResult er WHERE er.id IN :resultIds")
+    List<Object[]> findResultIdAndExamIdByResultIds(@Param("resultIds") List<Long> resultIds);
+
     Optional<EvaluationResult> findByAnswerSheetId(Long answerSheetId);
 
     @Query("""

@@ -14,6 +14,9 @@ import java.util.Optional;
 
 public interface EvaluationAssignmentRepository extends JpaRepository<EvaluationAssignment, Long> {
 
+    @Query("SELECT ea.examSchedule.exam.id FROM EvaluationAssignment ea WHERE ea.id = :assignmentId")
+    Optional<Long> findExamIdByAssignmentId(@Param("assignmentId") Long assignmentId);
+
     // ── Fetching with joins (teacher dashboard & admin list) ────────────
 
     @Query("""

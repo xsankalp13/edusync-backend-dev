@@ -196,4 +196,21 @@ public interface UserManagementService {
     StaffKpiMetricsDTO getStaffKpiMetrics(java.util.UUID staffId);
 
     User findByUsername(String name);
+
+    /**
+     * Additively grants ROLE_HR_ADMIN to an existing staff member.
+     * All other roles are preserved (additive, not replacement).
+     * Accessible by SUPER_ADMIN and SCHOOL_ADMIN.
+     *
+     * @param staffId Staff UUID to promote.
+     * @return Updated User entity.
+     */
+    User promoteToHrAdmin(java.util.UUID staffId);
+
+    /**
+     * Removes ROLE_HR_ADMIN from a staff member's user. Other roles are preserved.
+     *
+     * @param staffId Staff UUID to demote.
+     */
+    void demoteFromHrAdmin(java.util.UUID staffId);
 }

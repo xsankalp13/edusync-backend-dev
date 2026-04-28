@@ -13,7 +13,20 @@ spring:
     redis:
       host: ${REDIS_HOST:localhost}
       port: ${REDIS_PORT:6379}
-      timeout: 500ms
+      username: ${REDIS_USERNAME:default}
+      password: ${REDIS_PASSWORD:}
+      timeout: ${REDIS_TIMEOUT:2s}
+      ssl:
+        enabled: ${REDIS_SSL_ENABLED:false}
+      repositories:
+        enabled: false
+      lettuce:
+        pool:
+          enabled: true
+          max-active: ${REDIS_POOL_MAX_ACTIVE:16}
+          max-idle: ${REDIS_POOL_MAX_IDLE:16}
+          min-idle: ${REDIS_POOL_MIN_IDLE:2}
+          max-wait: ${REDIS_POOL_MAX_WAIT:1s}
   profiles:
     active: dev
   mail:
@@ -42,6 +55,10 @@ spring:
     properties:
       hibernate:
         dialect: org.hibernate.dialect.PostgreSQLDialect
+        jdbc:
+          batch_size: ${HIBERNATE_BATCH_SIZE:50}
+        order_inserts: true
+        order_updates: true
   flyway:
     enabled: true
     locations: classpath:db/migration
@@ -171,7 +188,7 @@ spring:
 
   datasource:
     driver-class-name: org.postgresql.Driver
-    url: ${DB_URL}?prepareThreshold=0
+    url: ${DB_URL}
     username: ${DB_USER}
     password: ${DB_PASS}
     type: com.zaxxer.hikari.HikariDataSource
@@ -183,6 +200,8 @@ spring:
       max-lifetime: 1800000
       keepalive-time: 30000
       auto-commit: false
+      data-source-properties:
+        prepareThreshold: 0
 
   jpa:
     # Migration-first mode: validate schema against entities.
@@ -191,7 +210,7 @@ spring:
     # Enabled only in dev for debugging SQL queries.
     show-sql: true
   flyway:
-    enabled: false
+    enabled: true
     # Dev can bootstrap on existing local schemas without manual baseline steps.
     baseline-on-migrate: ${FLYWAY_BASELINE_ON_MIGRATE:true}
     # Allow newly added older-version migrations in local dev after branch merges/renames.
@@ -221,7 +240,7 @@ spring:
 
   datasource:
     driver-class-name: org.postgresql.Driver
-    url: ${DB_URL}?prepareThreshold=0
+    url: ${DB_URL}
     username: ${DB_USER}
     password: ${DB_PASS}
     type: com.zaxxer.hikari.HikariDataSource
@@ -233,6 +252,8 @@ spring:
       max-lifetime: 1800000
       keepalive-time: 30000
       auto-commit: false
+      data-source-properties:
+        prepareThreshold: 0
 
   jpa:
     # SECURITY: 'validate' ensures schema matches entities without altering it.
@@ -240,7 +261,6 @@ spring:
       ddl-auto: validate
     show-sql: false
   flyway:
-    enable: true
     # Production baseline remains explicit and controlled via env var.
     baseline-on-migrate: ${FLYWAY_BASELINE_ON_MIGRATE:false}
 
@@ -249,7 +269,6 @@ app:
     super-admin:
       fail-on-missing-credentials: ${SUPER_ADMIN_BOOTSTRAP_REQUIRED:true}
 
-# SECURITY: Enforce HTTPS in production.
-server:
-  ssl:
-    enabled: true
+# SSL is terminated at the load balancer / Nginx reverse proxy level.
+# Spring Boot itself listens on plain HTTP inside the container.
+# server.ssl.enabled is intentionally NOT set here.

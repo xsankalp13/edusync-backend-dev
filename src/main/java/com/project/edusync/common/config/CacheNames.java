@@ -9,6 +9,8 @@ public final class CacheNames {
     public static final String STUDENT_EVALUATION_RESULTS = "studentEvaluationResults";
     public static final String TEACHER_DASHBOARD_SUMMARY = "teacherDashboardSummaryV2";
     public static final String MASTER_DASHBOARD_ANALYTICS = "masterDashboardAnalytics";
+    public static final String HRMS_DASHBOARD_SUMMARY = "hrmsDashboardSummary";
+    public static final String FINANCE_DASHBOARD_SUMMARY = "financeDashboardSummary";
 
     private CacheNames() {
     }

@@ -52,7 +52,7 @@ public class EmailServiceImpl implements EmailService {
 
             helper.setFrom(mailFrom);
             helper.setTo(user.getEmail()); //
-            helper.setSubject("EduSync - Password Reset Request");
+            helper.setSubject("Shiksha Intelligence - Password Reset");
             helper.setText(htmlContent, true); // true = HTML
 
             javaMailSender.send(mimeMessage);

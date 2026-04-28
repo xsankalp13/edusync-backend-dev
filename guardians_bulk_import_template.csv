@@ -1,5 +1,0 @@
-studentEnrollmentNumber,firstName,lastName,middleName,email,phoneNumber,relationshipType,occupation,employer,primaryContact,canPickup,financialContact,canViewGrades
-ENR-1001,Neha,Kumar,,neha.guardian@example.com,+919876543210,Mother,Teacher,City Public School,true,true,true,true
-ENR-1001,Rajesh,Kumar,,rajesh.guardian@example.com,+919900112233,Father,Engineer,TechNova Pvt Ltd,false,true,true,true
-ENR-1002,Pooja,Sharma,,pooja.guardian@example.com,+919811223344,Aunt,Doctor,Sunrise Hospital,false,true,false,false
-

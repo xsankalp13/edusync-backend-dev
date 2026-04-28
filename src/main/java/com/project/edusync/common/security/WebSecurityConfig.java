@@ -69,7 +69,12 @@ public class WebSecurityConfig {
     public CorsConfigurationSource corsConfigurationSource() {
         CorsConfiguration configuration = new CorsConfiguration();
         // Recommendation: Move origins to application.yml for environment-specific configs
-        configuration.setAllowedOriginPatterns(List.of("*"));
+        configuration.setAllowedOrigins(List.of(
+            "https://localhost:5173",
+            "http://13.206.98.253",
+            "https://siksha-intelligence-frontend-mvp.vercel.app",
+            "https://erp.shikshaintelligence.com"
+        ));
         configuration.setAllowedMethods(Arrays.asList("GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"));
         configuration.setAllowedHeaders(List.of("*"));
         configuration.setAllowCredentials(true);

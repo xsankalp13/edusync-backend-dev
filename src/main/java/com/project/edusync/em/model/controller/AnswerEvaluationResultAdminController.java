@@ -22,7 +22,7 @@ import java.util.Map;
 @RestController
 @RequestMapping("/api/v1/admin/results")
 @RequiredArgsConstructor
-@PreAuthorize("hasAnyAuthority('ROLE_ADMIN','ROLE_SCHOOL_ADMIN','ROLE_SUPER_ADMIN')")
+@PreAuthorize("hasAnyAuthority('ROLE_ADMIN','ROLE_SCHOOL_ADMIN','ROLE_SUPER_ADMIN','ROLE_EXAM_CONTROLLER')")
 public class AnswerEvaluationResultAdminController {
 
     private final AnswerEvaluationService answerEvaluationService;
@@ -34,27 +34,32 @@ public class AnswerEvaluationResultAdminController {
     }
 
     @PostMapping("/{id}/approve")
+    @PreAuthorize("@examControllerAccess.canAccessEvaluationResult(#resultId)")
     public ResponseEntity<EvaluationResultResponseDTO> approveResult(@PathVariable("id") Long resultId) {
         return ResponseEntity.ok(answerEvaluationService.approveResult(resultId));
     }
 
     @PostMapping("/{id}/reject")
+    @PreAuthorize("@examControllerAccess.canAccessEvaluationResult(#resultId)")
     public ResponseEntity<EvaluationResultResponseDTO> rejectResult(@PathVariable("id") Long resultId) {
         return ResponseEntity.ok(answerEvaluationService.rejectResult(resultId));
     }
 
     @PostMapping("/{id}/publish")
+    @PreAuthorize("@examControllerAccess.canAccessEvaluationResult(#resultId)")
     public ResponseEntity<EvaluationResultResponseDTO> publishResult(@PathVariable("id") Long resultId) {
         return ResponseEntity.ok(answerEvaluationService.publishResult(resultId));
     }
 
     @PostMapping("/publish-bulk")
+    @PreAuthorize("@examControllerAccess.canAccessEvaluationResults(#resultIds)")
     public ResponseEntity<Map<String, Integer>> publishBulk(@org.springframework.web.bind.annotation.RequestBody List<Long> resultIds) {
         int count = answerEvaluationService.publishResultsBulk(resultIds);
         return ResponseEntity.ok(Map.of("publishedCount", count));
     }
 
     @GetMapping("/summary")
+    @PreAuthorize("@examControllerAccess.canAccessExamUuid(#examId)")
     public ResponseEntity<ClassResultSummaryResponseDTO> getSummary(
             @RequestParam("classId") UUID classId,
             @RequestParam("examId") UUID examId) {
@@ -62,6 +67,7 @@ public class AnswerEvaluationResultAdminController {
     }
 
     @PostMapping("/approve-class")
+    @PreAuthorize("@examControllerAccess.canAccessExamUuid(#examId)")
     public ResponseEntity<Map<String, Integer>> approveClass(
             @RequestParam("classId") UUID classId,
             @RequestParam("examId") UUID examId) {
@@ -70,6 +76,7 @@ public class AnswerEvaluationResultAdminController {
     }
 
     @PostMapping("/publish-class")
+    @PreAuthorize("@examControllerAccess.canAccessExamUuid(#examId)")
     public ResponseEntity<Map<String, Integer>> publishClass(
             @RequestParam("classId") UUID classId,
             @RequestParam("examId") UUID examId) {
@@ -78,6 +85,7 @@ public class AnswerEvaluationResultAdminController {
     }
 
     @PostMapping("/mark-absent")
+    @PreAuthorize("@examControllerAccess.canAccessSchedule(#scheduleId)")
     public ResponseEntity<Void> markAbsent(
             @RequestParam("scheduleId") Long scheduleId,
             @RequestParam("studentId") Long studentId,

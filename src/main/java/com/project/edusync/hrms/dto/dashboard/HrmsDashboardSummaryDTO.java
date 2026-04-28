@@ -1,13 +1,17 @@
 package com.project.edusync.hrms.dto.dashboard;
 
+import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Data;
+import lombok.NoArgsConstructor;
 
 import java.math.BigDecimal;
 import java.util.List;
 
 @Data
 @Builder
+@NoArgsConstructor
+@AllArgsConstructor
 public class HrmsDashboardSummaryDTO {
     private int totalActiveStaff;
     private int staffWithSalaryMapping;
@@ -24,8 +28,10 @@ public class HrmsDashboardSummaryDTO {
     private List<GradeDistributionItem> gradeDistribution;
     private List<MonthlyPayrollTrendItem> payrollTrend;
     private List<CategoryAttendanceItem> categoryAttendance;
-    // Phase 1 additions
-    private AttendanceHeatmapDTO currentMonthHeatmap;
+    // Phase 1 — removed currentMonthHeatmap: now fetched via dedicated /attendance-heatmap endpoint
     private int pendingApprovalRequests;
+    // Phase 5 — Dashboard Intelligence
+    private int pendingProxyCount;
+    private int pendingLateClockInCount;
+    private double staffPresentPercent;
 }
-

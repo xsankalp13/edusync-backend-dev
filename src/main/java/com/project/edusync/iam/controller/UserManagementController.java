@@ -2,6 +2,7 @@ package com.project.edusync.iam.controller;
 
 import com.project.edusync.iam.model.dto.*;
 import com.project.edusync.iam.service.UserManagementService;
+import com.project.edusync.iam.service.UsernameGeneratorService;
 import com.project.edusync.uis.model.dto.profile.ComprehensiveUserProfileResponseDTO;
 import com.project.edusync.uis.model.dto.profile.GuardianProfileDTO;
 import com.project.edusync.uis.model.dto.profile.LinkedStudentDTO;
@@ -45,6 +46,33 @@ import java.util.List;
 public class UserManagementController {
 
     private final UserManagementService userManagementService;
+    private final UsernameGeneratorService usernameGeneratorService;
+
+    // =================================================================================
+    // 0. USERNAME UTILITY
+    // =================================================================================
+
+    /**
+     * Suggests a unique, available username derived from firstName + lastName.
+     * Called live from the staff creation form as the admin types.
+     *
+     * @param firstName Staff first name (required)
+     * @param lastName  Staff last name (required)
+     * @return JSON: { "username": "john.doe", "available": true }
+     */
+    @GetMapping("/generate-username")
+    @PreAuthorize("hasAnyAuthority('ROLE_SUPER_ADMIN','ROLE_SCHOOL_ADMIN','ROLE_ADMIN','ROLE_HR_ADMIN')")
+    @Operation(summary = "Suggest a unique username",
+            description = "Generates a unique firstname.lastname style username, resolving collisions automatically.")
+    public ResponseEntity<java.util.Map<String, Object>> generateUsername(
+            @RequestParam String firstName,
+            @RequestParam String lastName) {
+        String suggested = usernameGeneratorService.generate(firstName, lastName);
+        return ResponseEntity.ok(java.util.Map.of(
+                "username", suggested,
+                "available", true  // generate() guarantees it is available
+        ));
+    }
 
     // =================================================================================
     // 1. SCHOOL ADMIN MANAGEMENT
@@ -608,5 +636,59 @@ public class UserManagementController {
             @PathVariable java.util.UUID staffId) {
         log.info("API Request: Get Staff KPI Metrics [{}]", staffId);
         return ResponseEntity.ok(userManagementService.getStaffKpiMetrics(staffId));
+    }
+
+    // =================================================================================
+    // 7. HR ADMIN PROMOTION / DEMOTION
+    // =================================================================================
+
+    @PostMapping("/staff/{staffId}/promote-hr-admin")
+    @PreAuthorize("hasAnyAuthority('ROLE_SUPER_ADMIN', 'ROLE_SCHOOL_ADMIN')")
+    @SecurityRequirement(name = "bearerAuth")
+    @Operation(
+            summary = "Promote Staff to HR Admin",
+            description = "Additively grants ROLE_HR_ADMIN to an existing staff member. " +
+                          "All current roles (TEACHER, PRINCIPAL, etc.) are preserved. " +
+                          "Accessible by Super Admin and School Admin. " +
+                          "The staff member must have an active staff record."
+    )
+    @ApiResponses(value = {
+            @ApiResponse(responseCode = "200", description = "HR Admin role granted successfully"),
+            @ApiResponse(responseCode = "400", description = "Staff member already has HR Admin role"),
+            @ApiResponse(responseCode = "403", description = "Forbidden - Requires Super Admin or School Admin privileges"),
+            @ApiResponse(responseCode = "404", description = "Staff not found"),
+            @ApiResponse(responseCode = "500", description = "Internal server error or ROLE_HR_ADMIN not seeded")
+    })
+    public ResponseEntity<String> promoteToHrAdmin(
+            @Parameter(description = "Staff UUID to promote", required = true,
+                       example = "4e95ad14-20da-4939-b666-841f3259997d")
+            @PathVariable java.util.UUID staffId) {
+        log.info("API Request: Promote Staff to HR Admin [{}]", staffId);
+        userManagementService.promoteToHrAdmin(staffId);
+        return ResponseEntity.ok("Staff member granted HR Admin role successfully.");
+    }
+
+    @DeleteMapping("/staff/{staffId}/demote-hr-admin")
+    @PreAuthorize("hasAnyAuthority('ROLE_SUPER_ADMIN', 'ROLE_SCHOOL_ADMIN')")
+    @SecurityRequirement(name = "bearerAuth")
+    @Operation(
+            summary = "Revoke HR Admin Role from Staff",
+            description = "Removes ROLE_HR_ADMIN from a staff member. All other roles are preserved. " +
+                          "Accessible by Super Admin and School Admin."
+    )
+    @ApiResponses(value = {
+            @ApiResponse(responseCode = "200", description = "HR Admin role revoked successfully"),
+            @ApiResponse(responseCode = "404", description = "Staff not found"),
+            @ApiResponse(responseCode = "409", description = "Staff member does not have HR Admin role"),
+            @ApiResponse(responseCode = "403", description = "Forbidden - Requires Super Admin or School Admin privileges"),
+            @ApiResponse(responseCode = "500", description = "Internal server error")
+    })
+    public ResponseEntity<String> demoteFromHrAdmin(
+            @Parameter(description = "Staff UUID to demote", required = true,
+                       example = "4e95ad14-20da-4939-b666-841f3259997d")
+            @PathVariable java.util.UUID staffId) {
+        log.info("API Request: Revoke HR Admin Role from Staff [{}]", staffId);
+        userManagementService.demoteFromHrAdmin(staffId);
+        return ResponseEntity.ok("HR Admin role revoked from staff member successfully.");
     }
 }

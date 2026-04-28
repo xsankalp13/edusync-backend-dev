@@ -18,5 +18,6 @@ public class TeacherEvaluationStudentResponseDTO {
     private String enrollmentNumber;
     private Long answerSheetId;
     private AnswerSheetStatus answerSheetStatus;
+    private boolean malpracticeReported;
 }
 
