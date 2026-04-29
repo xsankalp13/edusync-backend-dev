@@ -1,6 +1,8 @@
 package com.project.edusync.hrms.service.impl;
 
 import com.project.edusync.finance.service.PdfGenerationService;
+import com.project.edusync.finance.repository.AccountRepository;
+import com.project.edusync.finance.service.GeneralLedgerService;
 import com.project.edusync.ams.model.repository.StaffDailyAttendanceRepository;
 import com.project.edusync.hrms.dto.payroll.PayrollRunResponseDTO;
 import com.project.edusync.hrms.model.entity.PayrollRun;
@@ -14,6 +16,7 @@ import com.project.edusync.hrms.repository.PayrollEntryRepository;
 import com.project.edusync.hrms.repository.PayrollRunRepository;
 import com.project.edusync.hrms.repository.StaffSalaryMappingRepository;
 import com.project.edusync.hrms.service.StaffSalaryMappingService;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
@@ -21,6 +24,7 @@ import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
 import java.time.LocalDateTime;
+import java.lang.reflect.Field;
 import java.util.List;
 import java.util.Optional;
 
@@ -41,9 +45,23 @@ class PayrollLifecycleFlowTest {
     @Mock private StaffSalaryMappingService staffSalaryMappingService;
     @Mock private PdfGenerationService pdfGenerationService;
     @Mock private StaffDailyAttendanceRepository staffDailyAttendanceRepository;
+    @Mock private AccountRepository accountRepository;
+    @Mock private GeneralLedgerService glService;
 
     @InjectMocks
     private PayrollServiceImpl service;
+
+    @BeforeEach
+    void injectFieldDependencies() throws Exception {
+        setField("accountRepository", accountRepository);
+        setField("glService", glService);
+    }
+
+    private void setField(String fieldName, Object value) throws Exception {
+        Field field = PayrollServiceImpl.class.getDeclaredField(fieldName);
+        field.setAccessible(true);
+        field.set(service, value);
+    }
 
     @Test
     void approveThenDisburseUpdatesRunAndPayslipStatuses() {
@@ -65,6 +83,7 @@ class PayrollLifecycleFlowTest {
         when(payrollEntryRepository.findByPayrollRun_IdAndActiveTrueOrderByStaff_IdAsc(501L)).thenReturn(List.of());
         when(payslipRepository.findByPayrollRun_IdAndActiveTrue(501L)).thenReturn(List.of(payslip));
         when(payslipRepository.save(any(Payslip.class))).thenAnswer(inv -> inv.getArgument(0));
+        when(accountRepository.findBySchoolId(1L)).thenReturn(List.of());
 
         PayrollRunResponseDTO approved = service.approveRun(501L);
         assertEquals(PayrollRunStatus.APPROVED, approved.status());

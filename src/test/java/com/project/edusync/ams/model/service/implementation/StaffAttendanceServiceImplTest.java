@@ -8,6 +8,7 @@ import com.project.edusync.ams.model.entity.ShiftDefinition;
 import com.project.edusync.ams.model.entity.StaffDailyAttendance;
 import com.project.edusync.ams.model.entity.StaffShiftMapping;
 import com.project.edusync.ams.model.enums.AttendanceSource;
+import com.project.edusync.ams.model.exception.AttendanceProcessingException;
 import com.project.edusync.ams.model.repository.AttendanceTypeRepository;
 import com.project.edusync.ams.model.repository.ShiftDefinitionRepository;
 import com.project.edusync.ams.model.repository.StaffDailyAttendanceRepository;
@@ -115,7 +116,7 @@ class StaffAttendanceServiceImplTest {
     }
 
     @Test
-    void createAttendanceFallsBackToDefaultShiftWhenNoStaffMapping() {
+    void createAttendanceRejectsWhenNoStaffMappingForSelfCheckIn() {
         UUID staffUuid = UUID.randomUUID();
         LocalDate attendanceDate = LocalDate.now();
 
@@ -136,23 +137,16 @@ class StaffAttendanceServiceImplTest {
         staff.setId(10L);
         staff.setUuid(staffUuid);
 
-        ShiftDefinition defaultShift = buildShift(9, 0, 17, 0, 10);
-        AttendanceType late = buildType("Late", "L");
-
         when(staffRepository.findByUuid(staffUuid)).thenReturn(Optional.of(staff));
         when(academicCalendarEventRepository.existsByDateAndDayTypeInAndAppliesToStaffTrueAndIsActiveTrue(eq(attendanceDate), any(Set.class))).thenReturn(false);
         when(leaveApplicationRepository.existsOverlapping(eq(10L), eq(attendanceDate), eq(attendanceDate), any())).thenReturn(false);
         when(staffShiftMappingRepository.findCurrentMappingsByStaffId(10L, attendanceDate)).thenReturn(List.of());
-        when(shiftDefinitionRepository.findFirstByIsDefaultTrueAndActiveTrueOrderByIdAsc()).thenReturn(Optional.of(defaultShift));
-        when(attendanceTypeRepo.findByShortCodeIgnoreCase("L")).thenReturn(Optional.of(late));
-        when(repo.findByStaffIdAndAttendanceDate(10L, attendanceDate)).thenReturn(Optional.empty());
-        when(geoFenceValidator.validateAndResolveGeoVerified(eq(request), eq(99L), eq(10L))).thenReturn(false);
-        when(repo.save(any(StaffDailyAttendance.class))).thenAnswer(invocation -> invocation.getArgument(0));
 
-        StaffAttendanceResponseDTO response = service.createAttendance(request, 99L);
+        AttendanceProcessingException ex = assertThrows(AttendanceProcessingException.class,
+                () -> service.createAttendance(request, 99L));
 
-        assertEquals("L", response.getShortCode());
-        verify(shiftDefinitionRepository).findFirstByIsDefaultTrueAndActiveTrueOrderByIdAsc();
+        assertEquals("Check-in blocked. You are not mapped to a shift yet. Please contact your administrator.", ex.getMessage());
+        verify(repo, never()).save(any(StaffDailyAttendance.class));
     }
 
     @Test
@@ -178,9 +172,15 @@ class StaffAttendanceServiceImplTest {
         staff.setUuid(staffUuid);
 
         AttendanceType present = buildType("Present", "P");
+        ShiftDefinition shift = buildShift(9, 0, 17, 0, 10);
+        StaffShiftMapping mapping = new StaffShiftMapping();
+        mapping.setStaff(staff);
+        mapping.setShift(shift);
 
         when(staffRepository.findByUuid(staffUuid)).thenReturn(Optional.of(staff));
+        when(academicCalendarEventRepository.existsByDateAndDayTypeInAndAppliesToStaffTrueAndIsActiveTrue(eq(attendanceDate), any(Set.class))).thenReturn(false);
         when(leaveApplicationRepository.existsOverlapping(eq(10L), eq(attendanceDate), eq(attendanceDate), any())).thenReturn(false);
+        when(staffShiftMappingRepository.findCurrentMappingsByStaffId(10L, attendanceDate)).thenReturn(List.of(mapping));
         when(attendanceTypeRepo.findByShortCodeIgnoreCase("P")).thenReturn(Optional.of(present));
         when(repo.findByStaffIdAndAttendanceDate(10L, attendanceDate)).thenReturn(Optional.empty());
         when(geoFenceValidator.verifyByCoordinatesIfPresent(eq(28.6139), eq(77.2090))).thenReturn(true);
