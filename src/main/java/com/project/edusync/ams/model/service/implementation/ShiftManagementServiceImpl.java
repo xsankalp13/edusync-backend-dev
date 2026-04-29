@@ -310,6 +310,11 @@ public class ShiftManagementServiceImpl implements ShiftManagementService {
                         .filter(Objects::nonNull)
                         .collect(Collectors.joining(" "))).trim();
 
+        java.util.List<Integer> days = java.util.Arrays.stream((mapping.getShift().getApplicableDays() == null ? "" : mapping.getShift().getApplicableDays()).split(","))
+                .filter(s -> !s.isBlank())
+                .map(Integer::parseInt)
+                .toList();
+
         return StaffShiftMappingResponseDTO.builder()
                 .mappingId(mapping.getId())
                 .uuid(mapping.getUuid() == null ? null : mapping.getUuid().toString())
@@ -323,6 +328,7 @@ public class ShiftManagementServiceImpl implements ShiftManagementService {
                 .shiftEndTime(mapping.getShift().getEndTime())
                 .effectiveFrom(mapping.getEffectiveFrom())
                 .effectiveTo(mapping.getEffectiveTo())
+                .applicableDays(days)
                 .build();
     }
 }

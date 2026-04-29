@@ -89,6 +89,19 @@ public class StaffAttendanceServiceImpl implements StaffAttendanceService {
             if (isOnLeave) {
                 throw new AttendanceProcessingException("Check-in blocked. You are on an approved leave today. Please contact School Admin if this is an error.");
             }
+
+            ShiftDefinition shift = staffShiftMappingRepository.findCurrentMappingsByStaffId(staffId, req.getAttendanceDate()).stream()
+                    .map(StaffShiftMapping::getShift)
+                    .findFirst()
+                    .orElse(null);
+
+            if (shift == null) {
+                throw new AttendanceProcessingException("Check-in blocked. You are not mapped to a shift yet. Please contact your administrator.");
+            }
+
+            if (!isShiftApplicableForDay(shift, req.getAttendanceDate().getDayOfWeek().getValue())) {
+                throw new AttendanceProcessingException("Check-in blocked. Today is a non-working day according to your shift schedule.");
+            }
         }
 
         at = resolveAttendanceType(staffId, req.getAttendanceDate(), req.getTimeIn(), req.getAttendanceShortCode());
@@ -376,6 +389,19 @@ public class StaffAttendanceServiceImpl implements StaffAttendanceService {
             );
             if (isOnLeave) {
                 throw new AttendanceProcessingException("Update blocked. You are on an approved leave today.");
+            }
+
+            ShiftDefinition shift = staffShiftMappingRepository.findCurrentMappingsByStaffId(e.getStaffId(), req.getAttendanceDate()).stream()
+                    .map(StaffShiftMapping::getShift)
+                    .findFirst()
+                    .orElse(null);
+
+            if (shift == null) {
+                throw new AttendanceProcessingException("Update blocked. You are not mapped to a shift yet. Please contact your administrator.");
+            }
+
+            if (!isShiftApplicableForDay(shift, req.getAttendanceDate().getDayOfWeek().getValue())) {
+                throw new AttendanceProcessingException("Update blocked. Today is a non-working day according to your shift schedule.");
             }
         }
 

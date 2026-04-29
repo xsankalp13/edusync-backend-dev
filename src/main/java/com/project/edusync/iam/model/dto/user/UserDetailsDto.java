@@ -13,6 +13,8 @@ import java.util.Set;
 public class UserDetailsDto {
     private Long userId;
     private String username;
+    private String firstName;
+    private String lastName;
     private String email;
     private String profileUrl;
     private Set<String> roles;

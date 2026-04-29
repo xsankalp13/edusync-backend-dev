@@ -18,7 +18,8 @@ public record StaffShiftMappingResponseDTO(
         LocalTime shiftStartTime,
         LocalTime shiftEndTime,
         LocalDate effectiveFrom,
-        LocalDate effectiveTo
+        LocalDate effectiveTo,
+        java.util.List<Integer> applicableDays
 ) {
 }
 

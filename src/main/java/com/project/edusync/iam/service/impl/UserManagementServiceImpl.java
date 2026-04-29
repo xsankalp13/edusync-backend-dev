@@ -404,7 +404,7 @@ public class UserManagementServiceImpl implements UserManagementService {
         Staff staff = staffMapper.toEntity(request);
         staff.setUserProfile(profile);
         if (!StringUtils.hasText(staff.getEmployeeId())) {
-            staff.setEmployeeId(request.getUsername());
+            staff.setEmployeeId(generateNextEmployeeId());
         }
         
         // Manual designation mapping to bypass MapStruct nested creation issues
@@ -1111,5 +1111,19 @@ public class UserManagementServiceImpl implements UserManagementService {
         user.setRoles(roles);
         userRepository.save(user);
         log.info("Success: HR Admin role revoked. staffUuid={}, userId={}", staffId, user.getId());
+    }
+
+    private String generateNextEmployeeId() {
+        return staffRepository.findFirstByEmployeeIdStartingWithOrderByEmployeeIdDesc("EMP-")
+                .map(s -> {
+                    String current = s.getEmployeeId();
+                    try {
+                        int nextNum = Integer.parseInt(current.substring(4)) + 1;
+                        return String.format("EMP-%06d", nextNum);
+                    } catch (Exception e) {
+                        return "EMP-" + java.util.UUID.randomUUID().toString().substring(0, 6).toUpperCase();
+                    }
+                })
+                .orElse("EMP-000001");
     }
 }

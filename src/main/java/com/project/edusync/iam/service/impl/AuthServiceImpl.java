@@ -90,14 +90,17 @@ public class AuthServiceImpl implements AuthService {
                 .map(GrantedAuthority::getAuthority)
                 .collect(Collectors.toSet());
 
-        String profileUrl = userProfileRepository.findByUser(user)
-                .map(UserProfile::getProfileUrl)
-                .orElse(null);
+        UserProfile profile = userProfileRepository.findByUser(user).orElse(null);
+        String profileUrl = profile != null ? profile.getProfileUrl() : null;
+        String firstName = profile != null ? profile.getFirstName() : null;
+        String lastName = profile != null ? profile.getLastName() : null;
 
         // 5. Prepare user DTO
         UserDetailsDto userDetailsDto = new UserDetailsDto(
                 user.getId(),
                 user.getUsername(),
+                firstName,
+                lastName,
                 user.getEmail(),
                 profileUrl,
                 user.getRoles().stream().map(Role::getName).collect(Collectors.toSet())

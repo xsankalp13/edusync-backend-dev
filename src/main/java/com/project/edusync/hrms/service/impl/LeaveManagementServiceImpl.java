@@ -1,6 +1,7 @@
 package com.project.edusync.hrms.service.impl;
 
- import com.project.edusync.common.security.AuthUtil;
+import com.project.edusync.common.config.CacheNames;
+import com.project.edusync.common.security.AuthUtil;
 import com.project.edusync.common.utils.PublicIdentifierResolver;
 import com.project.edusync.hrms.exception.LeaveAccessDeniedException;
 import com.project.edusync.hrms.exception.LeaveConflictException;
@@ -33,6 +34,7 @@ import com.project.edusync.uis.model.entity.Staff;
 import com.project.edusync.uis.model.enums.StaffCategory;
 import com.project.edusync.uis.repository.StaffRepository;
 import lombok.RequiredArgsConstructor;
+import org.springframework.cache.annotation.CacheEvict;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
@@ -110,6 +112,7 @@ public class LeaveManagementServiceImpl implements LeaveManagementService {
 
     @Override
     @Transactional
+    @CacheEvict(value = {CacheNames.TEACHER_DASHBOARD_SUMMARY, CacheNames.HRMS_DASHBOARD_SUMMARY}, allEntries = true)
     public LeaveApplicationResponseDTO applyForCurrentStaff(LeaveApplicationCreateDTO dto) {
         Staff currentStaff = getCurrentStaff();
         validateDateRange(dto.fromDate(), dto.toDate());
@@ -164,6 +167,7 @@ public class LeaveManagementServiceImpl implements LeaveManagementService {
 
     @Override
     @Transactional
+    @CacheEvict(value = {CacheNames.TEACHER_DASHBOARD_SUMMARY, CacheNames.HRMS_DASHBOARD_SUMMARY}, allEntries = true)
     public LeaveApplicationResponseDTO approve(Long applicationId, Long reviewerUserId, LeaveReviewDTO dto) {
         LeaveApplication application = findActiveApplication(applicationId);
         if (application.getStatus() != LeaveApplicationStatus.PENDING) {
@@ -220,6 +224,7 @@ public class LeaveManagementServiceImpl implements LeaveManagementService {
 
     @Override
     @Transactional
+    @CacheEvict(value = {CacheNames.TEACHER_DASHBOARD_SUMMARY, CacheNames.HRMS_DASHBOARD_SUMMARY}, allEntries = true)
     public LeaveApplicationResponseDTO reject(Long applicationId, Long reviewerUserId, LeaveReviewDTO dto) {
         LeaveApplication application = findActiveApplication(applicationId);
         if (application.getStatus() != LeaveApplicationStatus.PENDING) {
@@ -251,6 +256,7 @@ public class LeaveManagementServiceImpl implements LeaveManagementService {
 
     @Override
     @Transactional
+    @CacheEvict(value = {CacheNames.TEACHER_DASHBOARD_SUMMARY, CacheNames.HRMS_DASHBOARD_SUMMARY}, allEntries = true)
     public LeaveApplicationResponseDTO cancelByCurrentStaff(Long applicationId) {
         LeaveApplication application = findActiveApplication(applicationId);
         Staff currentStaff = getCurrentStaff();

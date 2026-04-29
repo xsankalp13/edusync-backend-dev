@@ -74,6 +74,26 @@ public class UserManagementController {
         ));
     }
 
+    /**
+     * Checks if a specific username is available.
+     * Called live from the staff creation form when overriding username.
+     *
+     * @param username Requested username
+     * @return JSON: { "username": "john.doe", "available": true/false }
+     */
+    @GetMapping("/check-username")
+    @PreAuthorize("hasAnyAuthority('ROLE_SUPER_ADMIN','ROLE_SCHOOL_ADMIN','ROLE_ADMIN','ROLE_HR_ADMIN')")
+    @Operation(summary = "Check username availability",
+            description = "Checks if the provided username is available.")
+    public ResponseEntity<java.util.Map<String, Object>> checkUsername(
+            @RequestParam String username) {
+        boolean available = usernameGeneratorService.isAvailable(username);
+        return ResponseEntity.ok(java.util.Map.of(
+                "username", username,
+                "available", available
+        ));
+    }
+
     // =================================================================================
     // 1. SCHOOL ADMIN MANAGEMENT
     // =================================================================================

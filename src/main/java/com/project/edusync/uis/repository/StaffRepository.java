@@ -21,6 +21,8 @@ public interface StaffRepository extends JpaRepository<Staff, Long> {
 
     Optional<Staff> findByUserProfile(UserProfile userProfile);
 
+    Optional<Staff> findFirstByEmployeeIdStartingWithOrderByEmployeeIdDesc(String prefix);
+
     /**
      * Fetches all staff with their UserProfile and User eagerly.
      * Explicit countQuery is required when using JOIN FETCH with pagination.
