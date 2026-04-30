@@ -89,4 +89,19 @@ public interface PaymentRepository extends JpaRepository<Payment, Long> {
             @Param("startDate") java.time.LocalDateTime startDate,
             @Param("endDate") java.time.LocalDateTime endDate
     );
+
+    /**
+     * Returns total collected payments in an arbitrary date-time range (for MTD comparisons).
+     */
+    @Query("""
+            SELECT COALESCE(SUM(p.amountPaid), 0)
+            FROM Payment p
+            WHERE p.status = 'SUCCESS'
+              AND p.paymentDate >= :startDate
+              AND p.paymentDate <= :endDate
+            """)
+    java.math.BigDecimal sumCollectedByDateRange(
+            @Param("startDate") java.time.LocalDateTime startDate,
+            @Param("endDate") java.time.LocalDateTime endDate
+    );
 }

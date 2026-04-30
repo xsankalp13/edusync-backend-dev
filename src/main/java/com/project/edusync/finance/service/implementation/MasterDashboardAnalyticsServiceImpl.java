@@ -3,6 +3,8 @@ package com.project.edusync.finance.service.implementation;
 import com.project.edusync.ams.model.repository.StaffDailyAttendanceRepository;
 import com.project.edusync.ams.model.repository.StudentDailyAttendanceRepository;
 import com.project.edusync.common.config.CacheNames;
+import com.project.edusync.finance.dto.dashboard.DashboardForecastDTO;
+import com.project.edusync.finance.dto.dashboard.DashboardKpiTrendsDTO;
 import com.project.edusync.finance.dto.dashboard.MasterAnalyticsResponseDTO;
 import com.project.edusync.finance.repository.InvoiceRepository;
 import com.project.edusync.finance.repository.PaymentRepository;
@@ -57,6 +59,158 @@ public class MasterDashboardAnalyticsServiceImpl implements MasterDashboardAnaly
                 .attendanceTrend(buildAttendanceTrend())
                 .demographics(buildDemographics())
                 .build();
+    }
+
+    /**
+     * Returns KPI trend comparisons: current MTD vs prior month MTD.
+     * Revenue, Outstanding, Payroll — each with real delta %.
+     * Result is intentionally NOT cached: MTD is a moving window.
+     */
+    @Override
+    @Transactional(readOnly = true)
+    public DashboardKpiTrendsDTO getKpiTrends() {
+        LocalDate today = LocalDate.now();
+        int dayOfMonth = today.getDayOfMonth();
+
+        // Current MTD: 1st of this month → today
+        LocalDate currentStart = today.withDayOfMonth(1);
+
+        // Prior month MTD: same span (1st → same day-of-month, capped to last day)
+        YearMonth priorYm = YearMonth.of(today.getYear(), today.getMonthValue()).minusMonths(1);
+        LocalDate priorStart = priorYm.atDay(1);
+        LocalDate priorEnd = priorYm.atDay(Math.min(dayOfMonth, priorYm.lengthOfMonth()));
+
+        // ── Revenue (collected payments) ────────────────────────────
+        BigDecimal revenueMtd = paymentRepository.sumCollectedByDateRange(currentStart.atStartOfDay(), today.atTime(23, 59, 59));
+        BigDecimal revenuePriorMtd = paymentRepository.sumCollectedByDateRange(priorStart.atStartOfDay(), priorEnd.atTime(23, 59, 59));
+
+        // ── Outstanding (invoices issued this month, unpaid balance) ─
+        BigDecimal expectedMtd = invoiceRepository.sumExpectedByDateRange(currentStart, today);
+        BigDecimal collectedMtd = revenueMtd;
+        BigDecimal outstandingMtd = expectedMtd.subtract(collectedMtd).max(BigDecimal.ZERO);
+
+        BigDecimal expectedPrior = invoiceRepository.sumExpectedByDateRange(priorStart, priorEnd);
+        BigDecimal collectedPrior = revenuePriorMtd;
+        BigDecimal outstandingPriorMtd = expectedPrior.subtract(collectedPrior).max(BigDecimal.ZERO);
+
+        // ── Payroll outflow ──────────────────────────────────────────
+        EnumSet<PayrollRunStatus> disbursedStatuses = EnumSet.of(
+                PayrollRunStatus.PROCESSED, PayrollRunStatus.APPROVED, PayrollRunStatus.DISBURSED);
+        BigDecimal payrollMtd = payrollRunRepository.sumTotalNetByMonthAndStatuses(
+                today.getYear(), today.getMonthValue(), disbursedStatuses);
+        BigDecimal payrollPriorMtd = payrollRunRepository.sumTotalNetByMonthAndStatuses(
+                priorYm.getYear(), priorYm.getMonthValue(), disbursedStatuses);
+
+        // ── Pending invoices ─────────────────────────────────────────
+        long pendingCount = invoiceRepository.countPendingInvoices();
+
+        return DashboardKpiTrendsDTO.builder()
+                .revenueMtd(revenueMtd)
+                .revenuePriorMtd(revenuePriorMtd)
+                .revenueDeltaPct(pctChange(revenuePriorMtd, revenueMtd))
+                .outstandingMtd(outstandingMtd)
+                .outstandingPriorMtd(outstandingPriorMtd)
+                .outstandingDeltaPct(pctChange(outstandingPriorMtd, outstandingMtd))
+                .payrollMtd(payrollMtd)
+                .payrollPriorMtd(payrollPriorMtd)
+                .payrollDeltaPct(pctChange(payrollPriorMtd, payrollMtd))
+                .pendingInvoiceCount(pendingCount)
+                .build();
+    }
+
+    /**
+     * Predictive intelligence snapshot for the admin dashboard.
+     * Computes three forecast signals without caching (all moving windows):
+     *   1. Revenue EOM projection  — linear extrapolation of MTD daily rate.
+     *   2. Staff attendance trend  — 7-day rolling comparison (last-3 vs first-4 avg).
+     *   3. Outstanding balance risk — month-over-month growth rate classification.
+     */
+    @Override
+    @Transactional(readOnly = true)
+    public DashboardForecastDTO getForecast() {
+        LocalDate today = LocalDate.now();
+        int daysElapsed = today.getDayOfMonth();
+        int daysInMonth = today.lengthOfMonth();
+        LocalDate monthStart = today.withDayOfMonth(1);
+        LocalDate monthEnd = today.withDayOfMonth(daysInMonth);
+
+        // ── Revenue EOM forecast ─────────────────────────────────────────
+        BigDecimal collectedMtd = paymentRepository.sumCollectedByDateRange(
+                monthStart.atStartOfDay(), today.atTime(23, 59, 59));
+        BigDecimal monthTarget = invoiceRepository.sumExpectedByDateRange(monthStart, monthEnd);
+
+        double dailyRate = daysElapsed > 0 ? collectedMtd.doubleValue() / daysElapsed : 0.0;
+        double eomForecastVal = dailyRate * daysInMonth;
+        double trajectoryPct = monthTarget.compareTo(BigDecimal.ZERO) > 0
+                ? (eomForecastVal / monthTarget.doubleValue()) * 100.0
+                : 100.0;
+        String revenueTrajectory = trajectoryPct >= 90.0 ? "ON_TRACK"
+                : trajectoryPct >= 70.0 ? "AT_RISK"
+                : "CRITICAL";
+
+        // ── Staff attendance 7-day trend ──────────────────────────────────
+        LocalDate sevenDaysAgo = today.minusDays(6);
+        long totalStaff = staffRepository.countByIsActiveTrue();
+
+        Map<LocalDate, Long> presentByDay = new HashMap<>();
+        staffDailyAttendanceRepository.countPresentStaffByDateRange(sevenDaysAgo, today)
+                .forEach(p -> presentByDay.put(p.getAttendanceDate(), p.getPresentCount()));
+
+        List<Double> pctList = new ArrayList<>(7);
+        for (int i = 6; i >= 0; i--) {
+            LocalDate d = today.minusDays(i);
+            long present = presentByDay.getOrDefault(d, 0L);
+            pctList.add(totalStaff > 0 ? (present * 100.0) / totalStaff : 0.0);
+        }
+
+        double currentAttPct = pctList.get(pctList.size() - 1);
+        double firstAvg = pctList.subList(0, 4).stream().mapToDouble(Double::doubleValue).average().orElse(0.0);
+        double lastAvg  = pctList.subList(4, 7).stream().mapToDouble(Double::doubleValue).average().orElse(0.0);
+        double slope = round1(lastAvg - firstAvg);
+        String attendanceTrend = slope > 2.0 ? "IMPROVING" : slope < -2.0 ? "DECLINING" : "STABLE";
+
+        // ── Outstanding risk (MoM growth) ────────────────────────────────
+        BigDecimal expectedMtd = invoiceRepository.sumExpectedByDateRange(monthStart, today);
+        BigDecimal outstandingMtd = expectedMtd.subtract(collectedMtd).max(BigDecimal.ZERO);
+
+        YearMonth priorYm = YearMonth.of(today.getYear(), today.getMonthValue()).minusMonths(1);
+        LocalDate priorStart = priorYm.atDay(1);
+        LocalDate priorEnd = priorYm.atDay(Math.min(daysElapsed, priorYm.lengthOfMonth()));
+        BigDecimal collectedPrior = paymentRepository.sumCollectedByDateRange(
+                priorStart.atStartOfDay(), priorEnd.atTime(23, 59, 59));
+        BigDecimal expectedPrior = invoiceRepository.sumExpectedByDateRange(priorStart, priorEnd);
+        BigDecimal outstandingPrior = expectedPrior.subtract(collectedPrior).max(BigDecimal.ZERO);
+
+        double outstandingGrowthRate = round1(pctChange(outstandingPrior, outstandingMtd));
+        String outstandingRisk = outstandingGrowthRate > 20.0 ? "HIGH"
+                : outstandingGrowthRate > 5.0 ? "MEDIUM"
+                : "LOW";
+
+        return DashboardForecastDTO.builder()
+                .revenueEomForecast(BigDecimal.valueOf(eomForecastVal).setScale(0, RoundingMode.HALF_UP))
+                .revenueMonthTarget(monthTarget)
+                .revenueTrajectoryPct(round1(trajectoryPct))
+                .revenueTrajectory(revenueTrajectory)
+                .attendanceTrend(attendanceTrend)
+                .attendanceTrendSlope(slope)
+                .currentStaffAttendancePct(round1(currentAttPct))
+                .outstandingRisk(outstandingRisk)
+                .outstandingGrowthRate(outstandingGrowthRate)
+                .build();
+    }
+
+    private double round1(double v) {
+        return Math.round(v * 10.0) / 10.0;
+    }
+
+    /** Computes percentage change: (current - prior) / prior * 100, returns 0 if prior == 0. */
+    private double pctChange(BigDecimal prior, BigDecimal current) {
+        if (prior == null || prior.compareTo(BigDecimal.ZERO) == 0) return 0.0;
+        return current.subtract(prior)
+                .divide(prior, 6, RoundingMode.HALF_UP)
+                .multiply(BigDecimal.valueOf(100))
+                .setScale(1, RoundingMode.HALF_UP)
+                .doubleValue();
     }
 
     /**

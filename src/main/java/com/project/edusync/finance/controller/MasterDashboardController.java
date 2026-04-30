@@ -1,5 +1,7 @@
 package com.project.edusync.finance.controller;
 
+import com.project.edusync.finance.dto.dashboard.DashboardForecastDTO;
+import com.project.edusync.finance.dto.dashboard.DashboardKpiTrendsDTO;
 import com.project.edusync.finance.dto.dashboard.MasterAnalyticsResponseDTO;
 import com.project.edusync.finance.service.MasterDashboardAnalyticsService;
 import lombok.RequiredArgsConstructor;
@@ -18,6 +20,16 @@ public class MasterDashboardController {
     @GetMapping("/master-analytics")
     public ResponseEntity<MasterAnalyticsResponseDTO> getMasterAnalytics() {
         return ResponseEntity.ok(masterDashboardAnalyticsService.getMasterAnalytics());
+    }
+
+    @GetMapping("/kpi-trends")
+    public ResponseEntity<DashboardKpiTrendsDTO> getKpiTrends() {
+        return ResponseEntity.ok(masterDashboardAnalyticsService.getKpiTrends());
+    }
+
+    @GetMapping("/forecast")
+    public ResponseEntity<DashboardForecastDTO> getForecast() {
+        return ResponseEntity.ok(masterDashboardAnalyticsService.getForecast());
     }
 }
 

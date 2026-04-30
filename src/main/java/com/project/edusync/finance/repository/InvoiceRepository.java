@@ -163,4 +163,18 @@ public interface InvoiceRepository extends JpaRepository<Invoice, Long> {
             @Param("startDate") java.time.LocalDate startDate,
             @Param("endDate") java.time.LocalDate endDate
     );
+
+    /**
+     * Returns total expected invoice amounts issued in an arbitrary date range (for MTD comparisons).
+     */
+    @Query("""
+            SELECT COALESCE(SUM(i.totalAmount), 0)
+            FROM Invoice i
+            WHERE i.issueDate >= :startDate
+              AND i.issueDate <= :endDate
+            """)
+    java.math.BigDecimal sumExpectedByDateRange(
+            @Param("startDate") java.time.LocalDate startDate,
+            @Param("endDate") java.time.LocalDate endDate
+    );
 }
