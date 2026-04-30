@@ -32,6 +32,9 @@ import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.bind.annotation.PathVariable;
+import org.springframework.web.bind.annotation.PostMapping;
+import jakarta.validation.Valid;
+import org.springframework.web.bind.annotation.RequestBody;
 
 import java.util.List;
 
@@ -49,6 +52,7 @@ public class GuardianDashboardController {
     private final ProfileService profileService;
     private final UserProfileRepository userProfileRepository;
     private final StudentMedicalRecordRepository studentMedicalRecordRepository;
+    private final com.project.edusync.uis.repository.StudentLeaveApplicationRepository studentLeaveApplicationRepository; // not used directly but injected to ensure bean scanning if needed
 
     @GetMapping("/intelligence")
     @PreAuthorize("hasRole('GUARDIAN')")
@@ -110,6 +114,18 @@ public class GuardianDashboardController {
         Long studentUserId = student.getUserProfile().getUser().getId();
         ComprehensiveUserProfileResponseDTO profile = profileService.getProfileByUserId(studentUserId);
         return ResponseEntity.ok(profile);
+    }
+
+    @PostMapping("/attendance/leave/{childId}")
+    @PreAuthorize("hasRole('GUARDIAN')")
+    @Operation(summary = "Apply for leave for a linked child", description = "Guardian applies for leave for their child. Returns created leave application.", security = @SecurityRequirement(name = "bearerAuth"))
+    public ResponseEntity<com.project.edusync.uis.model.dto.leave.StudentLeaveApplicationResponseDTO> applyForLeave(
+            @PathVariable Long childId,
+            @RequestBody @Valid com.project.edusync.uis.model.dto.leave.StudentLeaveApplicationRequestDTO request) {
+
+        Long userId = authUtil.getCurrentUserId();
+        var response = guardianDashboardService.applyForLeave(userId, childId, request);
+        return ResponseEntity.ok(response);
     }
 
     @PutMapping("/health/{childId}")

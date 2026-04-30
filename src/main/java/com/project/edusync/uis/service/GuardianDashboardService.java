@@ -8,4 +8,7 @@ import java.util.List;
 public interface GuardianDashboardService {
     List<IntelligenceResponseDTO> getAllLinkedStudentsDashboardIntelligence(Long guardianUserId, Long academicYearId);
     List<OverviewResponseDTO> getAllLinkedStudentsDashboardOverview(Long guardianUserId, Long academicYearId);
+
+    // Apply for leave on behalf of a linked child (guardian action)
+    com.project.edusync.uis.model.dto.leave.StudentLeaveApplicationResponseDTO applyForLeave(Long guardianUserId, Long childId, com.project.edusync.uis.model.dto.leave.StudentLeaveApplicationRequestDTO request);
 }
