@@ -139,7 +139,7 @@ public class RegisterUserByRole {
      * @param enrollmentDate Date of enrollment.
      * @param section The pre-fetched Section entity.
      */
-    @Transactional
+    @Transactional(rollbackFor = Exception.class)
     public Student RegisterStudent(
             String email,
             String enrollmentNumber,
@@ -215,6 +215,7 @@ public class RegisterUserByRole {
      * @param row The full CSV row, used to parse role-specific details.
      * @throws RuntimeException if any parsing or validation fails.
      */
+    @Transactional(rollbackFor = Exception.class)
     public void RegisterStaff(
             String email,
             String employeeId,
@@ -231,7 +232,7 @@ public class RegisterUserByRole {
             StaffType staffType,
             StaffCategory staffCategory,
             String[] row
-    ) { // <-- No 'throws Exception' needed, RuntimeExceptions will bubble up
+    ) {
 
         log.info("Attempting to create User for staff: {}", email);
         User user = RegisterUser(email, employeeId, DEFAULT_PASSWORD, staffRole); // Staff employeeId is their email
@@ -254,21 +255,25 @@ public class RegisterUserByRole {
         // POST /hrms/designations/{id}/assign-staff
         if (designationCode != null && !designationCode.isBlank()) {
             StaffDesignation designation = staffDesignationRepository.findByDesignationCodeIgnoreCase(designationCode)
-                    .orElseThrow(() -> new RuntimeException("Designation not found for code: " + designationCode));
+                    .orElseThrow(() -> new RuntimeException("Designation '" + designationCode + "' not found. Please verify the designation code."));
+
+            // ── Fail-fast: check salary template BEFORE any DB writes ──────────
+            // This ensures that if the designation has no salary template, no orphan
+            // User/UserProfile/Staff records are created (transaction will roll back).
+            if (designation.getDefaultSalaryTemplate() == null) {
+                throw new RuntimeException(
+                        "Designation '" + designationCode + "' does not have a default salary template mapped. "
+                        + "Please map a salary template to this designation in the HRMS settings before importing staff.");
+            }
+
             staff.setDesignation(designation);
             staff.setJobTitle(designation.getDesignationName());
-
             staff.setActive(true);
             staff.setUserProfile(userProfile);
 
             log.info("Attempting to create base Staff record for: {}", email);
             Staff savedStaff = staffRepository.save(staff);
             log.info("Successfully created base Staff with ID: {}", savedStaff.getId());
-
-            if (designation.getDefaultSalaryTemplate() == null) {
-                throw new RuntimeException("Designation " + designationCode
-                        + " has no default salary template. Cannot proceed with staff creation.");
-            }
 
             com.project.edusync.hrms.model.entity.StaffSalaryMapping ssm = new com.project.edusync.hrms.model.entity.StaffSalaryMapping();
             ssm.setStaff(savedStaff);
