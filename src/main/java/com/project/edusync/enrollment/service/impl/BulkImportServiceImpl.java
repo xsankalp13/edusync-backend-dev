@@ -324,7 +324,9 @@ public class BulkImportServiceImpl implements BulkImportService {
      * Processes and validates a single student row.
      * This method is marked @Transactional.
      */
-    @Transactional(rollbackFor = Exception.class)
+    // NOTE: Not @Transactional here — self-invocation from importUsers() would bypass the proxy.
+    // The actual transactional boundary is on RegisterUserByRole.RegisterStudent() which is a
+    // separate Spring component and is called via proxy.
     public StudentRowProcessingResult processStudentRow(String[] row,
             Map<String, Role> roleCache,
             Map<String, Section> sectionCache,
@@ -727,7 +729,7 @@ public class BulkImportServiceImpl implements BulkImportService {
                 errorMessages.stream().toList());
     }
 
-    @Transactional(rollbackFor = Exception.class)
+    // NOTE: Not @Transactional here — self-invocation from importRooms() would bypass the proxy.
     public Integer processRoomRow(String[] row) {
         String name = validationHelper.validateString(getRequiredColumn(row, 0, "name"), "name");
         String roomType = validationHelper.validateString(getRequiredColumn(row, 1, "roomType"), "roomType")
@@ -969,7 +971,8 @@ public class BulkImportServiceImpl implements BulkImportService {
      * Marked Transactional to ensure that if anything fails during the link, it
      * rolls back.
      */
-    @Transactional(rollbackFor = Exception.class)
+    // NOTE: Not @Transactional here — self-invocation from importStudentsWithGuardians() would bypass the proxy.
+    // The actual transactional boundary is on RegisterUserByRole.RegisterGuardian().
     public StudentRowProcessingResult processGuardiansForExistingStudent(Student student,
             List<BulkImportGuardianInputDTO> guardiansForStudent,
             Map<String, Role> roleCache) {
@@ -1087,7 +1090,9 @@ public class BulkImportServiceImpl implements BulkImportService {
      * @param roleCache The pre-fetched Role map.
      * @throws Exception if any validation or database constraint fails.
      */
-    @Transactional(rollbackFor = Exception.class)
+    // NOTE: Not @Transactional here — self-invocation from importUsers() would bypass the proxy.
+    // The actual transactional boundary is on RegisterUserByRole.RegisterStaff() which is a
+    // separate Spring component and is called via proxy.
     public void routeStaffRowProcessing(String[] row, Map<String, Role> roleCache) throws Exception {
         // This will throw DataParsingException if row[10] is invalid
         StaffType staffType = validationHelper.parseEnum(StaffType.class, row[10], "staffType");
