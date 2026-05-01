@@ -14,4 +14,7 @@ public interface ScholarshipService {
     ScholarshipAssignmentDTO assignScholarship(ScholarshipAssignmentCreateDTO dto);
     List<ScholarshipAssignmentDTO> getAllAssignments();
     ScholarshipAssignmentDTO revokeAssignment(Long assignmentId);
+    ScholarshipAssignmentDTO activateAssignment(Long assignmentId);
+    void deleteAssignment(Long assignmentId);
+    void deleteBulkAssignments(List<Long> assignmentIds);
 }

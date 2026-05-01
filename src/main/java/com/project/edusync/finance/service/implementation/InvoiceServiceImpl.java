@@ -45,6 +45,8 @@ public class InvoiceServiceImpl implements InvoiceService {
     private final StudentFeeMapRepository studentFeeMapRepository;
     private final FeeParticularRepository feeParticularRepository;
     private final LateFeeRuleRepository lateFeeRuleRepository;
+    private final ScholarshipAssignmentRepository scholarshipAssignmentRepository;
+    private final ScholarshipTypeRepository scholarshipTypeRepository;
     private final InvoiceMapper invoiceMapper;
 
     private final PdfGenerationService pdfGenerationService;
@@ -110,7 +112,49 @@ public class InvoiceServiceImpl implements InvoiceService {
 
         invoice.setTotalAmount(totalAmount);
 
-        // 7. Save the invoice (and its line items via CascadeType.ALL)
+        // 7. Check for Active Scholarships
+        List<ScholarshipAssignment> scholarships = scholarshipAssignmentRepository.findByStudentId(studentId);
+        log.info("Found {} scholarship assignments for student {}", scholarships.size(), studentId);
+        
+        ScholarshipAssignment activeScholarship = scholarships.stream()
+                .peek(s -> log.info("Checking scholarship: ID={}, Status={}, From={}, To={}", 
+                        s.getId(), s.getStatus(), s.getEffectiveFrom(), s.getEffectiveTo()))
+                .filter(s -> "ACTIVE".equalsIgnoreCase(s.getStatus()))
+                .filter(s -> !LocalDate.now().isBefore(s.getEffectiveFrom()))
+                .filter(s -> s.getEffectiveTo() == null || !LocalDate.now().isAfter(s.getEffectiveTo()))
+                .findFirst()
+                .orElse(null);
+
+        if (activeScholarship != null) {
+            log.info("Active scholarship found: {}", activeScholarship.getScholarshipType().getName());
+            BigDecimal discountAmount = BigDecimal.ZERO;
+            if ("PERCENTAGE".equalsIgnoreCase(activeScholarship.getDiscountType())) {
+                discountAmount = totalAmount.multiply(activeScholarship.getDiscountValue())
+                        .divide(new BigDecimal("100"), 2, RoundingMode.HALF_UP);
+            } else if ("FIXED".equalsIgnoreCase(activeScholarship.getDiscountType())) {
+                discountAmount = activeScholarship.getDiscountValue();
+            }
+
+            if (discountAmount.compareTo(BigDecimal.ZERO) > 0) {
+                InvoiceLineItem discountItem = new InvoiceLineItem();
+                discountItem.setDescription("Scholarship Discount (" + activeScholarship.getScholarshipType().getName() + ")");
+                discountItem.setAmount(discountAmount.negate());
+                invoice.addLineItem(discountItem);
+
+                totalAmount = totalAmount.subtract(discountAmount);
+                invoice.setTotalAmount(totalAmount);
+
+                // Atomically increment total discount in DB — bypasses proxy/cache issues
+                scholarshipTypeRepository.incrementTotalDiscountIssued(
+                        activeScholarship.getScholarshipType().getId(), discountAmount);
+                
+                log.info("Incremented totalDiscountIssued for scholarshipType id={} by {}",
+                        activeScholarship.getScholarshipType().getId(), discountAmount);
+                log.info("Applied scholarship discount: {} to invoice {}", discountAmount, invoice.getInvoiceNumber());
+            }
+        }
+
+        // 8. Save the invoice (and its line items via CascadeType.ALL)
         Invoice savedInvoice = invoiceRepository.save(invoice);
 
         // 8. Map to DTO and return

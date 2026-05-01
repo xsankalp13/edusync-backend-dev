@@ -22,6 +22,10 @@ public class PaymentMapper {
         }
         if (payment.getStudent() != null) {
             dto.setStudentId(payment.getStudent().getId());
+            if (payment.getStudent().getUserProfile() != null) {
+                dto.setStudentName(payment.getStudent().getUserProfile().getFirstName() + " " + 
+                                  payment.getStudent().getUserProfile().getLastName());
+            }
         }
 
         return dto;

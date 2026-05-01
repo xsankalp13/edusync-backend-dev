@@ -33,6 +33,18 @@ public class StudentFeeMapController {
     }
 
     /**
+     * POST /api/v1/finance/student-maps/bulk
+     * Creates multiple student-fee structure mappings in one batch.
+     */
+    @PostMapping("/bulk")
+    public ResponseEntity<List<StudentFeeMapResponseDTO>> createBulkStudentFeeMaps(
+            @Valid @RequestBody List<StudentFeeMapCreateDTO> createDTOs) {
+
+        List<StudentFeeMapResponseDTO> responses = studentFeeMapService.createBulkStudentFeeMaps(createDTOs);
+        return new ResponseEntity<>(responses, HttpStatus.CREATED);
+    }
+
+    /**
      * PUT /api/v1/finance/student-maps/{mapId}
      * Updates an existing student-fee structure mapping.
      */
@@ -65,5 +77,25 @@ public class StudentFeeMapController {
 
         List<StudentFeeMapResponseDTO> responseList = studentFeeMapService.getAllStudentFeeMaps();
         return new ResponseEntity<>(responseList, HttpStatus.OK);
+    }
+
+    /**
+     * DELETE /api/v1/finance/student-maps/{mapId}
+     * Deletes a student-fee structure mapping.
+     */
+    @DeleteMapping("/{mapId}")
+    public ResponseEntity<Void> deleteStudentFeeMap(@PathVariable Long mapId) {
+        studentFeeMapService.deleteStudentFeeMap(mapId);
+        return ResponseEntity.noContent().build();
+    }
+
+    /**
+     * DELETE /api/v1/finance/student-maps/bulk
+     * Deletes multiple student-fee structure mappings in one batch.
+     */
+    @DeleteMapping("/bulk")
+    public ResponseEntity<Void> deleteBulkStudentFeeMaps(@RequestBody List<Long> mapIds) {
+        studentFeeMapService.deleteBulkStudentFeeMaps(mapIds);
+        return ResponseEntity.noContent().build();
     }
 }

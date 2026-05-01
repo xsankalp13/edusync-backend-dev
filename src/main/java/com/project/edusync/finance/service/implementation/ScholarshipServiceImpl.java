@@ -86,7 +86,7 @@ public class ScholarshipServiceImpl implements ScholarshipService {
         ScholarshipAssignment assignment = assignmentRepository.findById(assignmentId)
                 .orElseThrow(() -> new RuntimeException("Assignment not found"));
         
-        if ("ACTIVE".equals(assignment.getStatus())) {
+        if ("ACTIVE".equalsIgnoreCase(assignment.getStatus())) {
             assignment.setStatus("REVOKED");
             assignment.setEffectiveTo(LocalDate.now());
             
@@ -96,5 +96,53 @@ public class ScholarshipServiceImpl implements ScholarshipService {
         }
         
         return mapper.toDto(assignmentRepository.save(assignment));
+    }
+
+    @Override
+    @Transactional
+    public ScholarshipAssignmentDTO activateAssignment(Long assignmentId) {
+        ScholarshipAssignment assignment = assignmentRepository.findById(assignmentId)
+                .orElseThrow(() -> new RuntimeException("Assignment not found"));
+
+        if (!"ACTIVE".equalsIgnoreCase(assignment.getStatus())) {
+            ScholarshipType type = assignment.getScholarshipType();
+            
+            // Check capacity
+            if (type.getMaxRecipients() != null && type.getActiveCount() >= type.getMaxRecipients()) {
+                throw new RuntimeException("Cannot activate: Scholarship max recipients reached");
+            }
+
+            assignment.setStatus("ACTIVE");
+            assignment.setEffectiveTo(null);
+            
+            type.setActiveCount(type.getActiveCount() + 1);
+            typeRepository.save(type);
+        }
+
+        return mapper.toDto(assignmentRepository.save(assignment));
+    }
+
+    @Override
+    @Transactional
+    public void deleteAssignment(Long assignmentId) {
+        ScholarshipAssignment assignment = assignmentRepository.findById(assignmentId)
+                .orElseThrow(() -> new RuntimeException("Assignment not found"));
+
+        // If it was active, decrease the count
+        if ("ACTIVE".equalsIgnoreCase(assignment.getStatus())) {
+            ScholarshipType type = assignment.getScholarshipType();
+            type.setActiveCount(Math.max(0, type.getActiveCount() - 1));
+            typeRepository.save(type);
+        }
+
+        assignmentRepository.delete(assignment);
+    }
+
+    @Override
+    @Transactional
+    public void deleteBulkAssignments(List<Long> assignmentIds) {
+        for (Long id : assignmentIds) {
+            deleteAssignment(id);
+        }
     }
 }

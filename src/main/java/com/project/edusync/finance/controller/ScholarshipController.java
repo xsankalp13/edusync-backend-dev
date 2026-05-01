@@ -43,4 +43,21 @@ public class ScholarshipController {
     public ResponseEntity<ScholarshipAssignmentDTO> revokeAssignment(@PathVariable Long id) {
         return ResponseEntity.ok(scholarshipService.revokeAssignment(id));
     }
+
+    @PutMapping("/assignments/{id}/activate")
+    public ResponseEntity<ScholarshipAssignmentDTO> activateAssignment(@PathVariable Long id) {
+        return ResponseEntity.ok(scholarshipService.activateAssignment(id));
+    }
+
+    @DeleteMapping("/assignments/{id}")
+    public ResponseEntity<Void> deleteAssignment(@PathVariable Long id) {
+        scholarshipService.deleteAssignment(id);
+        return ResponseEntity.noContent().build();
+    }
+
+    @DeleteMapping("/assignments/bulk")
+    public ResponseEntity<Void> deleteBulkAssignments(@RequestBody List<Long> ids) {
+        scholarshipService.deleteBulkAssignments(ids);
+        return ResponseEntity.noContent().build();
+    }
 }

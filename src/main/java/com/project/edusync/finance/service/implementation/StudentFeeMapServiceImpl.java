@@ -1,5 +1,6 @@
 package com.project.edusync.finance.service.implementation; // Or your '...service' package
 
+import com.project.edusync.common.exception.finance.DuplicateFeeAssignmentException;
 import com.project.edusync.common.exception.finance.FeeStructureNotFoundException;
 import com.project.edusync.common.exception.finance.StudentFeeMapNotFoundException;
 import com.project.edusync.common.exception.finance.StudentNotFoundException;
@@ -15,13 +16,16 @@ import com.project.edusync.finance.service.StudentFeeMapService; // Import inter
 import com.project.edusync.uis.model.entity.Student;
 import com.project.edusync.uis.repository.StudentRepository;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.modelmapper.ModelMapper;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.util.List;
+import java.util.Map;
 import java.util.stream.Collectors;
 
+@Slf4j
 @Service
 @RequiredArgsConstructor
 public class StudentFeeMapServiceImpl implements StudentFeeMapService {
@@ -36,9 +40,13 @@ public class StudentFeeMapServiceImpl implements StudentFeeMapService {
     @Transactional
     public StudentFeeMapResponseDTO createStudentFeeMap(StudentFeeMapCreateDTO createDTO) {
 
-        // 1. Find the related entities
         Student student = findStudentById(createDTO.getStudentId());
         FeeStructure feeStructure = findFeeStructureById(createDTO.getStructureId());
+
+        // 1.5 Check for duplicate assignment
+        if (studentFeeMapRepository.existsByStudent_IdAndFeeStructure_Id(student.getId(), feeStructure.getId())) {
+            throw new DuplicateFeeAssignmentException("Student already has this fee structure assigned.");
+        }
 
         // --- FIX: Reverted to manual mapping for entity creation ---
         // 2. Create new entity manually
@@ -92,6 +100,62 @@ public class StudentFeeMapServiceImpl implements StudentFeeMapService {
         return studentFeeMapRepository.findAll().stream()
                 .map(studentFeeMapMapper::toDto)
                 .collect(Collectors.toList());
+    }
+
+    @Override
+    @Transactional
+    public List<StudentFeeMapResponseDTO> createBulkStudentFeeMaps(List<StudentFeeMapCreateDTO> createDTOs) {
+        // 1. Filter out DTOs that already exist in the database to prevent duplicates
+        List<StudentFeeMapCreateDTO> filteredDTOs = createDTOs.stream()
+                .filter(dto -> !studentFeeMapRepository.existsByStudent_IdAndFeeStructure_Id(dto.getStudentId(), dto.getStructureId()))
+                .collect(Collectors.toList());
+
+        if (filteredDTOs.isEmpty()) {
+            log.info("Bulk assignment: All students already have this fee structure assigned. Skipping.");
+            return List.of();
+        }
+
+        List<Long> studentIds = filteredDTOs.stream().map(StudentFeeMapCreateDTO::getStudentId).distinct().collect(Collectors.toList());
+        List<Long> structureIds = filteredDTOs.stream().map(StudentFeeMapCreateDTO::getStructureId).distinct().collect(Collectors.toList());
+
+        Map<Long, Student> studentMap = studentRepository.findAllById(studentIds).stream()
+                .collect(Collectors.toMap(Student::getId, s -> s));
+        Map<Long, FeeStructure> structureMap = feeStructureRepository.findAllById(structureIds).stream()
+                .collect(Collectors.toMap(FeeStructure::getId, fs -> fs));
+
+        List<StudentFeeMap> entities = filteredDTOs.stream().map(dto -> {
+            Student student = studentMap.get(dto.getStudentId());
+            FeeStructure structure = structureMap.get(dto.getStructureId());
+            if (student == null) throw new StudentNotFoundException("Student not found with id: " + dto.getStudentId());
+            if (structure == null) throw new FeeStructureNotFoundException("Fee Structure not found with id: " + dto.getStructureId());
+
+            StudentFeeMap entity = new StudentFeeMap();
+            entity.setStudent(student);
+            entity.setFeeStructure(structure);
+            entity.setEffectiveDate(dto.getEffectiveDate());
+            entity.setNotes(dto.getNotes());
+            return entity;
+        }).collect(Collectors.toList());
+
+        return studentFeeMapRepository.saveAll(entities).stream()
+                .map(studentFeeMapMapper::toDto)
+                .collect(Collectors.toList());
+    }
+
+    @Override
+    @Transactional
+    public void deleteStudentFeeMap(Long mapId) {
+        if (!studentFeeMapRepository.existsById(mapId)) {
+            throw new StudentFeeMapNotFoundException("Student fee mapping not found for ID: " + mapId);
+        }
+        studentFeeMapRepository.deleteById(mapId);
+    }
+
+    @Override
+    @Transactional
+    public void deleteBulkStudentFeeMaps(List<Long> mapIds) {
+        log.info("Bulk delete: deleting {} fee mappings", mapIds.size());
+        studentFeeMapRepository.deleteAllById(mapIds);
     }
 
     // --- Private Helper Methods ---

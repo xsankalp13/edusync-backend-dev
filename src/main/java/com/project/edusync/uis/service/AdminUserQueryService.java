@@ -24,7 +24,7 @@ public interface AdminUserQueryService {
      * @param pageable Pagination and sorting parameters.
      * @return A page of {@link StudentSummaryDTO}.
      */
-    Page<StudentSummaryDTO> getAllStudents(String search, Boolean active, Pageable pageable);
+    Page<StudentSummaryDTO> getAllStudents(String search, String classId, Boolean active, Pageable pageable);
 
     /**
      * Returns a paginated list of all staff members.

@@ -77,6 +77,9 @@ public class AdminUserQueryController {
             @Parameter(description = "Search by name, email, or enrollment number")
             @RequestParam(required = false) String search,
 
+            @Parameter(description = "Filter by academic class ID (UUID)")
+            @RequestParam(required = false) String classId,
+
             @Parameter(description = "Filter by linked user status: true (active), false (inactive)")
             @RequestParam(required = false) Boolean active,
 
@@ -98,10 +101,10 @@ public class AdminUserQueryController {
                 : Sort.by(sortBy).ascending();
         Pageable pageable = PageRequest.of(page, size, sort);
 
-        log.info("Admin API: GET /students | search='{}' | active='{}' | page={} | size={} | sort={}",
-                search, active, page, size, sortBy + " " + sortDir);
+        log.info("Admin API: GET /students | search='{}' | classId='{}' | active='{}' | page={} | size={} | sort={}",
+                search, classId, active, page, size, sortBy + " " + sortDir);
 
-        Page<StudentSummaryDTO> result = adminUserQueryService.getAllStudents(search, active, pageable);
+        Page<StudentSummaryDTO> result = adminUserQueryService.getAllStudents(search, classId, active, pageable);
         return ResponseEntity.ok(result);
     }
 

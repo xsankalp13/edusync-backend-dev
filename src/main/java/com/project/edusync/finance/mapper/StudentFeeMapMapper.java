@@ -24,6 +24,10 @@ public class StudentFeeMapMapper {
         // 2. MANUAL: We handle the complex relationship IDs
         if (entity.getStudent() != null) {
             dto.setStudentId(entity.getStudent().getId());
+            if (entity.getStudent().getUserProfile() != null) {
+                dto.setStudentName(entity.getStudent().getUserProfile().getFirstName() + " " + 
+                                  entity.getStudent().getUserProfile().getLastName());
+            }
         }
         if (entity.getFeeStructure() != null) {
             dto.setStructureId(entity.getFeeStructure().getId());
