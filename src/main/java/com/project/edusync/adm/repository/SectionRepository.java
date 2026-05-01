@@ -56,6 +56,20 @@ public interface SectionRepository extends JpaRepository<Section, Long> {
 
     boolean existsByUuid(UUID sectionId);
 
+    /**
+     * Returns true if the given staff member is already the class teacher of any active section
+     * other than the one identified by {@code excludeSectionId}.
+     * Pass {@code null} for {@code excludeSectionId} when creating a brand-new section.
+     */
+    @Query("""
+            SELECT COUNT(s) > 0 FROM Section s
+            WHERE s.classTeacher.id = :staffId
+              AND s.isActive = true
+              AND (:excludeSectionId IS NULL OR s.uuid <> :excludeSectionId)
+            """)
+    boolean isTeacherAssignedElsewhere(@Param("staffId") Long staffId,
+                                       @Param("excludeSectionId") UUID excludeSectionId);
+
     @Transactional
     @Modifying
     @Query("UPDATE Section s SET s.isActive = false WHERE s.uuid = :sectionId")
