@@ -132,6 +132,7 @@ public interface InvoiceRepository extends JpaRepository<Invoice, Long> {
             FROM Invoice i
             WHERE YEAR(i.issueDate) = :year
               AND MONTH(i.issueDate) = :month
+              AND i.status != 'CANCELLED'
             """)
     BigDecimal sumExpectedByIssueYearMonth(@Param("year") int year, @Param("month") int month);
 
@@ -156,6 +157,7 @@ public interface InvoiceRepository extends JpaRepository<Invoice, Long> {
             FROM Invoice i
             WHERE i.issueDate >= :startDate
               AND i.issueDate <= :endDate
+              AND i.status != 'CANCELLED'
             GROUP BY YEAR(i.issueDate), MONTH(i.issueDate)
             ORDER BY YEAR(i.issueDate), MONTH(i.issueDate)
             """)
@@ -172,6 +174,7 @@ public interface InvoiceRepository extends JpaRepository<Invoice, Long> {
             FROM Invoice i
             WHERE i.issueDate >= :startDate
               AND i.issueDate <= :endDate
+              AND i.status != 'CANCELLED'
             """)
     java.math.BigDecimal sumExpectedByDateRange(
             @Param("startDate") java.time.LocalDate startDate,

@@ -11,7 +11,10 @@ import com.project.edusync.finance.model.entity.Payment;
 import com.project.edusync.finance.model.enums.InvoiceStatus;
 import com.project.edusync.finance.model.enums.PaymentMethod;
 import com.project.edusync.finance.model.enums.PaymentStatus;
+import com.project.edusync.common.settings.service.AppSettingService;
 import com.project.edusync.finance.model.enums.JournalReferenceType;
+import java.time.Month;
+import java.time.LocalDate;
 import com.project.edusync.finance.repository.AccountRepository;
 import com.project.edusync.finance.repository.InvoiceRepository;
 import com.project.edusync.finance.repository.PaymentRepository;
@@ -19,7 +22,10 @@ import com.project.edusync.finance.service.GeneralLedgerService;
 import com.project.edusync.finance.service.PaymentService;
 import com.project.edusync.dashboard.model.DashboardEvent;
 import com.project.edusync.dashboard.service.DashboardEventService;
+import com.project.edusync.finance.service.PdfGenerationService;
+import com.project.edusync.finance.utils.NumberToWordsConverter;
 import com.project.edusync.uis.model.entity.Student;
+import com.project.edusync.uis.model.entity.UserProfile;
 import com.project.edusync.uis.repository.StudentRepository;
 import com.razorpay.Order;
 import com.razorpay.RazorpayClient;
@@ -36,9 +42,13 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
+import java.math.RoundingMode;
 import java.time.LocalDateTime;
+import java.time.format.DateTimeFormatter;
 
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 
 @Service
 @RequiredArgsConstructor
@@ -54,6 +64,9 @@ public class PaymentServiceImpl implements PaymentService {
     private final DashboardEventService dashboardEventService;
     private final GeneralLedgerService generalLedgerService;
     private final AccountRepository accountRepository;
+    private final PdfGenerationService pdfGenerationService;
+    private final NumberToWordsConverter numberToWordsConverter;
+    private final AppSettingService appSettingService;
 
     @Value("${app.razorpay.key-id}")
     private String razorpayKeyId;
@@ -350,6 +363,106 @@ public class PaymentServiceImpl implements PaymentService {
                 .filter(p -> p.getStatus() == PaymentStatus.SUCCESS)
                 .map(paymentMapper::toDto)
                 .toList();
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public List<PaymentResponseDTO> getPaymentsByInvoiceId(Long invoiceId) {
+        List<Payment> payments = paymentRepository.findByInvoice_Id(invoiceId);
+        return payments.stream()
+                .map(paymentMapper::toDto)
+                .toList();
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public byte[] getPaymentReceipt(Long paymentId) {
+        log.info("Generating receipt for paymentId: {}", paymentId);
+
+        // 1. Find the Payment
+        Payment payment = paymentRepository.findById(paymentId)
+                .orElseThrow(() -> new PaymentNotFoundException("Payment not found with ID: " + paymentId));
+
+        // 2. Find the Invoice
+        Invoice invoice = payment.getInvoice();
+        Student student = payment.getStudent();
+        UserProfile profile = student.getUserProfile();
+
+        // 3. Build data map
+        Map<String, Object> data = new HashMap<>();
+        DateTimeFormatter dtf = DateTimeFormatter.ofPattern("dd/MM/yyyy");
+
+        // School branding from AppSettings
+        populateSchoolBranding(data);
+
+        data.put("receiptNo", payment.getPaymentId().toString());
+        data.put("paymentDate", payment.getPaymentDate().format(dtf));
+        data.put("payMode", payment.getPaymentMethod().toString());
+        data.put("bankName", appSettingService.getValue("school.bank_name", "HDFC BANK"));
+        data.put("paymentNumber", payment.getTransactionId());
+        data.put("counterNo", "DPS-RECEIPT");
+        data.put("note", "Partial Payment for Invoice #" + invoice.getInvoiceNumber());
+
+        data.put("studentName", profile.getFirstName() + " " + profile.getLastName());
+        data.put("admissionNumber", student.getEnrollmentNumber());
+        data.put("session", computeAcademicYear());
+        data.put("className", student.getSection().getAcademicClass().getName() + " - " + student.getSection().getSectionName());
+
+        // For a payment receipt, we show the amount paid in this transaction
+        data.put("lineItems", List.of(Map.of(
+            "description", "Partial Fee Payment",
+            "due", payment.getAmountPaid(),
+            "con", BigDecimal.ZERO,
+            "paid", payment.getAmountPaid()
+        )));
+        data.put("totalAmount", payment.getAmountPaid());
+        
+        long totalRupees = payment.getAmountPaid().setScale(0, RoundingMode.HALF_UP).longValue();
+        data.put("totalInWords", numberToWordsConverter.convertToWords(totalRupees));
+
+        return pdfGenerationService.generatePdfFromHtml("receipt", data);
+    }
+
+    private void populateSchoolBranding(Map<String, Object> data) {
+        data.put("schoolName", appSettingService.getValue("school.name", "My School"));
+        data.put("schoolAddress", appSettingService.getValue("school.address", ""));
+        data.put("schoolPhone", appSettingService.getValue("school.phone", ""));
+        data.put("schoolEmail", appSettingService.getValue("school.email", ""));
+        data.put("schoolWebsite", appSettingService.getValue("school.website", ""));
+
+        // Branding
+        data.put("schoolName", appSettingService.getValue("school.name", "Shiksha Intelligence"));
+        data.put("schoolAddress", appSettingService.getValue("school.address", "Site No.1, Sector-45, Urban Estate, Gurgaon, Haryana"));
+
+        // Logo
+        String logoUrl = appSettingService.getValue("school.logo_url", "");
+        if (logoUrl != null && !logoUrl.isBlank()) {
+            data.put("schoolLogoBase64", pdfGenerationService.fetchRemoteImageAsBase64(logoUrl));
+        } else {
+            data.put("schoolLogoBase64", pdfGenerationService.loadSchoolLogoBase64());
+        }
+
+        // Signature
+        String signatureUrl = appSettingService.getValue("school.signature_url", "");
+        if (signatureUrl != null && !signatureUrl.isBlank()) {
+            data.put("signatureBase64", pdfGenerationService.fetchRemoteImageAsBase64(signatureUrl));
+        } else {
+            data.put("signatureBase64", "");
+        }
+    }
+
+    private String computeAcademicYear() {
+        String startMonthStr = appSettingService.getValue("school.academic_year_start", "APRIL");
+        Month startMonth;
+        try {
+            startMonth = Month.valueOf(startMonthStr.toUpperCase());
+        } catch (IllegalArgumentException e) {
+            startMonth = Month.APRIL;
+        }
+
+        LocalDate now = LocalDate.now();
+        int startYear = now.getMonthValue() >= startMonth.getValue() ? now.getYear() : now.getYear() - 1;
+        return startYear + "-" + (startYear + 1);
     }
 }
 
