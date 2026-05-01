@@ -27,9 +27,9 @@ public interface JournalEntryRepository extends JpaRepository<JournalEntry, Long
     @Query("""
         SELECT je FROM JournalEntry je
         WHERE je.schoolId = :schoolId
-          AND (:status IS NULL OR je.status = :status)
-          AND (:from IS NULL OR je.entryDate >= :from)
-          AND (:to IS NULL OR je.entryDate <= :to)
+          AND (je.status = :status OR CAST(:status AS String) IS NULL)
+          AND (je.entryDate >= :from OR CAST(:from AS LocalDate) IS NULL)
+          AND (je.entryDate <= :to OR CAST(:to AS LocalDate) IS NULL)
         ORDER BY je.entryDate DESC, je.entryNumber DESC
     """)
     Page<JournalEntry> findFiltered(

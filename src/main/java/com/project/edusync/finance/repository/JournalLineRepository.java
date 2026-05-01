@@ -25,8 +25,8 @@ public interface JournalLineRepository extends JpaRepository<JournalLine, Long> 
         JOIN jl.journalEntry je
         WHERE jl.account.id = :accountId
           AND je.status = 'POSTED'
-          AND (:from IS NULL OR je.entryDate >= :from)
-          AND (:to IS NULL OR je.entryDate <= :to)
+          AND (je.entryDate >= :from OR CAST(:from AS LocalDate) IS NULL)
+          AND (je.entryDate <= :to OR CAST(:to AS LocalDate) IS NULL)
         ORDER BY je.entryDate ASC, je.entryNumber ASC
     """)
     List<JournalLine> findLedgerLines(
