@@ -4,6 +4,7 @@ import com.project.edusync.common.exception.finance.InvalidPaymentOperationExcep
 import com.project.edusync.common.exception.finance.InvoiceNotFoundException;
 import com.project.edusync.common.exception.finance.StudentFeeMapNotFoundException;
 import com.project.edusync.common.exception.finance.StudentNotFoundException;
+import com.project.edusync.common.settings.service.AppSettingService;
 import com.project.edusync.finance.dto.invoice.InvoiceResponseDTO;
 import com.project.edusync.finance.mapper.InvoiceMapper;
 import com.project.edusync.finance.model.entity.*;
@@ -27,6 +28,7 @@ import org.springframework.transaction.annotation.Transactional;
 import java.math.BigDecimal;
 import java.math.RoundingMode;
 import java.time.LocalDate;
+import java.time.Month;
 import java.time.format.DateTimeFormatter;
 import java.util.Arrays;
 import java.util.HashMap;
@@ -45,10 +47,13 @@ public class InvoiceServiceImpl implements InvoiceService {
     private final StudentFeeMapRepository studentFeeMapRepository;
     private final FeeParticularRepository feeParticularRepository;
     private final LateFeeRuleRepository lateFeeRuleRepository;
+    private final ScholarshipAssignmentRepository scholarshipAssignmentRepository;
+    private final ScholarshipTypeRepository scholarshipTypeRepository;
     private final InvoiceMapper invoiceMapper;
 
     private final PdfGenerationService pdfGenerationService;
     private final NumberToWordsConverter numberToWordsConverter;
+    private final AppSettingService appSettingService;
     // InvoiceLineItemRepository is not needed — saved by CascadeType.ALL.
 
     @Override
@@ -110,7 +115,49 @@ public class InvoiceServiceImpl implements InvoiceService {
 
         invoice.setTotalAmount(totalAmount);
 
-        // 7. Save the invoice (and its line items via CascadeType.ALL)
+        // 7. Check for Active Scholarships
+        List<ScholarshipAssignment> scholarships = scholarshipAssignmentRepository.findByStudentId(studentId);
+        log.info("Found {} scholarship assignments for student {}", scholarships.size(), studentId);
+
+        ScholarshipAssignment activeScholarship = scholarships.stream()
+                .peek(s -> log.info("Checking scholarship: ID={}, Status={}, From={}, To={}",
+                        s.getId(), s.getStatus(), s.getEffectiveFrom(), s.getEffectiveTo()))
+                .filter(s -> "ACTIVE".equalsIgnoreCase(s.getStatus()))
+                .filter(s -> !LocalDate.now().isBefore(s.getEffectiveFrom()))
+                .filter(s -> s.getEffectiveTo() == null || !LocalDate.now().isAfter(s.getEffectiveTo()))
+                .findFirst()
+                .orElse(null);
+
+        if (activeScholarship != null) {
+            log.info("Active scholarship found: {}", activeScholarship.getScholarshipType().getName());
+            BigDecimal discountAmount = BigDecimal.ZERO;
+            if ("PERCENTAGE".equalsIgnoreCase(activeScholarship.getDiscountType())) {
+                discountAmount = totalAmount.multiply(activeScholarship.getDiscountValue())
+                        .divide(new BigDecimal("100"), 2, RoundingMode.HALF_UP);
+            } else if ("FIXED".equalsIgnoreCase(activeScholarship.getDiscountType())) {
+                discountAmount = activeScholarship.getDiscountValue();
+            }
+
+            if (discountAmount.compareTo(BigDecimal.ZERO) > 0) {
+                InvoiceLineItem discountItem = new InvoiceLineItem();
+                discountItem.setDescription("Scholarship Discount (" + activeScholarship.getScholarshipType().getName() + ")");
+                discountItem.setAmount(discountAmount.negate());
+                invoice.addLineItem(discountItem);
+
+                totalAmount = totalAmount.subtract(discountAmount);
+                invoice.setTotalAmount(totalAmount);
+
+                // Atomically increment total discount in DB — bypasses proxy/cache issues
+                scholarshipTypeRepository.incrementTotalDiscountIssued(
+                        activeScholarship.getScholarshipType().getId(), discountAmount);
+
+                log.info("Incremented totalDiscountIssued for scholarshipType id={} by {}",
+                        activeScholarship.getScholarshipType().getId(), discountAmount);
+                log.info("Applied scholarship discount: {} to invoice {}", discountAmount, invoice.getInvoiceNumber());
+            }
+        }
+
+        // 8. Save the invoice (and its line items via CascadeType.ALL)
         Invoice savedInvoice = invoiceRepository.save(invoice);
 
         // 8. Map to DTO and return
@@ -142,58 +189,58 @@ public class InvoiceServiceImpl implements InvoiceService {
         Invoice invoice = invoiceRepository.findById(invoiceId)
                 .orElseThrow(() -> new InvoiceNotFoundException("Invoice not found with Invoice ID: " + invoiceId));
 
-        // 2. Validate Status
-        if (invoice.getStatus() != InvoiceStatus.PAID) {
-            throw new InvalidPaymentOperationException("Cannot generate receipt for unpaid invoice: " + invoiceId);
+        // 2. Validate Status - Allow PAID or PENDING (if partial payments exist)
+        if (invoice.getStatus() != InvoiceStatus.PAID && (invoice.getStatus() != InvoiceStatus.PENDING || invoice.getPaidAmount().compareTo(BigDecimal.ZERO) <= 0)) {
+            throw new InvalidPaymentOperationException("Cannot generate receipt for unpaid/unprocessed invoice: " + invoiceId);
         }
 
         // 3. Find the associated Payment record(s)
         List<Payment> payments = paymentRepository.findByInvoice(invoice);
         if (payments.isEmpty()) {
-            // This should not happen if status is PAID, but a good safe-guard.
-            throw new InvalidPaymentOperationException("No payment records found for paid invoice: " + invoiceId);
+            throw new InvalidPaymentOperationException("No payment records found for invoice: " + invoiceId);
         }
-        // We'll use the *first* successful payment for the receipt details
+
+        // Use the latest successful payment for details
         Payment payment = payments.stream()
                 .filter(p -> p.getStatus() == PaymentStatus.SUCCESS)
                 .findFirst()
-                .orElseThrow(() -> new InvalidPaymentOperationException("No successful payment found for invoice: " + invoiceId));
+                .orElse(payments.get(0)); // Fallback to first if all pending/failed for some reason
 
         // 4. Get Student and Profile data
         Student student = invoice.getStudent();
         UserProfile profile = student.getUserProfile();
 
-        // 5. TODO: Implement Security Check
-        // Check if the authenticated user (from SecurityContextHolder)
-        // is a guardian of this 'student'.
-        // if (!isUserGuardianOf(student)) {
-        //    throw new AccessDeniedException("You are not authorized to view this receipt.");
-        // }
-
         // 6. Build the data map for Thymeleaf
         Map<String, Object> data = new HashMap<>();
         DateTimeFormatter dtf = DateTimeFormatter.ofPattern("dd/MM/yyyy");
+
+        // School branding from AppSettings
+        populateSchoolBranding(data);
 
         // Receipt/Payment Info
         data.put("receiptNo", payment.getPaymentId().toString());
         data.put("paymentDate", payment.getPaymentDate().format(dtf));
         data.put("payMode", payment.getPaymentMethod().toString());
-        data.put("bankName", "HDFC BANK"); // Hardcoded as per image
-        data.put("paymentNumber", payment.getTransactionId()); // e.g., Cheque number
-        data.put("counterNo", "DPS-RECEIPT"); // Hardcoded as per image
-        data.put("note", "356"); // Hardcoded as per image
+        data.put("bankName", appSettingService.getValue("school.bank_name", "HDFC BANK"));
+        data.put("paymentNumber", payment.getTransactionId());
+        data.put("counterNo", "DPS-RECEIPT");
+        data.put("note", "Invoice #" + invoice.getInvoiceNumber());
 
         // Student/School Info
         data.put("studentName", profile.getFirstName() + " " + profile.getLastName());
         data.put("admissionNumber", student.getEnrollmentNumber());
-        // TODO: Change it to real values;
-        data.put("session", "2024-2025");
-        // data.put("session", invoice.getFeeStructure().getAcademicYear()); // Assumes relation
-        data.put("className", student.getSection().getSectionName()); // Assumes relation
-        data.put("installmentName", "JULY-SEP"); // Hardcoded as per image
+        data.put("session", computeAcademicYear());
+        data.put("className", student.getSection().getAcademicClass().getName() + " - " + student.getSection().getSectionName());
+        data.put("installmentName", "FEES");
 
         // Financials
-        data.put("lineItems", invoice.getLineItems());
+        data.put("lineItems", invoice.getLineItems().stream()
+                .map(li -> Map.of(
+                    "description", li.getDescription(),
+                    "due", li.getAmount(),
+                    "con", BigDecimal.ZERO,
+                    "paid", li.getAmount() // For the main invoice receipt, we show the billable amount
+                )).collect(Collectors.toList()));
         data.put("totalAmount", invoice.getTotalAmount());
         // ── BUG FIX 5: Use HALF_UP rounding to avoid truncating paise. ──────────
         // Without rounding, ₹1,000.75 would become "One Thousand Rupees Only".
@@ -321,5 +368,47 @@ public class InvoiceServiceImpl implements InvoiceService {
     private String generateInvoiceNumber() {
         // Simple, non-production-ready generator
         return "INV-" + System.currentTimeMillis();
+    }
+
+    private void populateSchoolBranding(Map<String, Object> data) {
+        data.put("schoolName", appSettingService.getValue("school.name", "My School"));
+        data.put("schoolAddress", appSettingService.getValue("school.address", ""));
+        data.put("schoolPhone", appSettingService.getValue("school.phone", ""));
+        data.put("schoolEmail", appSettingService.getValue("school.email", ""));
+        data.put("schoolWebsite", appSettingService.getValue("school.website", ""));
+
+        // Branding
+        data.put("schoolName", appSettingService.getValue("school.name", "Shiksha Intelligence"));
+        data.put("schoolAddress", appSettingService.getValue("school.address", "Site No.1, Sector-45, Urban Estate, Gurgaon, Haryana"));
+
+        // Logo
+        String logoUrl = appSettingService.getValue("school.logo_url", "");
+        if (logoUrl != null && !logoUrl.isBlank()) {
+            data.put("schoolLogoBase64", pdfGenerationService.fetchRemoteImageAsBase64(logoUrl));
+        } else {
+            data.put("schoolLogoBase64", pdfGenerationService.loadSchoolLogoBase64());
+        }
+
+        // Signature
+        String signatureUrl = appSettingService.getValue("school.signature_url", "");
+        if (signatureUrl != null && !signatureUrl.isBlank()) {
+            data.put("signatureBase64", pdfGenerationService.fetchRemoteImageAsBase64(signatureUrl));
+        } else {
+            data.put("signatureBase64", "");
+        }
+    }
+
+    private String computeAcademicYear() {
+        String startMonthStr = appSettingService.getValue("school.academic_year_start", "APRIL");
+        Month startMonth;
+        try {
+            startMonth = Month.valueOf(startMonthStr.toUpperCase());
+        } catch (IllegalArgumentException e) {
+            startMonth = Month.APRIL;
+        }
+
+        LocalDate now = LocalDate.now();
+        int startYear = now.getMonthValue() >= startMonth.getValue() ? now.getYear() : now.getYear() - 1;
+        return startYear + "-" + (startYear + 1);
     }
 }

@@ -79,15 +79,15 @@ public class AdminUserQueryServiceImpl implements AdminUserQueryService {
 
     @Override
     @Transactional(readOnly = true)
-    public Page<StudentSummaryDTO> getAllStudents(String search, Boolean active, Pageable pageable) {
+    public Page<StudentSummaryDTO> getAllStudents(String search, String classId, Boolean active, Pageable pageable) {
         Pageable resolved = resolveSortFields(pageable, STUDENT_SORT_FIELDS, STUDENT_DEFAULT_SORT);
 
-        log.info("Admin query: getAllStudents | search='{}' | active='{}' | page={} | size={}",
-                search, active, resolved.getPageNumber(), resolved.getPageSize());
+        log.info("Admin query: getAllStudents | search='{}' | classId='{}' | active='{}' | page={} | size={}",
+                search, classId, active, resolved.getPageNumber(), resolved.getPageSize());
 
         Page<Student> studentPage = StringUtils.hasText(search)
-                ? studentRepository.searchStudents(search.trim(), active, resolved)
-                : studentRepository.findAllWithDetails(active, resolved);
+                ? studentRepository.searchStudents(search.trim(), active, classId, resolved)
+                : studentRepository.findAllWithDetails(active, classId, resolved);
 
         return studentPage.map(this::toStudentSummaryDTO);
     }

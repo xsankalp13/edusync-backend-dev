@@ -73,4 +73,6 @@ public interface PaymentService {
      * @return A list of successful payments.
      */
     List<PaymentResponseDTO> getPaymentsForStudent(Long studentId);
+    List<PaymentResponseDTO> getPaymentsByInvoiceId(Long invoiceId);
+    byte[] getPaymentReceipt(Long paymentId);
 }

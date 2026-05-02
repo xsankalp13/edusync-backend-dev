@@ -18,6 +18,7 @@ import java.util.List;
 public class InvoiceResponseDTO {
     private Long invoiceId;
     private Long studentId;
+    private String studentName;
     private String invoiceNumber;
     private LocalDate issueDate;
     private LocalDate dueDate;

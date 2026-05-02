@@ -202,8 +202,8 @@
             <img th:src="${schoolLogoBase64}" alt="Logo" />
         </div>
         <div class="school-info">
-            <h1>Delhi Public School</h1>
-            <p>Site No.1, Sector-45, Urban Estate, Gurgaon, Haryana</p>
+            <h1 th:text="${schoolName}">Delhi Public School</h1>
+            <p th:text="${schoolAddress}">Site No.1, Sector-45, Urban Estate, Gurgaon, Haryana</p>
         </div>
     </div>
 
@@ -274,9 +274,9 @@
         <tr th:each="item, iterStat : ${lineItems}">
             <td th:text="${iterStat.count}">1</td>
             <td th:text="${item.description}">Admission Fee</td>
-            <td class="num" th:text="${#numbers.formatDecimal(item.amount, 1, 'COMMA', 2, 'POINT')}">65000.00</td>
-            <td class="num">0.00</td>
-            <td class="num" th:text="${#numbers.formatDecimal(item.amount, 1, 'COMMA', 2, 'POINT')}">65000.00</td>
+            <td class="num" th:text="${#numbers.formatDecimal(item.due, 1, 'COMMA', 2, 'POINT')}">65000.00</td>
+            <td class="num" th:text="${#numbers.formatDecimal(item.con, 1, 'COMMA', 2, 'POINT')}">0.00</td>
+            <td class="num" th:text="${#numbers.formatDecimal(item.paid, 1, 'COMMA', 2, 'POINT')}">65000.00</td>
         </tr>
         </tbody>
     </table>

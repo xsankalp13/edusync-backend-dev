@@ -265,6 +265,30 @@ public class UserManagementServiceImpl implements UserManagementService {
 
     @Override
     @Transactional
+    public User createFinanceAdmin(CreateFinanceAdminRequestDTO request) {
+        log.info("Process started: Hiring Finance Admin: {}", request.getUsername());
+
+        Staff staff = createBaseStaff(request);
+
+        log.info("Success: Finance Admin created with ID: {}", staff.getId());
+
+        return staff.getUserProfile().getUser();
+    }
+
+    @Override
+    @Transactional
+    public User createAuditor(CreateAuditorRequestDTO request) {
+        log.info("Process started: Hiring Auditor: {}", request.getUsername());
+
+        Staff staff = createBaseStaff(request);
+
+        log.info("Success: Auditor created with ID: {}", staff.getId());
+
+        return staff.getUserProfile().getUser();
+    }
+
+    @Override
+    @Transactional
     public User createGuardian(UUID studentId, CreateGuardianRequestDTO request) {
         log.info("Process started: Creating Guardian [{}] for Student UUID: {}", request.getUsername(), studentId);
 

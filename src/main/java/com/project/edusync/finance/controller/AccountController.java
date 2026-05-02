@@ -32,7 +32,7 @@ public class AccountController {
      * Returns the full COA as a nested tree — used by the ChartOfAccounts.tsx tree view.
      */
     @GetMapping("/tree")
-    @PreAuthorize("hasAnyAuthority('finance:coa:read', 'ROLE_ADMIN', 'ROLE_SCHOOL_ADMIN', 'ROLE_FINANCE_ADMIN')")
+    @PreAuthorize("hasAnyAuthority('finance:coa:read', 'ROLE_ADMIN', 'ROLE_SCHOOL_ADMIN', 'ROLE_FINANCE_ADMIN', 'ROLE_AUDITOR')")
     public ResponseEntity<List<AccountResponseDTO>> getTree() {
         return ResponseEntity.ok(accountService.getCOATree(DEFAULT_SCHOOL_ID));
     }
@@ -42,7 +42,7 @@ public class AccountController {
      * Flat list of all accounts — used by admin data tables.
      */
     @GetMapping
-    @PreAuthorize("hasAnyAuthority('finance:coa:read', 'ROLE_ADMIN', 'ROLE_SCHOOL_ADMIN', 'ROLE_FINANCE_ADMIN')")
+    @PreAuthorize("hasAnyAuthority('finance:coa:read', 'ROLE_ADMIN', 'ROLE_SCHOOL_ADMIN', 'ROLE_FINANCE_ADMIN', 'ROLE_AUDITOR')")
     public ResponseEntity<List<AccountResponseDTO>> getAll() {
         return ResponseEntity.ok(accountService.getAllAccounts(DEFAULT_SCHOOL_ID));
     }
@@ -52,7 +52,7 @@ public class AccountController {
      * Flat list of active posting accounts — used by journal entry dropdowns.
      */
     @GetMapping("/posting")
-    @PreAuthorize("hasAnyAuthority('finance:coa:read', 'finance:gl:write', 'ROLE_ADMIN', 'ROLE_SCHOOL_ADMIN', 'ROLE_FINANCE_ADMIN')")
+    @PreAuthorize("hasAnyAuthority('finance:coa:read', 'finance:gl:write', 'ROLE_ADMIN', 'ROLE_SCHOOL_ADMIN', 'ROLE_FINANCE_ADMIN', 'ROLE_AUDITOR')")
     public ResponseEntity<List<AccountResponseDTO>> getPostingAccounts() {
         return ResponseEntity.ok(accountService.getPostingAccounts(DEFAULT_SCHOOL_ID));
     }
@@ -62,7 +62,7 @@ public class AccountController {
      * Single account detail.
      */
     @GetMapping("/{id}")
-    @PreAuthorize("hasAnyAuthority('finance:coa:read', 'ROLE_ADMIN', 'ROLE_SCHOOL_ADMIN', 'ROLE_FINANCE_ADMIN')")
+    @PreAuthorize("hasAnyAuthority('finance:coa:read', 'ROLE_ADMIN', 'ROLE_SCHOOL_ADMIN', 'ROLE_FINANCE_ADMIN', 'ROLE_AUDITOR')")
     public ResponseEntity<AccountResponseDTO> getById(@PathVariable Long id) {
         return ResponseEntity.ok(accountService.getAccountById(id, DEFAULT_SCHOOL_ID));
     }

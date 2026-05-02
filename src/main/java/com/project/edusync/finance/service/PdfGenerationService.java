@@ -68,6 +68,12 @@ public class PdfGenerationService {
                 builder.useFastMode();
                 builder.useSVGDrawer(new BatikSVGDrawer());
 
+                // Register Noto Sans fonts so Unicode glyphs (e.g. ₹ U+20B9) render correctly.
+                // Without this, openhtmltopdf falls back to a built-in font that lacks these glyphs
+                // and renders them as '#'.
+                registerFont(builder, "fonts/NotoSans-Regular.ttf", "Noto Sans", 400, false);
+                registerFont(builder, "fonts/NotoSans-Bold.ttf",    "Noto Sans", 700, false);
+
                 String baseUri = FileSystems.getDefault()
                         .getPath("src/main/resources/templates")
                         .toUri()
@@ -202,6 +208,32 @@ public class PdfGenerationService {
         } catch (Exception e) {
             log.warn("Failed to fetch profile image from {}: {}", url, e.getMessage());
             return usePlaceholderOnFailure ? PLACEHOLDER_IMAGE_BASE64 : "";
+        }
+    }
+
+    /**
+     * Registers a font from the classpath with the PDF renderer.
+     * Required for Unicode characters (e.g. ₹ U+20B9) to render correctly;
+     * openhtmltopdf's built-in fonts only cover basic Latin characters.
+     */
+    private void registerFont(PdfRendererBuilder builder, String classpathPath,
+                              String fontFamily, int fontWeight, boolean italic) {
+        try {
+            ClassPathResource resource = new ClassPathResource(classpathPath);
+            if (!resource.exists()) {
+                log.warn("Font not found on classpath: {}", classpathPath);
+                return;
+            }
+            byte[] fontBytes = resource.getInputStream().readAllBytes();
+            builder.useFont(
+                    () -> new java.io.ByteArrayInputStream(fontBytes),
+                    fontFamily, fontWeight,
+                    italic ? com.openhtmltopdf.outputdevice.helper.BaseRendererBuilder.FontStyle.ITALIC
+                           : com.openhtmltopdf.outputdevice.helper.BaseRendererBuilder.FontStyle.NORMAL,
+                    true
+            );
+        } catch (Exception e) {
+            log.warn("Failed to register font '{}': {}", classpathPath, e.getMessage());
         }
     }
 }

@@ -12,6 +12,8 @@ import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
+import java.util.List;
+
 @RestController
 @RequestMapping("${api.url}/auth/finance/payments") // Base path: /api/v1/finance/payments
 @RequiredArgsConstructor
@@ -64,5 +66,28 @@ public class PaymentController {
 
         PaymentResponseDTO response = paymentService.updatePayment(paymentId, updateDTO);
         return new ResponseEntity<>(response, HttpStatus.OK);
+    }
+
+    /**
+     * GET /api/v1/auth/finance/payments/invoice/{invoiceId}
+     * Retrieves all payments associated with a specific invoice.
+     */
+    @GetMapping("/invoice/{invoiceId}")
+    public ResponseEntity<List<PaymentResponseDTO>> getPaymentsByInvoiceId(@PathVariable Long invoiceId) {
+        List<PaymentResponseDTO> payments = paymentService.getPaymentsByInvoiceId(invoiceId);
+        return new ResponseEntity<>(payments, HttpStatus.OK);
+    }
+
+    /**
+     * GET /api/v1/auth/finance/payments/{paymentId}/receipt
+     * Generates a PDF receipt for a specific payment transaction.
+     */
+    @GetMapping("/{paymentId}/receipt")
+    public ResponseEntity<byte[]> getPaymentReceipt(@PathVariable Long paymentId) {
+        byte[] pdf = paymentService.getPaymentReceipt(paymentId);
+        return ResponseEntity.ok()
+                .header("Content-Type", "application/pdf")
+                .header("Content-Disposition", "attachment; filename=receipt_" + paymentId + ".pdf")
+                .body(pdf);
     }
 }

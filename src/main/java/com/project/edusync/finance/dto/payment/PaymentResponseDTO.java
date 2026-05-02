@@ -19,6 +19,7 @@ public class PaymentResponseDTO {
     private Long paymentId;
     private Long invoiceId;
     private Long studentId;
+    private String studentName;
     private String transactionId;
     private LocalDateTime paymentDate;
     private BigDecimal amountPaid;

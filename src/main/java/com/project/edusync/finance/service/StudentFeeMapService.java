@@ -42,4 +42,23 @@ public interface StudentFeeMapService {
      */
     List<StudentFeeMapResponseDTO> getAllStudentFeeMaps();
 
+    /**
+     * Maps multiple Students to their respective FeeStructures in a single transaction.
+     *
+     * @param createDTOs List of DTOs containing studentId, structureId, and effectiveDate.
+     * @return List of response DTOs for the newly created mappings.
+     */
+    List<StudentFeeMapResponseDTO> createBulkStudentFeeMaps(List<StudentFeeMapCreateDTO> createDTOs);
+
+    /**
+     * Deletes a specific Student-FeeStructure mapping.
+     * @param mapId The ID of the mapping to delete.
+     */
+    void deleteStudentFeeMap(Long mapId);
+
+    /**
+     * Deletes multiple Student-FeeStructure mappings in a single transaction.
+     * @param mapIds List of mapping IDs to delete.
+     */
+    void deleteBulkStudentFeeMaps(List<Long> mapIds);
 }

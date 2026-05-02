@@ -252,6 +252,48 @@ public class UserManagementController {
         return ResponseEntity.status(HttpStatus.CREATED).body("Security Guard created successfully.");
     }
 
+    /**
+     * Hire a new Finance Admin.
+     */
+    @PostMapping("/staff/finance-admin")
+    @SecurityRequirement(name = "bearerAuth")
+    @Operation(
+            summary = "Create Finance Admin",
+            description = "Creates a Finance Admin account and corresponding staff details."
+    )
+    @ApiResponses(value = {
+            @ApiResponse(responseCode = "201", description = "Finance Admin created successfully"),
+            @ApiResponse(responseCode = "400", description = "Invalid request payload"),
+            @ApiResponse(responseCode = "409", description = "Conflict - Username, email, or employee ID already exists"),
+            @ApiResponse(responseCode = "500", description = "Internal server error")
+    })
+    public ResponseEntity<String> createFinanceAdmin(@Valid @RequestBody CreateFinanceAdminRequestDTO request) {
+        log.info("API Request: Hire Finance Admin [{}]", request.getUsername());
+        userManagementService.createFinanceAdmin(request);
+        return ResponseEntity.status(HttpStatus.CREATED).body("Finance Admin created successfully.");
+    }
+
+    /**
+     * Hire a new Auditor.
+     */
+    @PostMapping("/staff/auditor")
+    @SecurityRequirement(name = "bearerAuth")
+    @Operation(
+            summary = "Create Auditor",
+            description = "Creates an Auditor account and corresponding staff details."
+    )
+    @ApiResponses(value = {
+            @ApiResponse(responseCode = "201", description = "Auditor created successfully"),
+            @ApiResponse(responseCode = "400", description = "Invalid request payload"),
+            @ApiResponse(responseCode = "409", description = "Conflict - Username, email, or employee ID already exists"),
+            @ApiResponse(responseCode = "500", description = "Internal server error")
+    })
+    public ResponseEntity<String> createAuditor(@Valid @RequestBody CreateAuditorRequestDTO request) {
+        log.info("API Request: Hire Auditor [{}]", request.getUsername());
+        userManagementService.createAuditor(request);
+        return ResponseEntity.status(HttpStatus.CREATED).body("Auditor created successfully.");
+    }
+
     @PostMapping("/student/{studentId}/guardian")
     @PreAuthorize("hasAnyAuthority('ROLE_SUPER_ADMIN', 'ROLE_SCHOOL_ADMIN')")
     @SecurityRequirement(name = "bearerAuth")

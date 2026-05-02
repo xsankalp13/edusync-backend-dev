@@ -26,6 +26,7 @@ public interface PaymentRepository extends JpaRepository<Payment, Long> {
      * @return A list of payments for that invoice.
      */
     List<Payment> findByInvoice(Invoice invoice);
+    List<Payment> findByInvoice_Id(Long invoiceId);
 
     /**
      * Finds all payments made by a specific student.

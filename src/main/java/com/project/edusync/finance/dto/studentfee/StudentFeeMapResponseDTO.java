@@ -13,6 +13,7 @@ import java.time.LocalDate;
 public class StudentFeeMapResponseDTO {
     private Long mapId;
     private Long studentId;
+    private String studentName;
     private Long structureId;
     private LocalDate effectiveDate;
     private String notes;

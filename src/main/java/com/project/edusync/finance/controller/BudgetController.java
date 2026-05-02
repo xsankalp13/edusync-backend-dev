@@ -62,7 +62,7 @@ public class BudgetController {
      * Distinct academic years in use — for the year filter dropdown.
      */
     @GetMapping("/meta/years")
-    @PreAuthorize("hasAnyAuthority('finance:budget:read', 'ROLE_ADMIN', 'ROLE_SCHOOL_ADMIN', 'ROLE_FINANCE_ADMIN')")
+    @PreAuthorize("hasAnyAuthority('finance:budget:read', 'ROLE_ADMIN', 'ROLE_SCHOOL_ADMIN', 'ROLE_FINANCE_ADMIN', 'ROLE_AUDITOR')")
     public ResponseEntity<List<String>> getAcademicYears() {
         return ResponseEntity.ok(budgetService.getAcademicYears(DEFAULT_SCHOOL_ID));
     }
@@ -72,7 +72,7 @@ public class BudgetController {
      * Distinct departments in use — for the department filter dropdown.
      */
     @GetMapping("/meta/departments")
-    @PreAuthorize("hasAnyAuthority('finance:budget:read', 'ROLE_ADMIN', 'ROLE_SCHOOL_ADMIN', 'ROLE_FINANCE_ADMIN')")
+    @PreAuthorize("hasAnyAuthority('finance:budget:read', 'ROLE_ADMIN', 'ROLE_SCHOOL_ADMIN', 'ROLE_FINANCE_ADMIN', 'ROLE_AUDITOR')")
     public ResponseEntity<List<String>> getDepartments() {
         return ResponseEntity.ok(budgetService.getDepartments(DEFAULT_SCHOOL_ID));
     }

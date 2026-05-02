@@ -32,4 +32,12 @@ public interface StudentFeeMapRepository extends JpaRepository<StudentFeeMap, Lo
      */
     Optional<StudentFeeMap> findByStudent_Id(Long id);
     // Note: If your Student's PK is 'id' (a Long), this should be findByStudent_Id(Long studentId)
+    /**
+     * Checks if a mapping already exists for a specific student and fee structure.
+     *
+     * @param studentId   The ID of the student.
+     * @param structureId The ID of the fee structure.
+     * @return true if a mapping exists, false otherwise.
+     */
+    boolean existsByStudent_IdAndFeeStructure_Id(Long studentId, Long structureId);
 }

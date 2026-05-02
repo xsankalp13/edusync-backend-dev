@@ -22,6 +22,7 @@ import org.springframework.boot.ApplicationRunner;
 import org.springframework.core.env.Environment; // Import the Environment class
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Component;
+import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.util.Arrays;
@@ -52,6 +53,7 @@ public class DataSeeder implements ApplicationRunner {
     private final UserRepository userRepository;
     private final PasswordEncoder passwordEncoder;
     private final Environment environment; // 1. Inject the Spring Environment
+    private final JdbcTemplate jdbcTemplate;
 
     private static final Map<String, List<String>> ROLE_PERMISSION_BLUEPRINT = buildRolePermissionBlueprint();
     private static final Map<String, List<String>> CLASS_SECTION_BLUEPRINT = buildClassSectionBlueprint();
@@ -68,6 +70,7 @@ public class DataSeeder implements ApplicationRunner {
         seedPermissionsAndRoleMappings(rolesByName);
         seedSuperAdminUser(rolesByName);
         seedAppSettings();
+        fixStaffTypeConstraint();
 
         // Class/section fixture data should be inserted only on schema-create mode.
         if ("create".equalsIgnoreCase(ddlAuto)) {
@@ -78,6 +81,24 @@ public class DataSeeder implements ApplicationRunner {
         }
 
         log.info("Data seeding complete.");
+    }
+
+    private void fixStaffTypeConstraint() {
+        log.info("Checking and fixing staff_staff_type_check constraint if needed...");
+        try {
+            // Drop the old constraint if it exists. 
+            // In PostgreSQL, we can use DROP CONSTRAINT IF EXISTS
+            jdbcTemplate.execute("ALTER TABLE staff DROP CONSTRAINT IF EXISTS staff_staff_type_check");
+            
+            // Re-add it with the new roles included
+            jdbcTemplate.execute("ALTER TABLE staff ADD CONSTRAINT staff_staff_type_check " +
+                "CHECK (staff_type IN ('TEACHER', 'LIBRARIAN', 'PRINCIPAL', 'SECURITY_GUARD', " +
+                "'FINANCE_ADMIN', 'AUDITOR', 'ADMINISTRATIVE_STAFF'))");
+            
+            log.info("Successfully updated staff_staff_type_check constraint.");
+        } catch (Exception e) {
+            log.warn("Could not update staff_staff_type_check constraint. This is normal if the table doesn't exist yet or the database is not PostgreSQL: {}", e.getMessage());
+        }
     }
 
     private Map<String, Role> seedRoles() {
@@ -95,6 +116,8 @@ public class DataSeeder implements ApplicationRunner {
                 "ROLE_SCHOOL_ADMIN",
                 "ROLE_HR_ADMIN",
                 "ROLE_SECURITY_GUARD",
+                "ROLE_FINANCE_ADMIN",
+                "ROLE_AUDITOR",
                 "ROLE_APPLICANT"
         );
 
@@ -394,6 +417,24 @@ public class DataSeeder implements ApplicationRunner {
                 "evaluation:assignment:manage",
                 "evaluation:assignment:read:all",
                 "evaluation:answer-sheet:read:all"
+        ));
+
+        blueprint.put("ROLE_FINANCE_ADMIN", List.of(
+                "profile:read:own",
+                "dashboard:read:school",
+                "finance:manage",
+                "finance:read:all",
+                "reports:read:school"
+        ));
+
+        blueprint.put("ROLE_AUDITOR", List.of(
+                "profile:read:own",
+                "dashboard:read:school",
+                "finance:read:all",
+                "finance:gl:read",
+                "finance:budget:read",
+                "finance:coa:read",
+                "reports:read:school"
         ));
         return blueprint;
     }

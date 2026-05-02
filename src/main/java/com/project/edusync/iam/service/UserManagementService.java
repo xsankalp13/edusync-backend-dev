@@ -70,6 +70,20 @@ public interface UserManagementService {
     User createSecurityGuard(CreateSecurityGuardRequestDTO request);
 
     /**
+     * Creates a Finance Admin.
+     * @param request DTO with finance admin specific fields.
+     * @return The created User entity.
+     */
+    User createFinanceAdmin(CreateFinanceAdminRequestDTO request);
+
+    /**
+     * Creates an Auditor.
+     * @param request DTO with auditor specific fields.
+     * @return The created User entity.
+     */
+    User createAuditor(CreateAuditorRequestDTO request);
+
+    /**
      * Creates a guardian user and links it with a student.
      * @param studentId Student UUID.
      * @param request Guardian creation payload.

@@ -26,6 +26,10 @@ public class InvoiceMapper {
         // 2. Manually map student ID
         if (invoice.getStudent() != null) {
             dto.setStudentId(invoice.getStudent().getId());
+            if (invoice.getStudent().getUserProfile() != null) {
+                dto.setStudentName(invoice.getStudent().getUserProfile().getFirstName() + " " + 
+                                  invoice.getStudent().getUserProfile().getLastName());
+            }
         }
 
         // 3. Manually map the list of line items

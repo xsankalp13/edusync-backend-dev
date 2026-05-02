@@ -10,6 +10,8 @@ public enum StaffType {
     LIBRARIAN,
     PRINCIPAL,
     SECURITY_GUARD,
+    FINANCE_ADMIN,
+    AUDITOR,
     ADMINISTRATIVE_STAFF,
     /**
      * Manages all administrative functions for a specific school.

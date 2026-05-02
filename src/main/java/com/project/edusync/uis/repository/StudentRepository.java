@@ -39,12 +39,16 @@ public interface StudentRepository extends JpaRepository<Student, Long> {
                    "JOIN FETCH up.user u " +
                    "JOIN FETCH s.section sec " +
                    "JOIN FETCH sec.academicClass ac " +
-                   "WHERE (:active IS NULL OR u.isActive = :active)",
+                   "WHERE (:active IS NULL OR u.isActive = :active) " +
+                   "AND (:classUuid IS NULL OR CAST(ac.uuid AS string) = :classUuid)",
            countQuery = "SELECT COUNT(s) FROM Student s " +
                         "JOIN s.userProfile up " +
                         "JOIN up.user u " +
-                        "WHERE (:active IS NULL OR u.isActive = :active)")
-    Page<Student> findAllWithDetails(@Param("active") Boolean active, Pageable pageable);
+                        "JOIN s.section sec " +
+                        "JOIN sec.academicClass ac " +
+                        "WHERE (:active IS NULL OR u.isActive = :active) " +
+                        "AND (:classUuid IS NULL OR CAST(ac.uuid AS string) = :classUuid)")
+    Page<Student> findAllWithDetails(@Param("active") Boolean active, @Param("classUuid") String classUuid, Pageable pageable);
 
     /**
      * Search students by name, email, or enrollment number (case-insensitive).
@@ -55,7 +59,9 @@ public interface StudentRepository extends JpaRepository<Student, Long> {
                    "JOIN FETCH up.user u " +
                    "JOIN FETCH s.section sec " +
                    "JOIN FETCH sec.academicClass ac " +
-                   "WHERE (:active IS NULL OR u.isActive = :active) AND (" +
+                   "WHERE (:active IS NULL OR u.isActive = :active) " +
+                   "AND (:classUuid IS NULL OR CAST(ac.uuid AS string) = :classUuid) " +
+                   "AND (" +
                    "LOWER(up.firstName) LIKE LOWER(CONCAT('%', :query, '%')) " +
                    "OR LOWER(up.lastName)     LIKE LOWER(CONCAT('%', :query, '%')) " +
                    "OR LOWER(u.email)         LIKE LOWER(CONCAT('%', :query, '%')) " +
@@ -63,12 +69,16 @@ public interface StudentRepository extends JpaRepository<Student, Long> {
            countQuery = "SELECT COUNT(s) FROM Student s " +
                         "JOIN s.userProfile up " +
                         "JOIN up.user u " +
-                        "WHERE (:active IS NULL OR u.isActive = :active) AND (" +
+                        "JOIN s.section sec " +
+                        "JOIN sec.academicClass ac " +
+                        "WHERE (:active IS NULL OR u.isActive = :active) " +
+                        "AND (:classUuid IS NULL OR CAST(ac.uuid AS string) = :classUuid) " +
+                        "AND (" +
                         "LOWER(up.firstName) LIKE LOWER(CONCAT('%', :query, '%')) " +
                         "OR LOWER(up.lastName)     LIKE LOWER(CONCAT('%', :query, '%')) " +
                         "OR LOWER(u.email)         LIKE LOWER(CONCAT('%', :query, '%')) " +
                         "OR LOWER(s.enrollmentNumber) LIKE LOWER(CONCAT('%', :query, '%'))) ")
-    Page<Student> searchStudents(@Param("query") String query, @Param("active") Boolean active, Pageable pageable);
+    Page<Student> searchStudents(@Param("query") String query, @Param("active") Boolean active, @Param("classUuid") String classUuid, Pageable pageable);
 
     Optional<Student> findByUuid(java.util.UUID uuid);
 
