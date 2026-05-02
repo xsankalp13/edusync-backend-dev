@@ -1,5 +1,6 @@
 package com.project.edusync.adm.service.impl;
 
+import com.project.edusync.adm.exception.InvalidRequestException;
 import com.project.edusync.adm.exception.ResourceNotFoundException;
 import com.project.edusync.adm.model.dto.request.AcademicClassRequestDto;
 import com.project.edusync.adm.model.dto.request.SectionRequestDto;
@@ -106,7 +107,7 @@ public class AcademicClassServiceImpl implements AcademicClassService {
         newSection.setSectionName(sectionRequestDto.getSectionName());
         newSection.setAcademicClass(parentClass); // Link to parent
         newSection.setDefaultRoom(resolveDefaultRoom(sectionRequestDto.getDefaultRoomId()));
-        newSection.setClassTeacher(resolveClassTeacher(sectionRequestDto.getClassTeacherUuid()));
+        newSection.setClassTeacher(resolveClassTeacher(sectionRequestDto.getClassTeacherUuid(), null));
 
         Section savedSection = sectionRepository.save(newSection);
         log.info("Section '{}' created successfully with id {} for class id {}", savedSection.getSectionName(), savedSection.getId(), classId);
@@ -149,7 +150,7 @@ public class AcademicClassServiceImpl implements AcademicClassService {
                 });
         existingSection.setSectionName(sectionRequestDto.getSectionName());
         existingSection.setDefaultRoom(resolveDefaultRoom(sectionRequestDto.getDefaultRoomId()));
-        existingSection.setClassTeacher(resolveClassTeacher(sectionRequestDto.getClassTeacherUuid()));
+        existingSection.setClassTeacher(resolveClassTeacher(sectionRequestDto.getClassTeacherUuid(), sectionId));
 
         Section updatedSection = sectionRepository.save(existingSection);
         log.info("Section with id {} updated successfully", updatedSection.getId());
@@ -205,12 +206,20 @@ public class AcademicClassServiceImpl implements AcademicClassService {
                 .orElseThrow(() -> new ResourceNotFoundException("Default room not found with id: " + defaultRoomId));
     }
 
-    private Staff resolveClassTeacher(UUID classTeacherUuid) {
+    private Staff resolveClassTeacher(UUID classTeacherUuid, UUID excludeSectionId) {
         if (classTeacherUuid == null) {
             return null;
         }
-        return staffRepository.findByUuid(classTeacherUuid)
+        Staff teacher = staffRepository.findByUuid(classTeacherUuid)
                 .orElseThrow(() -> new ResourceNotFoundException("Class teacher not found with id: " + classTeacherUuid));
+
+        if (sectionRepository.isTeacherAssignedElsewhere(teacher.getId(), excludeSectionId)) {
+            log.warn("Teacher {} is already assigned as class teacher in another section", classTeacherUuid);
+            throw new InvalidRequestException(
+                    "Teacher is already assigned as class teacher in another section. " +
+                    "A teacher can only be class teacher of one section at a time.");
+        }
+        return teacher;
     }
 
 }
