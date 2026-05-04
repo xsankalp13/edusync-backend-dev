@@ -84,6 +84,7 @@ public interface StaffRepository extends JpaRepository<Staff, Long> {
     Page<Staff> searchStaff(@Param("query") String query, @Param("active") Boolean active, Pageable pageable);
 
     Optional<Staff> findByUuid(java.util.UUID uuid);
+    List<Staff> findByUuidIn(java.util.Collection<java.util.UUID> uuids);
 
     Optional<Staff> findByUserProfile_User_Id(Long userId);
 

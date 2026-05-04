@@ -32,6 +32,7 @@ interface AdmitCardScheduleProjection {
 }
 
 List<ExamSchedule> findByExamUuid (UUID examUuid);
+List<ExamSchedule> findByExamId(Long examId);
 
 @Query("""
 		SELECT es FROM ExamSchedule es

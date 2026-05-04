@@ -23,6 +23,13 @@ public class InvigilationController {
         return ResponseEntity.ok(invigilationService.assignInvigilator(dto));
     }
 
+    @PostMapping("/bulk-assign-pool")
+    @PreAuthorize("@examControllerAccess.canAccessExamUuid(#dto.examUuid)")
+    public ResponseEntity<Void> bulkAssignPool(@Validated @RequestBody com.project.edusync.em.model.dto.request.PoolBulkAssignRequestDTO dto) {
+        invigilationService.bulkAssignPool(dto);
+        return ResponseEntity.ok().build();
+    }
+
     @GetMapping("/exam/{examScheduleId}")
     @PreAuthorize("@examControllerAccess.canAccessSchedule(#examScheduleId)")
     public ResponseEntity<List<InvigilationResponseDTO>> getByExam(@PathVariable Long examScheduleId) {

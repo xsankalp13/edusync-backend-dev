@@ -8,8 +8,11 @@ import com.project.edusync.common.exception.BadRequestException;
 import com.project.edusync.common.settings.service.AppSettingService;
 import com.project.edusync.em.model.dto.request.BulkSeatAllocationRequestDTO;
 import com.project.edusync.em.model.dto.request.SingleSeatAllocationRequestDTO;
+import com.project.edusync.em.model.dto.request.GlobalSeatAllocationRequestDTO;
 import com.project.edusync.em.model.dto.response.*;
+import com.project.edusync.em.model.entity.Exam;
 import com.project.edusync.em.model.entity.ExamSchedule;
+import com.project.edusync.em.model.repository.ExamRepository;
 import com.project.edusync.em.model.entity.Seat;
 import com.project.edusync.em.model.entity.SeatAllocation;
 import com.project.edusync.em.model.repository.ExamScheduleRepository;
@@ -29,8 +32,12 @@ import org.springframework.transaction.annotation.Transactional;
 import java.time.format.DateTimeFormatter;
 import java.time.LocalDateTime;
 import java.util.*;
+import java.util.LinkedList;
+import java.util.Queue;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
+import lombok.AllArgsConstructor;
+import lombok.Data;
 
 @Slf4j
 @Service
@@ -39,6 +46,7 @@ public class SeatAllocationService {
 
     private final SeatRepository seatRepository;
     private final SeatAllocationRepository allocationRepository;
+    private final ExamRepository examRepository;
     private final ExamScheduleRepository examScheduleRepository;
     private final RoomRepository roomRepository;
     private final StudentRepository studentRepository;
@@ -489,12 +497,11 @@ public class SeatAllocationService {
         log.info("Allocating {} students to room {} (eligibleSeats: {}, openSlots: {}, maxPerSeat: {}) for Schedule ID {}",
             toAllocate, room.getUuid(), scheduleEligibleSeats, totalAvailableSlots, maxPerSeat, schedule.getId());
 
-        // 7. SORT: partially filled seats first (higher occupancy = higher priority), then by position
+        // 7. SORT: partially filled seats first (higher occupancy = higher priority), then by snake pattern (column-wise)
         List<Seat> sortedSeats = availableSeats.stream()
             .sorted(Comparator
                 .comparingLong((Seat s) -> seatOccupancy.getOrDefault(s.getId(), 0L)).reversed()
-                .thenComparingInt(Seat::getRowNumber)
-                .thenComparingInt(Seat::getColumnNumber))
+                .thenComparing(getSeatSnakePatternComparator()))
             .collect(Collectors.toList());
 
         // 8. Build allocations — at most one student per seat for this schedule
@@ -533,6 +540,264 @@ public class SeatAllocationService {
         }
 
         return saved.stream().map(this::toResponse).collect(Collectors.toList());
+    }
+
+    // ════════════════════════════════════════════════════════════════
+    // GLOBAL AUTO-ALLOCATION FOR ENTIRE EXAM
+    // ════════════════════════════════════════════════════════════════
+
+    @Transactional
+    @Caching(evict = {
+        @CacheEvict(value = CacheNames.ROOM_AVAILABILITY, allEntries = true),
+        @CacheEvict(value = CacheNames.SEATING_PLAN_PDF, allEntries = true)
+    })
+    public void clearAllocationsByExamUuid(UUID examUuid) {
+        Exam exam = examRepository.findByUuid(examUuid)
+            .orElseThrow(() -> new ResourceNotFoundException("Exam not found"));
+
+        List<Long> scheduleIds = examScheduleRepository.findByExamId(exam.getId())
+            .stream()
+            .map(ExamSchedule::getId)
+            .toList();
+
+        if (!scheduleIds.isEmpty()) {
+            allocationRepository.deleteAllByExamScheduleIdInBatch(scheduleIds);
+            allocationRepository.flush();
+            log.info("Cleared all seat allocations for exam: {} (UUID: {})", exam.getName(), examUuid);
+        }
+    }
+
+    @Transactional
+    @Caching(evict = {
+        @CacheEvict(value = CacheNames.ROOM_AVAILABILITY, allEntries = true),
+        @CacheEvict(value = CacheNames.SEATING_PLAN_PDF, allEntries = true)
+    })
+    public void clearAllocationsByScheduleId(Long scheduleId) {
+        allocationRepository.deleteAllByExamScheduleIdInBatch(Collections.singletonList(scheduleId));
+        allocationRepository.flush();
+        log.info("Cleared all seat allocations for schedule: {}", scheduleId);
+    }
+
+    // ════════════════════════════════════════════════════════════════
+    // GLOBAL CAPACITY INFO
+    // ════════════════════════════════════════════════════════════════
+
+    @Transactional(readOnly = true)
+    public GlobalCapacityInfoDTO getGlobalCapacityInfo(UUID examUuid) {
+        List<ExamSchedule> schedules = examScheduleRepository.findByExamUuid(examUuid);
+        if (schedules.isEmpty()) {
+            return GlobalCapacityInfoDTO.builder()
+                .maxStudentsInAnyTimeslot(0)
+                .totalStudentsAcrossExam(0)
+                .timeslotCount(0)
+                .studentsPerTimeslot(Collections.emptyMap())
+                .build();
+        }
+
+        Map<LocalDateTime, List<ExamSchedule>> schedulesByTimeslot = schedules.stream()
+            .collect(Collectors.groupingBy(this::deriveStartTime));
+
+        int maxStudents = 0;
+        int totalStudentsAcrossExam = 0;
+        Map<String, Integer> studentsPerTimeslot = new HashMap<>();
+
+        for (Map.Entry<LocalDateTime, List<ExamSchedule>> entry : schedulesByTimeslot.entrySet()) {
+            int currentTimeslotStudents = 0;
+            for (ExamSchedule schedule : entry.getValue()) {
+                currentTimeslotStudents += countStudentsForSchedule(schedule);
+            }
+            maxStudents = Math.max(maxStudents, currentTimeslotStudents);
+            totalStudentsAcrossExam += currentTimeslotStudents;
+            studentsPerTimeslot.put(entry.getKey().toString(), currentTimeslotStudents);
+        }
+
+        return GlobalCapacityInfoDTO.builder()
+            .maxStudentsInAnyTimeslot(maxStudents)
+            .totalStudentsAcrossExam(totalStudentsAcrossExam)
+            .timeslotCount(schedulesByTimeslot.size())
+            .studentsPerTimeslot(studentsPerTimeslot)
+            .build();
+    }
+
+    @Transactional
+    @Caching(evict = {
+        @CacheEvict(value = CacheNames.ROOM_AVAILABILITY, allEntries = true),
+        @CacheEvict(value = CacheNames.SEATING_PLAN_PDF, allEntries = true)
+    })
+    public GlobalSeatAllocationResultDTO globalAllocateForExam(GlobalSeatAllocationRequestDTO dto) {
+        UUID examUuid = dto.getExamUuid();
+        log.info("Starting global seating allocation for exam {}", examUuid);
+
+        List<ExamSchedule> schedules = examScheduleRepository.findByExamUuid(examUuid);
+        if (schedules.isEmpty()) {
+            throw new BadRequestException("No schedules found for this exam");
+        }
+
+        List<Long> scheduleIds = schedules.stream().map(ExamSchedule::getId).collect(Collectors.toList());
+
+        // Clear existing allocations
+        allocationRepository.deleteAllByExamScheduleIdInBatch(scheduleIds);
+        allocationRepository.flush();
+
+        Map<LocalDateTime, List<ExamSchedule>> schedulesByTimeslot = schedules.stream()
+            .collect(Collectors.groupingBy(this::deriveStartTime));
+
+        List<Room> allActiveRooms;
+        if (dto.getSelectedRoomUuids() != null && !dto.getSelectedRoomUuids().isEmpty()) {
+            allActiveRooms = roomRepository.findByUuidIn(dto.getSelectedRoomUuids());
+        } else {
+            allActiveRooms = roomRepository.findAllActive();
+        }
+
+        allActiveRooms = allActiveRooms.stream()
+            .sorted(Comparator.comparing(Room::getName))
+            .collect(Collectors.toList());
+
+        int totalStudentsProcessed = 0;
+        int totalSeated = 0;
+        Set<Long> roomsUsedOverall = new HashSet<>();
+        List<String> skippedStudents = new ArrayList<>();
+        List<String> warnings = new ArrayList<>();
+
+        for (Map.Entry<LocalDateTime, List<ExamSchedule>> entry : schedulesByTimeslot.entrySet()) {
+            LocalDateTime timeslotStart = entry.getKey();
+            List<ExamSchedule> timeslotSchedules = entry.getValue();
+
+            Map<ExamSchedule, List<Student>> scheduleStudents = new HashMap<>();
+            for (ExamSchedule schedule : timeslotSchedules) {
+                List<Student> students = resolveStudents(schedule);
+                scheduleStudents.put(schedule, new LinkedList<>(students));
+                totalStudentsProcessed += students.size();
+            }
+
+            Queue<StudentSchedulePair> studentQueue = new LinkedList<>();
+            boolean moreStudents = true;
+            while (moreStudents) {
+                moreStudents = false;
+                for (ExamSchedule schedule : timeslotSchedules) {
+                    List<Student> studentsList = scheduleStudents.get(schedule);
+                    if (!studentsList.isEmpty()) {
+                        studentQueue.add(new StudentSchedulePair(studentsList.remove(0), schedule));
+                        moreStudents = true;
+                    }
+                }
+            }
+
+            if (studentQueue.isEmpty()) continue;
+
+            for (Room room : allActiveRooms) {
+                if (studentQueue.isEmpty()) break;
+
+                List<Seat> allSeats = allocationRepository.lockAllSeatsInRoom(room.getId());
+                if (allSeats.isEmpty()) continue;
+
+                List<Seat> sortedSeats = allSeats.stream()
+                    .sorted(getSeatSnakePatternComparator())
+                    .collect(Collectors.toList());
+
+                List<SeatAllocation> newAllocations = new ArrayList<>();
+                Map<Long, Set<Long>> scheduleIdsPerSeat = new HashMap<>();
+                Map<Long, Integer> occupancyPerSeat = new HashMap<>();
+
+                for (Seat seat : sortedSeats) {
+                    scheduleIdsPerSeat.put(seat.getId(), new HashSet<>());
+                    occupancyPerSeat.put(seat.getId(), 0);
+                }
+
+                boolean roomHasCapacity = true;
+                List<StudentSchedulePair> unableToPlaceInRoom = new ArrayList<>();
+
+                while (!studentQueue.isEmpty() && roomHasCapacity) {
+                    StudentSchedulePair pair = studentQueue.peek();
+                    boolean placed = false;
+
+                    for (Seat seat : sortedSeats) {
+                        int occupancy = occupancyPerSeat.get(seat.getId());
+                        int maxPerSeat = pair.schedule.getMaxStudentsPerSeat();
+                        Set<Long> schedulesOnSeat = scheduleIdsPerSeat.get(seat.getId());
+
+                        if (occupancy < maxPerSeat && !schedulesOnSeat.contains(pair.schedule.getId())) {
+                            studentQueue.poll();
+                            
+                            int positionIndex = findNextAvailablePosition(
+                                IntStream.range(0, occupancy).boxed().collect(Collectors.toSet()), 
+                                maxPerSeat
+                            ); 
+
+                            SeatAllocation sa = new SeatAllocation();
+                            sa.setSeat(seat);
+                            sa.setStudent(pair.student);
+                            sa.setExamSchedule(pair.schedule);
+                            sa.setStartTime(timeslotStart);
+                            sa.setEndTime(deriveEndTime(pair.schedule));
+                            sa.setPositionIndex(positionIndex);
+
+                            newAllocations.add(sa);
+                            occupancyPerSeat.put(seat.getId(), occupancy + 1);
+                            schedulesOnSeat.add(pair.schedule.getId());
+                            placed = true;
+                            roomsUsedOverall.add(room.getId());
+                            totalSeated++;
+                            break;
+                        }
+                    }
+
+                    if (!placed) {
+                        unableToPlaceInRoom.add(studentQueue.poll());
+                        if (unableToPlaceInRoom.size() > 0 && studentQueue.isEmpty()) {
+                            roomHasCapacity = false;
+                        }
+                    } else {
+                        if (!unableToPlaceInRoom.isEmpty()) {
+                            LinkedList<StudentSchedulePair> newQueue = new LinkedList<>(unableToPlaceInRoom);
+                            newQueue.addAll(studentQueue);
+                            studentQueue = newQueue;
+                            unableToPlaceInRoom.clear();
+                        }
+                    }
+                }
+
+                if (!unableToPlaceInRoom.isEmpty()) {
+                    LinkedList<StudentSchedulePair> newQueue = new LinkedList<>(unableToPlaceInRoom);
+                    newQueue.addAll(studentQueue);
+                    studentQueue = newQueue;
+                }
+
+                if (!newAllocations.isEmpty()) {
+                    for (int i = 0; i < newAllocations.size(); i += BATCH_SIZE) {
+                        List<SeatAllocation> batch = newAllocations.subList(i, Math.min(i + BATCH_SIZE, newAllocations.size()));
+                        allocationRepository.saveAll(batch);
+                    }
+                    allocationRepository.flush();
+                }
+            }
+
+            if (!studentQueue.isEmpty()) {
+                for (StudentSchedulePair pair : studentQueue) {
+                    skippedStudents.add(pair.student.getEnrollmentNumber());
+                }
+                warnings.add("Not enough capacity in timeslot " + timeslotStart + ". " + studentQueue.size() + " students unseated.");
+            }
+        }
+
+        return GlobalSeatAllocationResultDTO.builder()
+            .totalStudents(totalStudentsProcessed)
+            .totalSeated(totalSeated)
+            .totalUnseated(totalStudentsProcessed - totalSeated)
+            .roomsUsed(roomsUsedOverall.size())
+            .timeslotsProcessed(schedulesByTimeslot.size())
+            .skippedStudents(skippedStudents)
+            .warnings(warnings)
+            .build();
+    }
+
+    private static class StudentSchedulePair {
+        final Student student;
+        final ExamSchedule schedule;
+        StudentSchedulePair(Student student, ExamSchedule schedule) {
+            this.student = student;
+            this.schedule = schedule;
+        }
     }
 
     // ════════════════════════════════════════════════════════════════
@@ -674,6 +939,77 @@ public class SeatAllocationService {
             this.roomId = roomId;
             this.roomName = roomName;
         }
+    }
+
+    @Data
+    @AllArgsConstructor
+    public static class GlobalSeatingSummaryRow {
+        private String className;
+        private String rollNumberRange;
+        private String roomName;
+        private int studentCount;
+    }
+
+    @Transactional(readOnly = true)
+    @Cacheable(value = CacheNames.SEATING_PLAN_PDF, key = "#examUuid + ':GLOBAL:V2'")
+    public byte[] generateGlobalSeatingPlanPdf(UUID examUuid) {
+        List<ExamSchedule> schedules = examScheduleRepository.findByExamUuid(examUuid);
+        if (schedules.isEmpty()) {
+             throw new BadRequestException("No schedules found for this exam");
+        }
+        String examName = schedules.get(0).getExam().getName();
+
+        Map<String, Object> data = new HashMap<>();
+        populateSchoolBrandingData(data);
+
+        data.put("title", "Global Seating Plan");
+        data.put("examName", examName);
+        data.put("generatedAt", LocalDateTime.now().format(DateTimeFormatter.ofPattern("dd MMM yyyy, hh:mm a")));
+        data.put("isGlobal", true);
+
+        // Fetch all allocations for the exam
+        List<SeatAllocationRepository.SeatingPlanPdfProjection> allocations =
+            allocationRepository.findSeatingPlanRowsByExamId(schedules.get(0).getExam().getId());
+        
+        data.put("totalAssigned", allocations.size());
+        
+        // Build the room-wise layout
+        List<SeatingPlanRoomPdfDTO> rooms = buildRoomWiseLayout(allocations);
+        data.put("rooms", rooms);
+
+        // Build summary table: Class Name -> Range of Roll numbers -> Room
+        List<GlobalSeatingSummaryRow> summaryRows = new ArrayList<>();
+        Map<String, Map<String, List<Integer>>> classRoomRolls = new HashMap<>();
+        
+        for (SeatAllocationRepository.SeatingPlanPdfProjection alloc : allocations) {
+            classRoomRolls.computeIfAbsent(alloc.getClassName(), k -> new HashMap<>())
+                          .computeIfAbsent(alloc.getRoomName(), k -> new ArrayList<>())
+                          .add(alloc.getRollNo());
+        }
+
+        for (Map.Entry<String, Map<String, List<Integer>>> classEntry : classRoomRolls.entrySet()) {
+            for (Map.Entry<String, List<Integer>> roomEntry : classEntry.getValue().entrySet()) {
+                List<Integer> rolls = roomEntry.getValue();
+                rolls.sort(Comparator.nullsLast(Integer::compareTo));
+                
+                String range = "-";
+                if (!rolls.isEmpty() && rolls.get(0) != null) {
+                    int min = rolls.get(0);
+                    int max = rolls.get(rolls.size() - 1);
+                    range = min == max ? String.valueOf(min) : min + " - " + max;
+                }
+                
+                summaryRows.add(new GlobalSeatingSummaryRow(classEntry.getKey(), range, roomEntry.getKey(), rolls.size()));
+            }
+        }
+        
+        // Sort summary rows by class then room
+        summaryRows.sort(Comparator.comparing(GlobalSeatingSummaryRow::getClassName, Comparator.nullsLast(String::compareTo))
+                                   .thenComparing(GlobalSeatingSummaryRow::getRoomName, Comparator.nullsLast(String::compareTo)));
+
+        data.put("summaryRows", summaryRows);
+
+        return pdfGenerationService.generatePdfFromHtml("em/global-seating-plan", data);
     }
 
     private String formatRollClassCode(SeatAllocationRepository.SeatingPlanPdfProjection allocation) {
@@ -835,5 +1171,22 @@ public class SeatAllocationService {
         } else {
             data.put("schoolLogoBase64", pdfGenerationService.loadSchoolLogoBase64());
         }
+    }
+
+    private Comparator<Seat> getSeatSnakePatternComparator() {
+        return (s1, s2) -> {
+            int c1 = s1.getColumnNumber();
+            int c2 = s2.getColumnNumber();
+            if (c1 != c2) {
+                return Integer.compare(c1, c2); // sort by column first
+            }
+            if (c1 % 2 != 0) {
+                // Odd columns: Top to bottom (Row 1 -> max)
+                return Integer.compare(s1.getRowNumber(), s2.getRowNumber());
+            } else {
+                // Even columns: Bottom to top (max -> Row 1)
+                return Integer.compare(s2.getRowNumber(), s1.getRowNumber());
+            }
+        };
     }
 }

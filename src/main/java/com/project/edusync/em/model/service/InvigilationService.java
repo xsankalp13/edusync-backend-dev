@@ -3,6 +3,7 @@ package com.project.edusync.em.model.service;
 import com.project.edusync.common.exception.BadRequestException;
 import com.project.edusync.common.exception.ResourceNotFoundException;
 import com.project.edusync.em.model.dto.request.InvigilationRequestDTO;
+import com.project.edusync.em.model.dto.request.PoolBulkAssignRequestDTO;
 import com.project.edusync.em.model.dto.response.InvigilationResponseDTO;
 import com.project.edusync.em.model.entity.ExamSchedule;
 import com.project.edusync.em.model.entity.Invigilation;
@@ -59,6 +60,52 @@ public class InvigilationService {
                 .build();
         Invigilation saved = invigilationRepository.save(invigilation);
         return toResponse(saved);
+    }
+
+    @Transactional
+    public void bulkAssignPool(PoolBulkAssignRequestDTO dto) {
+        List<ExamSchedule> schedules = examScheduleRepository.findByExamUuid(dto.getExamUuid());
+        if (schedules.isEmpty()) return;
+
+        List<Long> scheduleIds = schedules.stream().map(ExamSchedule::getId).collect(Collectors.toList());
+        invigilationRepository.deleteAllByExamScheduleIdIn(scheduleIds);
+        invigilationRepository.flush();
+
+        if (dto.getPoolStaffUuids() == null || dto.getPoolStaffUuids().isEmpty()) return;
+        List<Staff> pool = staffRepository.findByUuidIn(dto.getPoolStaffUuids());
+        if (pool.isEmpty()) return;
+
+        if (dto.getSelectedRoomUuids() == null || dto.getSelectedRoomUuids().isEmpty()) return;
+        List<Room> rooms = roomRepository.findByUuidIn(dto.getSelectedRoomUuids());
+        if (rooms.isEmpty()) return;
+
+        // Group by timeslot to avoid conflict in the same timeslot
+        java.util.Map<Long, List<ExamSchedule>> schedulesByTimeslot = schedules.stream()
+                .collect(Collectors.groupingBy(s -> s.getTimeslot().getId()));
+
+        int staffIndex = 0;
+
+        for (List<ExamSchedule> slotSchedules : schedulesByTimeslot.values()) {
+            for (ExamSchedule schedule : slotSchedules) {
+                int localStaffIndex = staffIndex;
+                for (Room room : rooms) {
+                    if (localStaffIndex - staffIndex >= pool.size()) {
+                        break; // exhausted pool for this timeslot
+                    }
+                    Staff staff = pool.get(localStaffIndex % pool.size());
+                    Invigilation inv = Invigilation.builder()
+                            .examSchedule(schedule)
+                            .staff(staff)
+                            .room(room)
+                            .role(InvigilationRole.PRIMARY)
+                            .build();
+                    invigilationRepository.save(inv);
+                    localStaffIndex++;
+                }
+            }
+            // Advance the starting staff index for the next timeslot (Option C: cycle pool)
+            staffIndex = (staffIndex + rooms.size()) % pool.size();
+        }
     }
 
     public List<InvigilationResponseDTO> getInvigilatorsByExam(Long examScheduleId) {

@@ -7,6 +7,7 @@ import jakarta.persistence.LockModeType;
 import jakarta.persistence.QueryHint;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Lock;
+import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.jpa.repository.QueryHints;
 import org.springframework.data.repository.query.Param;
@@ -220,6 +221,23 @@ public interface SeatAllocationRepository extends JpaRepository<SeatAllocation, 
         @Param("startTime") LocalDateTime startTime,
         @Param("endTime") LocalDateTime endTime);
 
+    @Query("""
+        SELECT sa.seat.room.id AS roomId,
+               sa.seat.room.name AS roomName,
+               sa.seat.rowNumber AS rowNumber,
+               sa.seat.columnNumber AS columnNumber,
+               sa.positionIndex AS positionIndex,
+               sa.student.rollNo AS rollNo,
+               sa.examSchedule.academicClass.name AS className
+        FROM SeatAllocation sa
+        WHERE sa.examSchedule.exam.id = :examId
+        ORDER BY sa.seat.room.name ASC,
+                 sa.seat.rowNumber ASC,
+                 sa.seat.columnNumber ASC,
+                 sa.positionIndex ASC
+        """)
+    List<SeatingPlanPdfProjection> findSeatingPlanRowsByExamId(@Param("examId") Long examId);
+
     // ── 7. Single student conflict check ──────────────────────────────────
     @Query("""
         SELECT COUNT(sa) > 0 FROM SeatAllocation sa
@@ -234,6 +252,10 @@ public interface SeatAllocationRepository extends JpaRepository<SeatAllocation, 
 
     // ── 8. Simple fetch by schedule ───────────────────────────────────────
     List<SeatAllocation> findByExamScheduleId(Long examScheduleId);
+
+    @Modifying
+    @Query("DELETE FROM SeatAllocation sa WHERE sa.examSchedule.id IN :scheduleIds")
+    void deleteAllByExamScheduleIdInBatch(@Param("scheduleIds") Collection<Long> scheduleIds);
 
     // ── 9. Find seat IDs at full capacity ─────────────────────────────────
     //    Returns seat IDs where allocation count >= maxPerSeat

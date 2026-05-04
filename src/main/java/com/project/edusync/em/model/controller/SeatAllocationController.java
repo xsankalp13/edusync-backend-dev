@@ -2,6 +2,8 @@ package com.project.edusync.em.model.controller;
 
 import com.project.edusync.em.model.dto.request.BulkSeatAllocationRequestDTO;
 import com.project.edusync.em.model.dto.request.SingleSeatAllocationRequestDTO;
+import com.project.edusync.em.model.dto.request.GlobalSeatAllocationRequestDTO;
+import com.project.edusync.em.model.dto.response.GlobalSeatAllocationResultDTO;
 import com.project.edusync.em.model.dto.response.RoomAvailabilityDTO;
 import com.project.edusync.em.model.dto.response.SeatAllocationResponseDTO;
 import com.project.edusync.em.model.dto.response.SeatAvailabilityDTO;
@@ -62,6 +64,20 @@ public class SeatAllocationController {
         return ResponseEntity.ok(seatAllocationService.bulkAllocate(dto));
     }
 
+    @GetMapping("/global-capacity-info")
+    @PreAuthorize("@examControllerAccess.canAccessExamUuid(#examUuid)")
+    public ResponseEntity<com.project.edusync.em.model.dto.response.GlobalCapacityInfoDTO> getGlobalCapacityInfo(
+            @RequestParam UUID examUuid) {
+        return ResponseEntity.ok(seatAllocationService.getGlobalCapacityInfo(examUuid));
+    }
+
+    @PostMapping("/global-allocate")
+    @PreAuthorize("@examControllerAccess.canAccessExamUuid(#dto.examUuid)")
+    public ResponseEntity<GlobalSeatAllocationResultDTO> globalAllocate(
+            @Validated @RequestBody GlobalSeatAllocationRequestDTO dto) {
+        return ResponseEntity.ok(seatAllocationService.globalAllocateForExam(dto));
+    }
+
     @GetMapping("/schedule/{examScheduleId}")
     @PreAuthorize("@examControllerAccess.canAccessSchedule(#examScheduleId)")
     public ResponseEntity<List<SeatAllocationResponseDTO>> getAllocationsForSchedule(
@@ -69,17 +85,6 @@ public class SeatAllocationController {
         return ResponseEntity.ok(seatAllocationService.getAllocationsForSchedule(examScheduleId));
     }
 
-    @GetMapping("/schedule/{examScheduleId}/print")
-    @PreAuthorize("@examControllerAccess.canAccessSchedule(#examScheduleId)")
-    public ResponseEntity<byte[]> printAllocationsForSchedule(
-            @PathVariable Long examScheduleId,
-            @RequestParam(name = "format", required = false, defaultValue = "ROOM_WISE") String format) {
-        byte[] pdf = seatAllocationService.generateSeatingPlanPdf(examScheduleId, format);
-        return ResponseEntity.ok()
-                .header(HttpHeaders.CONTENT_DISPOSITION, "attachment; filename=seating-plan-" + examScheduleId + ".pdf")
-                .contentType(MediaType.APPLICATION_PDF)
-                .body(pdf);
-    }
 
     @GetMapping("/roll/{rollNo}")
     @PreAuthorize("@examControllerAccess.canAccessSchedule(#examScheduleId)")
@@ -93,6 +98,20 @@ public class SeatAllocationController {
     @PreAuthorize("@examControllerAccess.canAccessSeatAllocation(#id)")
     public ResponseEntity<Void> deleteAllocation(@PathVariable Long id) {
         seatAllocationService.deleteAllocation(id);
+        return ResponseEntity.noContent().build();
+    }
+
+    @DeleteMapping("/exam/{examUuid}")
+    @PreAuthorize("@examControllerAccess.canAccessExamUuid(#examUuid)")
+    public ResponseEntity<Void> clearAllocationsByExam(@PathVariable UUID examUuid) {
+        seatAllocationService.clearAllocationsByExamUuid(examUuid);
+        return ResponseEntity.noContent().build();
+    }
+
+    @DeleteMapping("/schedule/{examScheduleId}")
+    @PreAuthorize("@examControllerAccess.canAccessSchedule(#examScheduleId)")
+    public ResponseEntity<Void> clearAllocationsBySchedule(@PathVariable Long examScheduleId) {
+        seatAllocationService.clearAllocationsByScheduleId(examScheduleId);
         return ResponseEntity.noContent().build();
     }
 

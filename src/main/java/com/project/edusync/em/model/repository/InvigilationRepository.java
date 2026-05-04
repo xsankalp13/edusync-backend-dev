@@ -26,6 +26,7 @@ public interface InvigilationRepository extends JpaRepository<Invigilation, Long
     List<Invigilation> findByStaffIdAndExamSchedule_TimeslotId(Long staffId, Long timeslotId);
     List<Invigilation> findByExamScheduleId(Long examScheduleId);
     List<Invigilation> findByStaffId(Long staffId);
+    void deleteAllByExamScheduleIdIn(java.util.Collection<Long> examScheduleIds);
 
     @Query("""
         SELECT i.examSchedule.id AS examScheduleId,

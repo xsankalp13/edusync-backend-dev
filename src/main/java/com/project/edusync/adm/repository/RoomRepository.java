@@ -82,4 +82,6 @@ public interface RoomRepository extends JpaRepository<Room, Long> {
 
     @Query("SELECT r FROM Room r WHERE r.uuid = :uuid")
     Optional<Room> findByUuid(UUID uuid);
+
+    List<Room> findByUuidIn(java.util.Collection<UUID> uuids);
 }
