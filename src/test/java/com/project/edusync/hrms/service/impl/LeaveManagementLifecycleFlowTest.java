@@ -35,7 +35,7 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.when;
 
 @ExtendWith(MockitoExtension.class)
-@Disabled("Temporarily disabled: missing DashboardEventService mock after service changes")
+//@Disabled("Temporarily disabled: missing DashboardEventService mock after service changes")
 class LeaveManagementLifecycleFlowTest {
 
     @Mock private LeaveApplicationRepository leaveApplicationRepository;
