@@ -16,7 +16,7 @@ import com.project.edusync.hrms.repository.LeaveTypeConfigRepository;
 import com.project.edusync.uis.model.entity.Staff;
 import com.project.edusync.uis.model.entity.UserProfile;
 import com.project.edusync.uis.repository.StaffRepository;
-import org.junit.jupiter.api.Disabled;
+import com.project.edusync.dashboard.service.DashboardEventService;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
@@ -35,7 +35,6 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.when;
 
 @ExtendWith(MockitoExtension.class)
-//@Disabled("Temporarily disabled: missing DashboardEventService mock after service changes")
 class LeaveManagementLifecycleFlowTest {
 
     @Mock private LeaveApplicationRepository leaveApplicationRepository;
@@ -44,6 +43,7 @@ class LeaveManagementLifecycleFlowTest {
     @Mock private AcademicCalendarEventRepository academicCalendarEventRepository;
     @Mock private StaffRepository staffRepository;
     @Mock private AuthUtil authUtil;
+    @Mock private DashboardEventService dashboardEventService;
 
     @InjectMocks
     private LeaveManagementServiceImpl service;
