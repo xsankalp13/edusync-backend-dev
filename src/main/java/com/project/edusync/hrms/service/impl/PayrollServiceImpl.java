@@ -76,6 +76,7 @@ import java.time.Month;
 import java.time.YearMonth;
 import java.time.format.TextStyle;
 import java.util.ArrayList;
+import java.util.Currency;
 import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -713,9 +714,11 @@ public class PayrollServiceImpl implements PayrollService {
     @Transactional(readOnly = true)
     public byte[] getPayslipPdf(Long payslipId) {
         PayslipDetailDTO payslip = getPayslipById(payslipId);
+        String currencySymbol = resolveCurrencySymbol(appSettingService.getValue("school.currency", "INR"));
         Map<String, Object> data = new HashMap<>();
         data.put("payslip", payslip);
         data.put("generatedOn", LocalDateTime.now());
+        data.put("currencySymbol", currencySymbol);
         return pdfGenerationService.generatePdfFromHtml("hrms/payslip", data);
     }
 
@@ -723,9 +726,11 @@ public class PayrollServiceImpl implements PayrollService {
     @Transactional(readOnly = true)
     public byte[] getPayslipPdfByIdentifier(String identifier) {
         PayslipDetailDTO payslip = getPayslipByIdentifier(identifier);
+        String currencySymbol = resolveCurrencySymbol(appSettingService.getValue("school.currency", "INR"));
         Map<String, Object> data = new HashMap<>();
         data.put("payslip", payslip);
         data.put("generatedOn", LocalDateTime.now());
+        data.put("currencySymbol", currencySymbol);
         return pdfGenerationService.generatePdfFromHtml("hrms/payslip", data);
     }
 
@@ -1257,8 +1262,10 @@ public class PayrollServiceImpl implements PayrollService {
     @Transactional(readOnly = true)
     public byte[] getBankSalaryAdvicePdf(String runIdentifier) {
         BankSalaryAdviceDTO advice = getBankSalaryAdvice(runIdentifier);
+        String currencySymbol = resolveCurrencySymbol(appSettingService.getValue("school.currency", "INR"));
         Map<String, Object> data = new HashMap<>();
         data.put("advice", advice);
+        data.put("currencySymbol", currencySymbol);
         return pdfGenerationService.generatePdfFromHtml("hrms/bank-salary-advice", data);
     }
 
@@ -1339,6 +1346,22 @@ public class PayrollServiceImpl implements PayrollService {
         PayrollRun saved = payrollRunRepository.save(run);
 
         return toRunResponse(saved, List.of());
+    }
+
+    /**
+     * Converts an ISO 4217 currency code (e.g. "INR", "USD") to its locale symbol
+     * (e.g. "₹", "$"). Falls back to the code itself if the code is unrecognised.
+     */
+    private String resolveCurrencySymbol(String currencyCode) {
+        if (currencyCode == null || currencyCode.isBlank()) {
+            return "₹";
+        }
+        try {
+            return Currency.getInstance(currencyCode.trim().toUpperCase(Locale.ROOT))
+                    .getSymbol(new Locale("", "IN"));
+        } catch (IllegalArgumentException ex) {
+            return currencyCode.trim();
+        }
     }
 }
 

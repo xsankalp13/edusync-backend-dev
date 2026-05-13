@@ -21,8 +21,10 @@ import java.math.BigDecimal;
 import java.math.RoundingMode;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
+import java.util.Currency;
 import java.util.HashMap;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.UUID;
 
@@ -138,6 +140,9 @@ public class LoanServiceImpl {
                 .filter(r -> r.status() == RepaymentStatus.DEDUCTED || r.status() == RepaymentStatus.MANUAL)
                 .count();
 
+        String currencyCode = appSettingService.getValue("school.currency", "INR");
+        String currencySymbol = resolveCurrencySymbol(currencyCode);
+
         Map<String, Object> data = new HashMap<>();
         data.put("loan", toLoanResponse(loan));
         data.put("repayments", repayments);
@@ -147,6 +152,7 @@ public class LoanServiceImpl {
         data.put("schoolName", appSettingService.getValue("school.name", "Institution"));
         data.put("schoolAddress", appSettingService.getValue("school.address", ""));
         data.put("schoolPhone", appSettingService.getValue("school.phone", ""));
+        data.put("currencySymbol", currencySymbol);
 
         return pdfGenerationService.generatePdfFromHtml("hrms/loan-sanction-letter", data);
     }
@@ -185,6 +191,22 @@ public class LoanServiceImpl {
 
     private StaffLoan findLoan(UUID uuid) {
         return loanRepo.findByUuid(uuid).orElseThrow(() -> new ResourceNotFoundException("Loan not found: " + uuid));
+    }
+
+    /**
+     * Converts an ISO 4217 currency code (e.g. "INR", "USD") to its locale symbol
+     * (e.g. "₹", "$"). Falls back to the code itself if the code is unrecognised.
+     */
+    private String resolveCurrencySymbol(String currencyCode) {
+        if (currencyCode == null || currencyCode.isBlank()) {
+            return "₹";
+        }
+        try {
+            return Currency.getInstance(currencyCode.trim().toUpperCase(Locale.ROOT))
+                    .getSymbol(new Locale("", "IN"));
+        } catch (IllegalArgumentException ex) {
+            return currencyCode.trim();
+        }
     }
 
     private Staff resolveStaff(String ref) {

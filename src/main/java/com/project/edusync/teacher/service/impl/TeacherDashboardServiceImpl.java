@@ -71,18 +71,28 @@ public class TeacherDashboardServiceImpl implements TeacherDashboardService {
         for (Schedule schedule : schedules) {
             Section section = schedule.getSection();
             UUID sectionUuid = section.getUuid();
-            TeacherClassAccumulator acc = bySection.computeIfAbsent(sectionUuid, ignored -> new TeacherClassAccumulator(section));
+            TeacherClassAccumulator acc = bySection.computeIfAbsent(sectionUuid,
+                    ignored -> new TeacherClassAccumulator(section));
             acc.subjectsByUuid.putIfAbsent(
                     schedule.getSubject().getUuid(),
                     TeacherMyClassesResponseDto.SubjectItem.builder()
                             .subjectUuid(schedule.getSubject().getUuid())
                             .subjectName(schedule.getSubject().getName())
                             .subjectCode(schedule.getSubject().getSubjectCode())
-                            .build()
-            );
+                            .build());
         }
 
-        bySection.values().forEach(acc -> acc.studentCount = studentRepository.countBySection_IdAndIsActiveTrue(acc.section.getId()));
+        bySection.values().forEach(
+                acc -> acc.studentCount = studentRepository.countBySection_IdAndIsActiveTrue(acc.section.getId()));
+
+        List<Section> homeroomSections = sectionRepository.findActiveHomeroomByClassTeacherId(staff.getId());
+        for (Section homeroom : homeroomSections) {
+            bySection.computeIfAbsent(homeroom.getUuid(), ignored -> {
+                TeacherClassAccumulator acc = new TeacherClassAccumulator(homeroom);
+                acc.studentCount = studentRepository.countBySection_IdAndIsActiveTrue(homeroom.getId());
+                return acc;
+            });
+        }
 
         return bySection.values().stream()
                 .map(acc -> TeacherMyClassesResponseDto.builder()
@@ -92,7 +102,8 @@ public class TeacherDashboardServiceImpl implements TeacherDashboardService {
                         .sectionName(acc.section.getSectionName())
                         .isClassTeacher(isClassTeacher(staff.getId(), acc.section))
                         .subjects(acc.subjectsByUuid.values().stream()
-                                .sorted(Comparator.comparing(TeacherMyClassesResponseDto.SubjectItem::getSubjectName, String.CASE_INSENSITIVE_ORDER))
+                                .sorted(Comparator.comparing(TeacherMyClassesResponseDto.SubjectItem::getSubjectName,
+                                        String.CASE_INSENSITIVE_ORDER))
                                 .toList())
                         .studentCount(acc.studentCount)
                         .build())
@@ -110,32 +121,33 @@ public class TeacherDashboardServiceImpl implements TeacherDashboardService {
         List<Section> sections = sectionRepository.findAllActiveByClassTeacherId(staff.getId());
 
         return sections.stream().map(section -> {
-                    List<Schedule> schedules = scheduleRepository.findAllActiveByTeacherStaffIdAndSectionId(staff.getId(), section.getId());
-                    Map<UUID, TeacherMyClassesResponseDto.SubjectItem> subjectsByUuid = new LinkedHashMap<>();
-                    for (Schedule schedule : schedules) {
-                        subjectsByUuid.putIfAbsent(
-                                schedule.getSubject().getUuid(),
-                                TeacherMyClassesResponseDto.SubjectItem.builder()
-                                        .subjectUuid(schedule.getSubject().getUuid())
-                                        .subjectName(schedule.getSubject().getName())
-                                        .subjectCode(schedule.getSubject().getSubjectCode())
-                                        .build()
-                        );
-                    }
+            List<Schedule> schedules = scheduleRepository.findAllActiveByTeacherStaffIdAndSectionId(staff.getId(),
+                    section.getId());
+            Map<UUID, TeacherMyClassesResponseDto.SubjectItem> subjectsByUuid = new LinkedHashMap<>();
+            for (Schedule schedule : schedules) {
+                subjectsByUuid.putIfAbsent(
+                        schedule.getSubject().getUuid(),
+                        TeacherMyClassesResponseDto.SubjectItem.builder()
+                                .subjectUuid(schedule.getSubject().getUuid())
+                                .subjectName(schedule.getSubject().getName())
+                                .subjectCode(schedule.getSubject().getSubjectCode())
+                                .build());
+            }
 
-                    long studentCount = studentRepository.countBySection_IdAndIsActiveTrue(section.getId());
-                    return TeacherMyClassesResponseDto.builder()
-                            .classUuid(section.getAcademicClass().getUuid())
-                            .className(section.getAcademicClass().getName())
-                            .sectionUuid(section.getUuid())
-                            .sectionName(section.getSectionName())
-                            .isClassTeacher(true)
-                            .subjects(subjectsByUuid.values().stream()
-                                    .sorted(Comparator.comparing(TeacherMyClassesResponseDto.SubjectItem::getSubjectName, String.CASE_INSENSITIVE_ORDER))
-                                    .toList())
-                            .studentCount(studentCount)
-                            .build();
-                })
+            long studentCount = studentRepository.countBySection_IdAndIsActiveTrue(section.getId());
+            return TeacherMyClassesResponseDto.builder()
+                    .classUuid(section.getAcademicClass().getUuid())
+                    .className(section.getAcademicClass().getName())
+                    .sectionUuid(section.getUuid())
+                    .sectionName(section.getSectionName())
+                    .isClassTeacher(true)
+                    .subjects(subjectsByUuid.values().stream()
+                            .sorted(Comparator.comparing(TeacherMyClassesResponseDto.SubjectItem::getSubjectName,
+                                    String.CASE_INSENSITIVE_ORDER))
+                            .toList())
+                    .studentCount(studentCount)
+                    .build();
+        })
                 .sorted(Comparator
                         .comparing(TeacherMyClassesResponseDto::getClassName, String.CASE_INSENSITIVE_ORDER)
                         .thenComparing(TeacherMyClassesResponseDto::getSectionName, String.CASE_INSENSITIVE_ORDER))
@@ -145,12 +157,20 @@ public class TeacherDashboardServiceImpl implements TeacherDashboardService {
     @Override
     @Transactional(readOnly = true)
     public Page<TeacherStudentResponseDto> getMyStudents(Long currentUserId,
-                                                         UUID classUuid,
-                                                         UUID sectionUuid,
-                                                         String search,
-                                                         Pageable pageable) {
+            UUID classUuid,
+            UUID sectionUuid,
+            String search,
+            Pageable pageable) {
         Staff staff = resolveStaffFromCurrentUser(currentUserId);
-        List<Long> teacherSectionIds = scheduleRepository.findDistinctActiveSectionIdsByTeacherStaffId(staff.getId());
+        List<Long> teacherSectionIds = new ArrayList<>(scheduleRepository.findDistinctActiveSectionIdsByTeacherStaffId(staff.getId()));
+        
+        List<Section> homeroomSections = sectionRepository.findActiveHomeroomByClassTeacherId(staff.getId());
+        for (Section sec : homeroomSections) {
+            if (!teacherSectionIds.contains(sec.getId())) {
+                teacherSectionIds.add(sec.getId());
+            }
+        }
+
         if (teacherSectionIds.isEmpty()) {
             return Page.empty(pageable);
         }
@@ -163,8 +183,7 @@ public class TeacherDashboardServiceImpl implements TeacherDashboardService {
                 sectionUuid,
                 searchEnabled,
                 searchPattern,
-                pageable
-        );
+                pageable);
 
         return mapStudents(page);
     }
@@ -172,9 +191,9 @@ public class TeacherDashboardServiceImpl implements TeacherDashboardService {
     @Override
     @Transactional(readOnly = true)
     public Page<TeacherStudentResponseDto> getClassTeacherStudents(Long currentUserId,
-                                                                   UUID sectionUuid,
-                                                                   String search,
-                                                                   Pageable pageable) {
+            UUID sectionUuid,
+            String search,
+            Pageable pageable) {
         Staff staff = resolveStaffFromCurrentUser(currentUserId);
         Section section = sectionRepository.findByUuid(sectionUuid)
                 .orElseThrow(() -> new EdusyncException("Section not found", HttpStatus.NOT_FOUND));
@@ -191,8 +210,7 @@ public class TeacherDashboardServiceImpl implements TeacherDashboardService {
                 sectionUuid,
                 searchEnabled,
                 searchPattern,
-                pageable
-        );
+                pageable);
 
         return mapStudents(page);
     }
@@ -200,16 +218,18 @@ public class TeacherDashboardServiceImpl implements TeacherDashboardService {
     private Page<TeacherStudentResponseDto> mapStudents(Page<Student> page) {
 
         List<Long> studentIds = page.getContent().stream().map(Student::getId).toList();
-        Map<Long, StudentDailyAttendanceRepository.StudentAttendanceAggregateProjection> attendanceByStudent =
-                attendanceSummaryByStudent(studentIds, currentAcademicStart(LocalDate.now()), LocalDate.now());
+        Map<Long, StudentDailyAttendanceRepository.StudentAttendanceAggregateProjection> attendanceByStudent = attendanceSummaryByStudent(
+                studentIds, currentAcademicStart(LocalDate.now()), LocalDate.now());
 
         Map<Long, StudentGuardianRelationship> guardianByStudent = studentGuardianRelationshipRepository
                 .findPrimaryContactsByStudentIds(studentIds)
                 .stream()
-                .collect(Collectors.toMap(rel -> rel.getStudent().getId(), Function.identity(), (first, ignored) -> first));
+                .collect(Collectors.toMap(rel -> rel.getStudent().getId(), Function.identity(),
+                        (first, ignored) -> first));
 
         return page.map(student -> {
-            StudentDailyAttendanceRepository.StudentAttendanceAggregateProjection attendance = attendanceByStudent.get(student.getId());
+            StudentDailyAttendanceRepository.StudentAttendanceAggregateProjection attendance = attendanceByStudent
+                    .get(student.getId());
             long present = attendance == null ? 0L : safe(attendance.getPresentCount());
             long absent = attendance == null ? 0L : safe(attendance.getAbsentCount());
             long total = attendance == null ? 0L : safe(attendance.getTotalCount());
@@ -221,13 +241,13 @@ public class TeacherDashboardServiceImpl implements TeacherDashboardService {
             if (guardianRelationship != null && guardianRelationship.getGuardian() != null) {
                 guardianName = fullName(
                         guardianRelationship.getGuardian().getUserProfile().getFirstName(),
-                        guardianRelationship.getGuardian().getUserProfile().getLastName()
-                );
+                        guardianRelationship.getGuardian().getUserProfile().getLastName());
                 guardianPhone = guardianRelationship.getGuardian().getPhoneNumber();
             }
 
             return TeacherStudentResponseDto.builder()
                     .uuid(student.getUuid())
+                    .studentId(student.getId())
                     .firstName(student.getUserProfile().getFirstName())
                     .lastName(student.getUserProfile().getLastName())
                     .profileUrl(student.getUserProfile().getProfileUrl())
@@ -266,9 +286,11 @@ public class TeacherDashboardServiceImpl implements TeacherDashboardService {
                         .thenComparing(Timeslot::getStartTime))
                 .toList();
 
-        Map<Long, Schedule> scheduleByTimeslotId = scheduleRepository.findAllActiveByTeacherStaffIdWithReferences(staff.getId())
+        Map<Long, Schedule> scheduleByTimeslotId = scheduleRepository
+                .findAllActiveByTeacherStaffIdWithReferences(staff.getId())
                 .stream()
-                .collect(Collectors.toMap(s -> s.getTimeslot().getId(), Function.identity(), (first, ignored) -> first));
+                .collect(
+                        Collectors.toMap(s -> s.getTimeslot().getId(), Function.identity(), (first, ignored) -> first));
 
         List<TeacherScheduleResponseDto.Entry> entries = new ArrayList<>();
         for (Timeslot timeslot : weekTimeslots) {
@@ -293,25 +315,29 @@ public class TeacherDashboardServiceImpl implements TeacherDashboardService {
                             .slotLabel(timeslot.getSlotLabel())
                             .isBreak(Boolean.TRUE.equals(timeslot.getIsBreak()))
                             .build())
-                    .subject(schedule == null ? null : TeacherScheduleResponseDto.SubjectItem.builder()
-                            .uuid(schedule.getSubject().getUuid())
-                            .subjectName(schedule.getSubject().getName())
-                            .subjectCode(schedule.getSubject().getSubjectCode())
-                            .build())
-                    .clazz(schedule == null ? null : TeacherScheduleResponseDto.ClassItem.builder()
-                            .uuid(schedule.getSection().getAcademicClass().getUuid())
-                            .className(schedule.getSection().getAcademicClass().getName())
-                            .build())
-                    .section(schedule == null ? null : TeacherScheduleResponseDto.SectionItem.builder()
-                            .uuid(schedule.getSection().getUuid())
-                            .sectionName(schedule.getSection().getSectionName())
-                            .build())
-                    .room(schedule == null ? null : TeacherScheduleResponseDto.RoomItem.builder()
-                            .uuid(schedule.getRoom().getUuid())
-                            .roomName(schedule.getRoom().getName())
-                            .roomType(schedule.getRoom().getRoomType())
-                            .floor(formatFloor(schedule.getRoom().getFloorNumber()))
-                            .build())
+                    .subject(schedule == null ? null
+                            : TeacherScheduleResponseDto.SubjectItem.builder()
+                                    .uuid(schedule.getSubject().getUuid())
+                                    .subjectName(schedule.getSubject().getName())
+                                    .subjectCode(schedule.getSubject().getSubjectCode())
+                                    .build())
+                    .clazz(schedule == null ? null
+                            : TeacherScheduleResponseDto.ClassItem.builder()
+                                    .uuid(schedule.getSection().getAcademicClass().getUuid())
+                                    .className(schedule.getSection().getAcademicClass().getName())
+                                    .build())
+                    .section(schedule == null ? null
+                            : TeacherScheduleResponseDto.SectionItem.builder()
+                                    .uuid(schedule.getSection().getUuid())
+                                    .sectionName(schedule.getSection().getSectionName())
+                                    .build())
+                    .room(schedule == null ? null
+                            : TeacherScheduleResponseDto.RoomItem.builder()
+                                    .uuid(schedule.getRoom().getUuid())
+                                    .roomName(schedule.getRoom().getName())
+                                    .roomType(schedule.getRoom().getRoomType())
+                                    .floor(formatFloor(schedule.getRoom().getFloorNumber()))
+                                    .build())
                     .build());
         }
 
@@ -335,20 +361,20 @@ public class TeacherDashboardServiceImpl implements TeacherDashboardService {
                 staff.getId(),
                 targetDate,
                 targetDate,
-                List.of(LeaveApplicationStatus.APPROVED)
-        );
+                List.of(LeaveApplicationStatus.APPROVED));
 
         List<Long> sectionIds = scheduleRepository.findDistinctActiveSectionIdsByTeacherStaffId(staff.getId());
         if (sectionIds.isEmpty()) {
             return emptySummary(targetDate, isOnLeaveToday);
         }
 
-        List<Student> students = studentRepository.findTeacherStudents(sectionIds, null, null, false, "%", Pageable.unpaged()).getContent();
+        List<Student> students = studentRepository
+                .findTeacherStudents(sectionIds, null, null, false, "%", Pageable.unpaged()).getContent();
         List<Long> studentIds = students.stream().map(Student::getId).toList();
         long totalStudents = studentIds.size();
 
-        Map<Long, StudentDailyAttendanceRepository.StudentAttendanceAggregateProjection> today =
-                attendanceSummaryByStudent(studentIds, targetDate, targetDate);
+        Map<Long, StudentDailyAttendanceRepository.StudentAttendanceAggregateProjection> today = attendanceSummaryByStudent(
+                studentIds, targetDate, targetDate);
         long present = today.values().stream().mapToLong(p -> safe(p.getPresentCount())).sum();
         long absent = today.values().stream().mapToLong(p -> safe(p.getAbsentCount())).sum();
         long late = today.values().stream().mapToLong(p -> safe(p.getLateCount())).sum();
@@ -360,10 +386,12 @@ public class TeacherDashboardServiceImpl implements TeacherDashboardService {
                 .filter(s -> mapDayOfWeek(s.getTimeslot().getDayOfWeek()) == targetDay)
                 .count();
 
-        Map<Long, StudentDailyAttendanceRepository.StudentAttendanceAggregateProjection> ytd =
-                attendanceSummaryByStudent(studentIds, currentAcademicStart(targetDate), targetDate);
-        long atRisk = ytd.values().stream().filter(p -> percentAsDouble(safe(p.getPresentCount()), safe(p.getTotalCount())) < 75.0d).count();
-        long belowThreshold = ytd.values().stream().filter(p -> percentAsDouble(safe(p.getPresentCount()), safe(p.getTotalCount())) < 90.0d).count();
+        Map<Long, StudentDailyAttendanceRepository.StudentAttendanceAggregateProjection> ytd = attendanceSummaryByStudent(
+                studentIds, currentAcademicStart(targetDate), targetDate);
+        long atRisk = ytd.values().stream()
+                .filter(p -> percentAsDouble(safe(p.getPresentCount()), safe(p.getTotalCount())) < 75.0d).count();
+        long belowThreshold = ytd.values().stream()
+                .filter(p -> percentAsDouble(safe(p.getPresentCount()), safe(p.getTotalCount())) < 90.0d).count();
 
         TeacherDashboardSummaryResponseDto.NextClass nextClass = findNextClass(teacherSchedules, targetDate);
 
@@ -381,7 +409,8 @@ public class TeacherDashboardServiceImpl implements TeacherDashboardService {
                         .build())
                 .alerts(TeacherDashboardSummaryResponseDto.Alerts.builder()
                         .atRiskStudentCount(atRisk)
-                        .pendingLeaveRequests(leaveApplicationRepository.countByActiveTrueAndStatus(LeaveApplicationStatus.PENDING))
+                        .pendingLeaveRequests(
+                                leaveApplicationRepository.countByActiveTrueAndStatus(LeaveApplicationStatus.PENDING))
                         .belowThresholdCount(belowThreshold)
                         .build())
                 .nextClass(nextClass)
@@ -404,35 +433,39 @@ public class TeacherDashboardServiceImpl implements TeacherDashboardService {
         List<Student> students = studentRepository.findAllBySectionIdWithDetails(homeroom.getId());
         List<Long> studentIds = students.stream().map(Student::getId).toList();
 
-        Map<Long, StudentDailyAttendanceRepository.StudentAttendanceAggregateProjection> today =
-                attendanceSummaryByStudent(studentIds, targetDate, targetDate);
+        Map<Long, StudentDailyAttendanceRepository.StudentAttendanceAggregateProjection> today = attendanceSummaryByStudent(
+                studentIds, targetDate, targetDate);
         long present = today.values().stream().mapToLong(p -> safe(p.getPresentCount())).sum();
         long absent = today.values().stream().mapToLong(p -> safe(p.getAbsentCount())).sum();
         long late = today.values().stream().mapToLong(p -> safe(p.getLateCount())).sum();
         long marked = today.values().stream().mapToLong(p -> safe(p.getTotalCount())).sum();
 
         LocalDate yearStart = currentAcademicStart(targetDate);
-        Map<Long, StudentDailyAttendanceRepository.StudentAttendanceAggregateProjection> ytd =
-                attendanceSummaryByStudent(studentIds, yearStart, targetDate);
+        Map<Long, StudentDailyAttendanceRepository.StudentAttendanceAggregateProjection> ytd = attendanceSummaryByStudent(
+                studentIds, yearStart, targetDate);
 
         List<TeacherHomeroomResponseDto.AtRiskStudent> atRiskStudents = students.stream()
                 .map(student -> {
-                    StudentDailyAttendanceRepository.StudentAttendanceAggregateProjection agg = ytd.get(student.getId());
+                    StudentDailyAttendanceRepository.StudentAttendanceAggregateProjection agg = ytd
+                            .get(student.getId());
                     long p = agg == null ? 0L : safe(agg.getPresentCount());
                     long t = agg == null ? 0L : safe(agg.getTotalCount());
                     BigDecimal pct = percent(p, t);
                     long consecutiveAbsences = consecutiveAbsences(student.getId());
                     return TeacherHomeroomResponseDto.AtRiskStudent.builder()
                             .studentUuid(student.getUuid())
-                            .name(fullName(student.getUserProfile().getFirstName(), student.getUserProfile().getLastName()))
+                            .name(fullName(student.getUserProfile().getFirstName(),
+                                    student.getUserProfile().getLastName()))
                             .attendancePercentage(pct)
                             .consecutiveAbsences(consecutiveAbsences)
                             .build();
                 })
-                .filter(item -> item.getAttendancePercentage().compareTo(BigDecimal.valueOf(75)) < 0 || item.getConsecutiveAbsences() >= 3)
+                .filter(item -> item.getAttendancePercentage().compareTo(BigDecimal.valueOf(75)) < 0
+                        || item.getConsecutiveAbsences() >= 3)
                 .sorted(Comparator
                         .comparing(TeacherHomeroomResponseDto.AtRiskStudent::getAttendancePercentage)
-                        .thenComparing(TeacherHomeroomResponseDto.AtRiskStudent::getConsecutiveAbsences, Comparator.reverseOrder()))
+                        .thenComparing(TeacherHomeroomResponseDto.AtRiskStudent::getConsecutiveAbsences,
+                                Comparator.reverseOrder()))
                 .limit(10)
                 .toList();
 
@@ -442,10 +475,11 @@ public class TeacherDashboardServiceImpl implements TeacherDashboardService {
                 .className(homeroom.getAcademicClass().getName())
                 .sectionUuid(homeroom.getUuid())
                 .sectionName(homeroom.getSectionName())
-                .defaultRoom(homeroom.getDefaultRoom() == null ? null : TeacherHomeroomResponseDto.DefaultRoom.builder()
-                        .uuid(homeroom.getDefaultRoom().getUuid())
-                        .roomName(homeroom.getDefaultRoom().getName())
-                        .build())
+                .defaultRoom(homeroom.getDefaultRoom() == null ? null
+                        : TeacherHomeroomResponseDto.DefaultRoom.builder()
+                                .uuid(homeroom.getDefaultRoom().getUuid())
+                                .roomName(homeroom.getDefaultRoom().getName())
+                                .build())
                 .studentCount(students.size())
                 .todayAttendance(TeacherHomeroomResponseDto.TodayAttendance.builder()
                         .present(present)
@@ -461,7 +495,8 @@ public class TeacherDashboardServiceImpl implements TeacherDashboardService {
 
     private Staff resolveStaffFromCurrentUser(Long currentUserId) {
         return staffRepository.findByUserProfile_User_Id(currentUserId)
-                .orElseThrow(() -> new EdusyncException("Authenticated user is not linked to a staff profile", HttpStatus.FORBIDDEN));
+                .orElseThrow(() -> new EdusyncException("Authenticated user is not linked to a staff profile",
+                        HttpStatus.FORBIDDEN));
     }
 
     private boolean isClassTeacher(Long staffId, Section section) {
@@ -478,15 +513,16 @@ public class TeacherDashboardServiceImpl implements TeacherDashboardService {
     private Map<Long, StudentDailyAttendanceRepository.StudentAttendanceAggregateProjection> attendanceSummaryByStudent(
             List<Long> studentIds,
             LocalDate startDate,
-            LocalDate endDate
-    ) {
+            LocalDate endDate) {
         if (studentIds == null || studentIds.isEmpty()) {
             return Map.of();
         }
         return studentDailyAttendanceRepository
                 .summarizeAttendanceForStudents(studentIds, startDate, endDate)
                 .stream()
-                .collect(Collectors.toMap(StudentDailyAttendanceRepository.StudentAttendanceAggregateProjection::getStudentId, Function.identity()));
+                .collect(Collectors.toMap(
+                        StudentDailyAttendanceRepository.StudentAttendanceAggregateProjection::getStudentId,
+                        Function.identity()));
     }
 
     private BigDecimal percent(long numerator, long denominator) {

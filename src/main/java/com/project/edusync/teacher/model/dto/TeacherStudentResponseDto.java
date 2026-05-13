@@ -10,8 +10,10 @@ import java.util.UUID;
 @Builder
 public class TeacherStudentResponseDto {
     private UUID uuid;
+    private Long studentId;
     private String firstName;
     private String lastName;
+    private int unreadCount;
     private String profileUrl;
     private String enrollmentNo;
     private String rollNumber;
@@ -26,4 +28,3 @@ public class TeacherStudentResponseDto {
     private long totalAbsent;
     private long totalWorkingDays;
 }
-
