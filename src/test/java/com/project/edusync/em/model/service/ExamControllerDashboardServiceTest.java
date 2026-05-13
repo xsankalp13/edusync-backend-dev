@@ -54,10 +54,10 @@ class ExamControllerDashboardServiceTest {
             .thenReturn(List.of(notStarted, inProgress, completed));
 
         ExamSchedule schedule = new ExamSchedule();
-        schedule.setExamDate(LocalDate.now());
+        schedule.setExamDate(LocalDate.now().plusDays(1));
         Timeslot timeslot = new Timeslot();
-        timeslot.setStartTime(LocalTime.now().minusMinutes(10));
-        timeslot.setEndTime(LocalTime.now().plusMinutes(50));
+        timeslot.setStartTime(LocalTime.of(10, 0));
+        timeslot.setEndTime(LocalTime.of(12, 0));
         schedule.setTimeslot(timeslot);
 
         when(examScheduleRepository.findByExamIdWithDetails(99L)).thenReturn(List.of(schedule));
